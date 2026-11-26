@@ -27,6 +27,7 @@ import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel }
 import { Compass, PHENO_INFO } from './ui/compass.js';
 import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
+import { buildDormant } from './world/dormant.js';
 import { VOX } from './world/voxcol.js';
 import { TSUNAMI_ZONE } from './world/tsunami.js';
 import { zoneRules } from './game/zones.js';
@@ -134,6 +135,7 @@ const birds = buildBirds(scene, terrain);
 const flags = buildFlags(scene);
 buildLamps(scene);
 const life = buildLife(scene, terrain, net);
+buildDormant(scene, interact);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
@@ -405,7 +407,7 @@ function openShop() {
   for (const it of SHOP) {
     const owned = !!S.owned[it.id], locked = it.needs && !S.owned[it.needs];
     const row = document.createElement('div'); row.className = 'item' + (owned ? ' owned' : '');
-    row.innerHTML = `<div class="ic">${it.icon}</div><div><b>${it.name}</b><small>${it.desc}</small></div>`;
+    row.innerHTML = `<div class="demo" data-demo="${it.id}"><small class="demo-cap"></small></div><div><b>${it.icon} ${it.name}</b><small>${it.desc}</small></div>`;
     const b = document.createElement('button');
     b.textContent = owned ? 'Acquis' : locked ? 'Verrouillé' : `${it.price} ◈`;
     b.disabled = owned || locked;
@@ -421,6 +423,7 @@ function openShop() {
     row.appendChild(b); list.appendChild(row);
   }
   ui.openPanel('shop');
+  import('./ui/previews.js').then(m => m.attachPreviews(list, () => ui.panel === 'shop'));   // démos animées (rendu seulement boutique ouverte)
 }
 
 // ------------------------------------------------------------------ Carte
@@ -461,18 +464,18 @@ const _lw = new THREE.Vector3();
 const FUEL_SACK = { coal: { icon: '⚫', name: 'le sac de charbon', amount: 8 }, water: { icon: '💧', name: 'le seau d\'eau', amount: 25 } };
 function fuelSackIdx() { return player.bag.findIndex(b => b.fuel); }
 function bagFuelName() { const b = player.bag.find(x => x.fuel); return b ? FUEL_SACK[b.fuel].name : ''; }
-// Verse tous les sacs/seaux du sac dans le tender ; renvoie true si quelque chose a été versé
+// Verse tous les sacs/seaux du sac dans le wagon à charbon ; renvoie true si quelque chose a été versé
 function pourFuelSacks() {
   if (!S.owned.vapeur) return false;
   let did = false;
   for (let i = player.bag.length - 1; i >= 0; i--) {
     const b = player.bag[i]; if (!b.fuel) continue;
     const full = b.fuel === 'coal' ? train.coal >= train.maxCoal : train.water >= train.maxWater;
-    if (full) { ui.toast(b.fuel === 'coal' ? 'Le tender à charbon est déjà plein.' : 'Le réservoir est déjà plein.'); audio.deny(); continue; }
+    if (full) { ui.toast(b.fuel === 'coal' ? 'Le wagon à charbon est déjà plein.' : 'Le réservoir est déjà plein.'); audio.deny(); continue; }
     if (b.fuel === 'coal') train.coal = Math.min(train.maxCoal, train.coal + b.amount); else train.water = Math.min(train.maxWater, train.water + b.amount);
     player.bag.splice(i, 1); did = true;
     if (b.fuel === 'coal') audio.shovel(); else { audio.setMelt(1); setTimeout(() => audio.setMelt(0), 700); }
-    ui.toast(b.fuel === 'coal' ? `+${b.amount} charbon dans le tender` : `+${b.amount} eau dans le réservoir`);
+    ui.toast(b.fuel === 'coal' ? `+${b.amount} charbon dans le wagon à charbon` : `+${b.amount} eau dans le réservoir`);
   }
   if (did) { ui.bag(player.bag, player.bagMax); checkFuel(); }
   return did;
@@ -481,7 +484,7 @@ function interactLabel(it, cur) {
   const far = !trainNear(it.pos, FUEL_R);
   if (it.id === 'coal') {
     if (!S.owned.vapeur) return 'Charbonnière — pas de loco à vapeur (Comptoir) : [E] pour en savoir plus';
-    return far ? '[E] Prendre un sac de charbon (le train est loin) — à verser dans le tender' : '[E] Charger 10 charbon dans le tender';
+    return far ? '[E] Prendre un sac de charbon (le train est loin) — à verser dans le wagon à charbon' : '[E] Charger 10 charbon dans le wagon à charbon';
   }
   if (it.id === 'water') {
     if (!S.owned.vapeur) return 'Château d\'eau — pas de loco à vapeur (Comptoir) : [E] pour en savoir plus';
@@ -492,7 +495,7 @@ function interactLabel(it, cur) {
   return cur;
 }
 function takeFuelSack(kind) {
-  if (player.bag.length >= player.bagMax) { ui.toast('Sac plein ! Revends au Comptoir ou verse ton sac dans le tender.'); audio.deny(); return; }
+  if (player.bag.length >= player.bagMax) { ui.toast('Sac plein ! Revends au Comptoir ou verse ton sac dans le wagon à charbon.'); audio.deny(); return; }
   const f = FUEL_SACK[kind];
   player.bag.push({ icon: f.icon, value: 0, fuel: kind, amount: f.amount }); ui.bag(player.bag, player.bagMax);
   if (kind === 'coal') audio.shovel(); else { audio.setMelt(1); setTimeout(() => audio.setMelt(0), 700); }
@@ -518,8 +521,8 @@ function handleFootInteract() {
   if (it?.id === 'iceblock' && S.sheriff === 'ice') label = (S.owned.chalumeau ? '[F] maintenir : faire fondre la glace' : 'Un robot figé… il faut un chalumeau');
   if (it) label = interactLabel(it, label);
   const sackNear = fuelSackIdx() >= 0 && S.owned.vapeur && train.head && train.loco.getWorldPosition(_lw).distanceTo(player.pos) < 9;
-  if (sackNear && dCab >= 5 && (!it || it.id === 'coal' || it.id === 'water')) label = `[E] Verser ${bagFuelName()} ${player.bag.find(x => x.fuel)?.fuel === 'water' ? 'dans le réservoir' : 'dans le tender'}`;
-  else if (sackNear && dCab < 5) label = '[E] Monter en cabine (verse le sac dans le tender)';
+  if (sackNear && dCab >= 5 && (!it || it.id === 'coal' || it.id === 'water')) label = `[E] Verser ${bagFuelName()} ${player.bag.find(x => x.fuel)?.fuel === 'water' ? 'dans le réservoir' : 'dans le wagon à charbon'}`;
+  else if (sackNear && dCab < 5) label = '[E] Monter en cabine (verse le sac dans le wagon à charbon)';
   for (const r of remotes.values()) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5 && dCab >= 5) label = `[E] Monter dans le train de ${r.name}`;
   ui.prompt(label);
 
@@ -582,10 +585,11 @@ function collectFind(i) {
   refreshFinds(); addCredits(50, 'trouvaille exposée au Hall');
 }
 function useInteract(it) {
+  if (it.id === 'dormant') { ui.say([{ who: 'OCTAVE', icon: '◈', color: '#ffb347', beep: 900, text: `${it.label.split(' — ')[0]} : ${it.info}. Ce bâtiment dort depuis le Déraillement. Il se réveillera quand un gardien rentrera chez lui.` }]); return; }
   if (it.id === 'shop') return openShop();
   if (it.id === 'coal') {
     if (!S.owned.vapeur) { ui.toast('La Charbonnière alimente les locomotives à vapeur. Achète-en une au Comptoir du Moyeu.'); audio.deny(); return; }
-    if (trainNear(it.pos, FUEL_R)) { if (train.coal >= train.maxCoal) { ui.toast('Tender plein.'); audio.deny(); return; } train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
+    if (trainNear(it.pos, FUEL_R)) { if (train.coal >= train.maxCoal) { ui.toast('Le wagon à charbon est plein.'); audio.deny(); return; } train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
     return takeFuelSack('coal');
   }
   if (it.id === 'water') {
@@ -722,7 +726,7 @@ function frame() {
     if (input.a('back')) tin.throttle = -1;
     tin.brake = input.a('jump');
     if (train.kind === 'draisine') tin.pump = input.ah('action');
-    else if (input.ah('action')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Tender vide ! Charbonnière du Moyeu.'); } }
+    else if (input.ah('action')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Wagon à charbon vide ! Recharge à la Charbonnière du Moyeu.'); } }
     if (input.ah('left')) { train.nudgePref(-1); audio.clunk(); }   // aiguillage : A = à gauche (par rapport au sens de marche), D = à droite, la touche opposée revient tout droit
     if (input.ah('right')) { train.nudgePref(1); audio.clunk(); }
     if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }

@@ -171,3 +171,13 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 #oxy > div { flex: 1; height: 8px; background: #2a2018; border-radius: 4px; overflow: hidden; } #b-oxy { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4a, #5fe0ff); transition: width .2s; }
 #oxy small { width: 100%; text-align: center; font-size: 11px; font-weight: 400; color: #f6e9d0; text-shadow: 0 1px 3px #000; }
 #oxy.low { animation: shiver .25s infinite; } #oxy.low small { color: #ff8a6a; }
+
+/* Comptoir : démos animées */
+#shop { width: min(780px, calc(100vw - 32px)); }
+#shop .item { grid-template-columns: 156px 1fr auto; align-items: start; }
+#shop .item > div:nth-child(2) { align-self: center; }
+#shop .item > button { align-self: center; }
+.demo { width: 156px; }
+.demo-cv { display: block; width: 150px; height: 100px; box-sizing: content-box; border: 3px solid #d2a24c; border-radius: 12px; background: #241a12; box-shadow: 0 0 0 1px #5a3d14, inset 0 0 12px #000a, 0 2px 8px #0008; }
+.demo-cap { display: block; margin-top: 4px; font-size: 11px; line-height: 1.25; opacity: .8; text-align: center; }
+@media (max-width: 560px) { #shop .item { grid-template-columns: 156px 1fr; } #shop .item > button { grid-column: 1 / -1; } }

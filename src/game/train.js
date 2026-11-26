@@ -7,7 +7,7 @@ export const LOCOS = {
   vapeur:   { name: 'Vapeur « Vieille-Bouilloire »', maxSpeed: 26, accel: 3.2, needsFuel: true },
 };
 export const WAGON_TYPES = {
-  charbon:  { name: 'Tender à charbon', color: '#2a2a2a', price: 0 },
+  charbon:  { name: 'Wagon à charbon', color: '#2a2a2a', price: 0 },
   stockage: { name: 'Wagon-stockage', color: '#7a4a24', price: 40 },
   vitrine:  { name: 'Wagon-vitrine', color: '#c9a25a', price: 80 },
   dortoir:  { name: 'Wagon-dortoir', color: '#3a5a7a', price: 60 },

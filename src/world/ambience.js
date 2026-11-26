@@ -63,7 +63,7 @@ export function buildGrass(scene, terrain, net, density = 1) {
       const s = 0.7 + rnd() * 1.1;
       M.compose(new THREE.Vector3(x, terrain.heightAt(x, z), z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(s, s, s)); inst.setMatrixAt(c, M); inst.setColorAt(c, tint.setScalar(0.8 + rnd() * 0.4)); c++;
     }
-    inst.count = c; inst.receiveShadow = true; scene.add(inst);
+    inst.count = c; inst.receiveShadow = true; inst.userData.passable = true; scene.add(inst);
   };
   spread(grassTuftGeometry('#7a6228', '#d8bc6a', 1.0, 10, 1, true), FLORA_MAT_DS, 4, 3200, 120, true);
   spread(grassTuftGeometry('#6a5a28', '#b09a50', 0.65, 9, 2), FLORA_MAT_DS, 4, 1600, 120, true);

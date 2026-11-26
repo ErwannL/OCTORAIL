@@ -90,6 +90,8 @@ export function buildWestern(scene, terrain, net, interact) {
     const b = buildWesternBuilding(names[k], w, h, d, pal[k], textSprite, kinds[k]);
     b.userData.bw = w; b.userData.bd = d;
     b.position.set(side * 14, 0, -26 - row * 14); b.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    // fondation en pierre qui descend dans le sol : jamais de bâtiment sur pilotis au-dessus du vide
+    { const f = new THREE.Mesh(new THREE.BoxGeometry(w + 1.2, 4, d + 5.5), M('#8a6a4a', { roughness: 0.95 })); f.position.set(0, -2 + 0.02, 1.8); b.add(f); }
     b.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     town.add(b);
   }

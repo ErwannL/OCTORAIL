@@ -65,7 +65,7 @@ export function buildLife(scene, terrain, net, envGetter) {
       const wm = new THREE.Mesh(wisp, FLORA_MAT); g.add(wm); scene.add(g);
       const o = { g, wm, home: new THREE.Vector3(s.x, s.y, s.z), h: 2 + rnd() * 10, ph: rnd() * 20, drift: 15 + rnd() * 30, sp: 0.05 + rnd() * 0.08 };
       // botte posée au sol (on ne fait plus flotter le foin)
-      o.g.position.set(o.home.x, terrain.heightAt(o.home.x, o.home.z) + 0.45, o.home.z); o.g.rotation.set(0, o.ph, 0); o.wm.visible = false;
+      { if (!bales[i % 4].boundingBox) bales[i % 4].computeBoundingBox(); o.g.position.set(o.home.x, terrain.heightAt(o.home.x, o.home.z) - bales[i % 4].boundingBox.min.y - 0.05, o.home.z); } o.g.rotation.set(0, o.ph, 0); o.wm.visible = false;
     }
     // bottes posées au sol aussi
     const Ls = [[], [], [], []]; for (let i = 0; i < 60; i++) { const s = nearTrack(4, 7, 40); if (!s) continue; const v = i % 4; Ls[v].push(M4(s.x, s.y + (v < 2 ? 0.45 : 0.68), s.z, rnd() * 6, 1)); COLLIDERS.circle(s.x, s.z, v < 2 ? 0.9 : 0.75, s.y + (v < 2 ? 0.9 : 1.3)); }

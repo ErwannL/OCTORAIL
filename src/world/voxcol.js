@@ -105,7 +105,7 @@ export class VoxelCollision {
       if (Math.max(size.x, size.y, size.z) > 1500) return; // ciel, dômes géants
       if (o.isInstancedMesh) {
         // herbes, cailloux, fleurs, traverses : trop bas/petits pour gêner -> ignorés
-        if (size.y < 0.45 || (size.y < 1.1 && Math.max(size.x, size.z) < 1.1)) return;
+        if (size.y < 0.45 || (size.y < 1.6 && Math.max(size.x, size.z) < 1.4) || o.userData.passable) return; // herbes, touffes, buissons bas : on passe à travers
         const few = o.count <= 40; // objets rares (arbres du Moyeu…) : géométrie complète, couronne comprise
         const fill = !!o.userData.solidFill;
         const smp = (few || fill) ? VoxelCollision.samplesFull(geo, fill ? 0.4 : 0.25) : VoxelCollision.samples(geo, 0.3);

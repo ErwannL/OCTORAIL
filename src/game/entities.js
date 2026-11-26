@@ -90,7 +90,7 @@ export class Nuggets {
         n.yaw += ((Math.atan2(n.flee.x, n.flee.z) - n.yaw + PI * 3) % (PI * 2) - PI) * Math.min(1, dt * 8);
       } else n.yaw += Math.sin(t * 0.7 + n.ph) * dt * 0.8;
       const sp = scared ? 7 : 3, ph = Math.abs(Math.sin(t * sp + n.ph)), air = Math.sin(t * sp + n.ph) > 0;
-      n.m.position.set(n.home.x, n.home.y + 0.4 + ph * (scared ? 1.2 : 0.55), n.home.z);
+      n.m.position.set(n.home.x, n.home.y + 0.32 + ph * (scared ? 0.45 : 0.18), n.home.z); // petits bonds au ras du sol
       n.m.rotation.set(scared && air ? -0.25 : 0, n.yaw, Math.sin(t * sp * 0.5 + n.ph) * 0.12);
       const sq = air ? 1.0 + ph * 0.1 : 1 - (1 - ph) * 0.18;      // étirement en l'air, écrasement à l'atterrissage
       n.m.scale.set(1.15 / Math.sqrt(sq), 1.15 * sq, 1.15 / Math.sqrt(sq));

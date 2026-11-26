@@ -28,6 +28,7 @@ import { Compass, PHENO_INFO } from './ui/compass.js';
 import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
+import { Footprints } from './game/footprints.js';
 import { VOX } from './world/voxcol.js';
 import { TSUNAMI_ZONE } from './world/tsunami.js';
 import { zoneRules } from './game/zones.js';
@@ -136,6 +137,7 @@ const flags = buildFlags(scene);
 buildLamps(scene);
 const life = buildLife(scene, terrain, net);
 buildDormant(scene, interact);
+const footprints = new Footprints(scene, terrain);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
@@ -823,7 +825,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
+  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 
@@ -1032,7 +1034,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { VOX, THREE, collExclude, updateCamera, camBlocked, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
+window.__oct = { footprints, VOX, THREE, collExclude, updateCamera, camBlocked, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

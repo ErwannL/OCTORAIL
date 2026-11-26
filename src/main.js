@@ -29,6 +29,7 @@ import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
 import { Footprints } from './game/footprints.js';
+import { buildDragons } from './world/dragons.js';
 import { VOX } from './world/voxcol.js';
 import { TSUNAMI_ZONE } from './world/tsunami.js';
 import { zoneRules } from './game/zones.js';
@@ -149,6 +150,7 @@ console.log(`Monde généré en ${Math.round(performance.now() - t0)} ms`);
 
 const smoke = new Particles(scene, 900, { gravity: 1.2, drag: 0.6, grow: 3 });
 const sparks = new Particles(scene, 600, { additive: true, gravity: -14, drag: 0.4, grow: 0 });
+const dragons = buildDragons(scene, terrain, { sparks, smoke });
 const steam = new Particles(scene, 400, { gravity: 2, drag: 1.2, grow: 2.5 });
 const weather = new Weather(scene); weather.setDensity(Q.weather);
 
@@ -931,7 +933,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); grade.uniforms.time.value = time % 10;
+  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08); hubBubble.material.uniforms.time.value = time % 1000;
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 

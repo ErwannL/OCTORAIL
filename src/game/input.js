@@ -15,7 +15,7 @@ export class Input {
         f(list[list.length - 1]); return;
       }
       for (const c of list) press(c);
-      if (e.key === 'F1' || e.key === '?') { e.preventDefault(); this.pressed.add('Help'); }
+      if (e.key === '?') { e.preventDefault(); this.pressed.add('Help'); }
       if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'F1'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', e => { for (const c of this.derived.get(e.code) || [e.code]) this.keys.delete(c); this.keys.delete(e.code); });
@@ -25,7 +25,7 @@ export class Input {
     document.addEventListener('pointerlockchange', () => {
       const was = this.mouse.locked;
       this.mouse.locked = document.pointerLockElement === dom;
-      this.skip = 3; // ignore les premiers mouvements (sauts parasites à la capture)
+      this.skip = 1; // ignore les premiers mouvements (sauts parasites à la capture)
       this.mouse.dx = 0; this.mouse.dy = 0;
       if (this.mouse.locked) this.lockFailed = false;
       else if (was) this.lastUnlock = performance.now();
@@ -39,7 +39,8 @@ export class Input {
       if (!this.mouse.locked && !dragging) return;
       if (this.skip > 0) { this.skip--; return; }
       const dx = e.movementX || 0, dy = e.movementY || 0;
-      if (Math.abs(dx) > 120 || Math.abs(dy) > 120) { this.spikes = (this.spikes || 0) + 1; return; }
+      // à bas FPS le navigateur regroupe les mouvements d'une image : on n'écarte que les vrais sauts aberrants
+      if (Math.abs(dx) > 1500 || Math.abs(dy) > 1500) { this.spikes = (this.spikes || 0) + 1; return; }
       this.mouse.dx += dx; this.mouse.dy += dy;
     });
     this.wheel = 0;

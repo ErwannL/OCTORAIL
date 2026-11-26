@@ -98,7 +98,7 @@ export class VoxelCollision {
       if (!o.isMesh || o.isPoints || o.isLine || o.isSprite) return;
       if (skip(o)) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      if (mats.every(mt => !mt || (mt.transparent && mt.opacity < 0.35) || mt.blending === THREE.AdditiveBlending || mt.wireframe)) return;
+      if (mats.every(mt => !mt || (mt.transparent && mt.opacity < 0.2) || mt.blending === THREE.AdditiveBlending || mt.wireframe)) return;
       const geo = o.geometry; if (!geo?.attributes?.position) return;
       if (!geo.boundingBox) geo.computeBoundingBox();
       geo.boundingBox.getSize(size);

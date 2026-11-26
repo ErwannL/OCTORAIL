@@ -28,13 +28,13 @@ export class UI {
     $('d-next').textContent = `▼ [${L('interact')}] / clic`;
     for (const b of document.querySelectorAll('#shop .close')) b.textContent = `Fermer [${L('pause')}]`;
     for (const b of document.querySelectorAll('#map .close')) b.textContent = `Fermer [${L('map')}]`;
-    $('title-hint').innerHTML = `Souris : regarder (clic pour capturer, ou maintenir clic droit) · ${mv} : bouger · ${L('interact')} : interagir · ${L('map')} : carte · ${L('whistle')} : sifflet · ${L('pause')} : pause · F1 : aide`;
+    $('title-hint').innerHTML = `Souris : regarder (clic pour capturer, ou maintenir clic droit) · ${mv} : bouger · ${L('interact')} : interagir · ${L('map')} : carte · ${L('whistle')} : sifflet · ${L('pause')} : pause · ${L('help')} : aide`;
     $('help-body').innerHTML = [
       ['Regarder', 'Souris · flèches · clic droit'],
       ['Se déplacer', mv],
       ['Sauter / frein', L('jump')], ['Courir', L('run')], ['Interagir · monter/descendre', L('interact')],
       ['Pomper · pelleter · miner · fondre', L('action')], ['Sifflet', L('whistle')], ['Plan du réseau', L('map')], ['Pause / réglages', actionLabel(keys, 'pause', true)],
-      ['En cabine', `${L('forward')}/${L('back')} régulateur · ${L('left')}/${L('right')} aiguillage`], ['Aide', 'F1 ou ?'],
+      ['En cabine', `${L('forward')}/${L('back')} régulateur · ${L('left')}/${L('right')} aiguillage`], ['Aide', `${L('help')} ou ?`],
     ].map(([a, b]) => `<div><span>${a}</span><kbd>${b}</kbd></div>`).join('');
     this.cabSteam = null; $('objective').querySelector('#obj-text').dataset.h = '';
     this.lastPrompt = null;

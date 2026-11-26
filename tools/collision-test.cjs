@@ -12,16 +12,7 @@ const { chromium } = require('playwright');
   console.log(logs.filter(l => /Collision|PAGEERR/.test(l)).join('\n'));
   const REG = await p.evaluate(() => { const o = __oct; const c = o.hub.machines.coal.position, pd = o.western.pedestal, ib = o.gelure.iceBlockPos;
     return [
-      { name: 'Moyeu centre', x: 12, z: 0, rad: 50, steps: 1600 },
-      { name: 'Moyeu Charbonnière', x: c.x * 0.85, z: c.z * 0.85, rad: 12, steps: 900 },
-      { name: 'Moyeu quai Ouest', x: -55, z: 6, rad: 14, steps: 900 },
-      { name: 'Moyeu quai Nord', x: 6, z: -55, rad: 14, steps: 700 },
-      { name: 'Moyeu Hall', x: -27, z: 12, rad: 12, steps: 700 },
-      { name: 'Moyeu Comptoir', x: 9, z: -27, rad: 10, steps: 700 },
-      { name: 'Moyeu bord/rambarde', x: 0, z: 44, rad: 10, steps: 700 },
-      { name: 'Ville western', x: pd.x + (0 - pd.x) * 0.03, z: pd.z + (0 - pd.z) * 0.03, rad: 45, steps: 1600 },
-      { name: 'Gelure bloc', x: ib.x + 6, z: ib.z + 6, rad: 35, steps: 800 },
-
+      { name: 'Dôme des capsules (verre inclus)', x: 0, z: 0, rad: 9.5, steps: 2000 },
     ]; });
   const res = await p.evaluate((regions) => {
     const o = __oct, T = o.THREE, P = o.player;
@@ -33,7 +24,7 @@ const { chromium } = require('playwright');
       if (!m.isMesh || m.isPoints) return;
       for (let q = m; q; q = q.parent) if (o.collExclude.has(q) || q.userData.noCollide || q.onBeforeRender.toString().length > 20) return;
       const mats = Array.isArray(m.material) ? m.material : [m.material];
-      if (mats.every(mt => (mt.transparent && mt.opacity < 0.35) || mt.blending === T.AdditiveBlending || mt.wireframe)) return;
+      if (mats.every(mt => (mt.transparent && mt.opacity < 0.2) || mt.blending === T.AdditiveBlending || mt.wireframe)) return;
       if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
       if (m.geometry.boundingSphere.radius > 1500) return;
       mats.forEach(mt => mt.side = T.DoubleSide);

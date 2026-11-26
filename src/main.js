@@ -696,7 +696,7 @@ function frame() {
 
   // Échap : si le navigateur vient de libérer la souris (même appui), on ne referme pas le menu aussitôt
   if (input.ah('pause') && !(performance.now() - input.lastUnlock < 300 && ui.panel === 'pause')) { if (ui.panel) { ui.closePanels(); input.wantLock = true; } else if (!cinematic && !ui.dialogOpen) openPause(); }
-  if (input.hit('Help')) ui.toggleHelp();
+  if (input.hit('Help') || input.ah('help')) ui.toggleHelp();
   updateLockHint();
   if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
   if (ui.panel === 'map') drawMap();
@@ -802,7 +802,7 @@ function frame() {
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
   westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
-  signals.update(train, time); // rubans de guidage d'aiguillage + lampes de signal
+  signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 
   // --- distants
   for (const r of remotes.values()) {

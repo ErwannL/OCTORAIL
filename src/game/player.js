@@ -168,7 +168,7 @@ export class Player {
   look(input, sens = 1, inv = false, smooth = false) {
     // sensibilité : 0,0016 rad/pixel × réglage, mouvement par image plafonné (anti-toupie)
     const k = 0.0016 * sens;
-    let dx = Math.max(-300, Math.min(300, input.mouse.dx)), dy = Math.max(-300, Math.min(300, input.mouse.dy));
+    let dx = Math.max(-1500, Math.min(1500, input.mouse.dx)), dy = Math.max(-1500, Math.min(1500, input.mouse.dy));
     // lissage : on écoule une fraction du mouvement accumulé à chaque image (aucune rotation perdue)
     const b = this._lookBuf || (this._lookBuf = { x: 0, y: 0 });
     b.x += dx; b.y += dy;

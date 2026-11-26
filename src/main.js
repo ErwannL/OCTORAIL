@@ -112,10 +112,11 @@ const t0 = performance.now();
 const net = new Network(7);
 net.applyHeights(rawHeight);
 const terrain = new Terrain(net);
-{ // la ville est posée à plat : on aplanit le terrain autour du terminus Ouest
-  const T = net.nodes.get('T4'), e = net.edges.find(x => x.b === 'T4' || x.a === 'T4'), pts = e.pts, end = e.b === 'T4' ? pts[pts.length - 1] : pts[0], prev = e.b === 'T4' ? pts[pts.length - 40] : pts[39];
+{ // la ville est posée à plat : on aplanit tout le terrain sous la ville (de l'arche au piédestal)
+  const e = net.edges.find(x => x.b === 'T4') || net.edges.find(x => x.a === 'T4'), pts = e.pts, atB = e.b === 'T4';
+  const end = atB ? pts[pts.length - 1] : pts[0], prev = atB ? pts[pts.length - 26] : pts[25];
   const dx = prev.x - end.x, dz = prev.z - end.z, L = Math.hypot(dx, dz) || 1;
-  terrain.flatten({ x: end.x + dx / L * 40, z: end.z + dz / L * 40, r: 78, fall: 45, y: end.y - 0.75 });
+  terrain.flatten({ x: end.x + dx / L * 45, z: end.z + dz / L * 45, r: 85, fall: 50, y: rawHeight(end.x, end.z) * 0 + end.y - 0.75 });
 }
 terrain.build(scene);
 buildTracks(scene, net);
@@ -1034,7 +1035,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { footprints, VOX, THREE, collExclude, updateCamera, camBlocked, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
+window.__oct = { footprints, terrainRef: terrain, VOX, THREE, collExclude, updateCamera, camBlocked, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

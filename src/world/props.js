@@ -8,6 +8,7 @@ import { buildWesternBuilding } from './buildings.js';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { COLLIDERS } from './colliders.js';
 import { buildTsunami } from './tsunami.js';
+import { heightSpread, overlapsSolid } from './placement.js';
 
 const PI = Math.PI, H = Math.PI / 2;
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
@@ -29,6 +30,10 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
     const near = net.nearest(x, z, (opts.clear ?? 9) + fp + 3) || (fp > 6 && net.nearest(x, z, Math.min(200, fp * 2 + 10)));
     if (near) continue;
     const sc = sc0;
+    // pas de pente sous l'emprise (sinon l'objet est à moitié enterré ou en porte-à-faux) ni de chevauchement avec un volume déjà posé
+    const ground = terrain.heightAt(x, z);
+    if (heightSpread(terrain, x, z, Math.max(0.5, Math.min(fp, 7))) > (opts.slopeMax ?? Math.max(0.8, Math.min(fp, 7) * 0.3))) continue;
+    if (!opts.noBlock && COLLIDERS.blocked(x, ground + 0.3, z, Math.min(fp, 10) * 0.8)) continue;
     p.set(x, terrain.heightAt(x, z) + (opts.yOff ?? 0) * sc, z);
     q.setFromEuler(new THREE.Euler(opts.tilt ? (rnd() - 0.5) * opts.tilt : 0, rnd() * Math.PI * 2, opts.tilt ? (rnd() - 0.5) * opts.tilt : 0));
     s.set(sc, sc * (opts.yStretch ? 0.6 + rnd() * opts.yStretch : 1), sc);
@@ -62,12 +67,12 @@ export function mergeSimple(arr) {
 
 export function buildWestern(scene, terrain, net, interact) {
   const rnd = mulberry(99);
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 7, [4], mesaGeometry(v + 1), FLORA_MAT, { rMin: 200, sMin: 1.5, sMax: 3.8, yOff: 4.2, collide: 3.6, collideTop: 9, shadow: true, slopeMax: 2.5 }); // buttes stratifiées : posées EN PREMIER (les autres objets les évitent)
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 90, [4], saguaroGeometry(v), FLORA_MAT, { shadow: true, sMin: 0.7, sMax: 1.6, collide: 0.6 });
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], pricklyPearGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.4, collide: 0.7, collideTop: 1.6 });
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], barrelCactusGeometry(v), FLORA_MAT, { sMin: 0.6, sMax: 1.3, collide: 0.6, collideTop: 1.0 });
   for (let v = 0; v < 4; v++) scatter(scene, terrain, net, rnd, 110, [4], rockShapeGeometry(v + 20, 'strata'), FLORA_MAT, { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.25, yOff: 0.3, collide: 0.9, collideTop: 0.7, shadow: v === 0 });
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], sageGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.5 }); // armoises et buissons secs
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 7, [4], mesaGeometry(v + 1), FLORA_MAT, { rMin: 200, sMin: 1.5, sMax: 3.8, yOff: 4.2, collide: 3.6, collideTop: 9, shadow: true }); // buttes stratifiées
 
   // Ville : Poussière-sur-Rail, au terminus Ouest
   const T = net.nodes.get('T4');

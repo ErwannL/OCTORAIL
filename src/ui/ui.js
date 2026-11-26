@@ -72,8 +72,9 @@ export class UI {
     $('b-pump').style.width = ((tr.pumpPower || 0) * 100) + '%';
     const ex = tr.upcomingExits();
     $('switch').style.opacity = ex.length > 1 ? 1 : 0.45;
-    $('sw').textContent = tr.pref === 0 ? 'TOUT DROIT' : 'BIFURCATION';
-    $('sw').style.color = tr.pref === 0 ? 'var(--good)' : 'var(--warn)';
+    const swT = tr.switchText ? tr.switchText() : (tr.pref === 0 ? 'TOUT DROIT' : 'BIFURCATION');
+    $('sw').textContent = swT;
+    $('sw').style.color = swT === 'TOUT DROIT' ? 'var(--good)' : 'var(--warn)';
     $('next-node').textContent = ex.length > 1 ? `Aiguillage dans ${Math.round(tr.distToNode())} m` : (ex.length === 0 ? `Butoir dans ${Math.round(tr.distToNode())} m` : '');
     const k = this.keys, L = (a, all) => actionLabel(k, a, all), K = t => `<kbd>${t}</kbd>`;
     const ck = steam

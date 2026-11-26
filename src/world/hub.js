@@ -263,7 +263,7 @@ function coalMachine() {
       }
       im.instanceMatrix.needsUpdate = true;
     };
-    upd(); belt.onBeforeRender = upd;
+    upd(); belt.onBeforeRender = upd; im.onBeforeRender = upd;
   }
   const fly = new THREE.Group(); fly.position.set(-4.4, 1.3, -1);
   const fk = new Kit(); fk.add(G.tor(1.0, 0.12, 6, 28), iron, { r: [0, H, 0] }); for (let i = 0; i < 6; i++) fk.add(G.box(0.08, 1.9, 0.12), iron, { r: [i * PI / 6, 0, 0] });

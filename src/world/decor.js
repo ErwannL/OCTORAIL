@@ -6,6 +6,7 @@ import { COLLIDERS } from './colliders.js';
 import { textSprite } from './tracks.js';
 import { TSUNAMI_ZONE } from './tsunami.js';
 import { rockShapeGeometry } from './flora.js';
+import { goodSpot, flatEnough, overlapsSolid } from './placement.js';
 
 const PI = Math.PI, H = PI / 2;
 
@@ -94,8 +95,14 @@ export function buildTrackside(scene, net, terrain) {
     for (let k = 10; k < e.pts.length - 6; k += every) {
       const a = e.pts[k - 1], b = e.pts[k + 1], p = e.pts[k];
       const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1;
-      const x = p.x + nx / L * 5.2, z = p.z + nz / L * 5.2;
-      if (Math.hypot(x, z) < 75 || TSUNAMI_ZONE.test(x, z, 6)) { prev = null; continue; }
+      // le poteau se décale (6,5 / 8 / 4,2 m) s'il tombe au pied d'une pente ou d'une falaise, sinon il est sauté
+      let x = 0, z = 0, ok = false;
+      for (const off of [5.2, 6.5, 8, 4.2]) {
+        x = p.x + nx / L * off; z = p.z + nz / L * off;
+        if (Math.hypot(x, z) < 75 || TSUNAMI_ZONE.test(x, z, 6)) break;
+        if (goodSpot(terrain, x, z, 0.7, 0.7) && !net.nearest(x, z, off - 1.5)) { ok = true; break; }
+      }
+      if (!ok) { prev = null; continue; }
       const y = terrain.heightAt(x, z);
       const ang = Math.atan2(b.x - a.x, b.z - a.z) + H;
       const sec = sectorIndex(x, z);
@@ -165,11 +172,11 @@ function westWagon() {
 export function buildWesternDecor(scene, terrain, net) {
   const rnd = mulberry(1234); const anim = { windmills: [], tumbles: [] };
   const edges = net.edges.filter(e => e.biome === 4);
-  const spot = (minOff, maxOff) => { for (let t = 0; t < 50; t++) { const e = edges[Math.floor(rnd() * edges.length)]; const k = 10 + Math.floor(rnd() * (e.pts.length - 20)); const p = e.pts[k], a = e.pts[k - 2], b = e.pts[k + 2]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const off = (rnd() < 0.5 ? -1 : 1) * (minOff + rnd() * (maxOff - minOff)); const x = p.x + nx / L * off, z = p.z + nz / L * off; if (sectorIndex(x, z) === 4 && Math.hypot(x, z) > 160 && !net.nearest(x, z, minOff - 2)) return { x, z, y: terrain.heightAt(x, z), ang: Math.atan2(b.x - a.x, b.z - a.z) }; } return null; };
+  const spot = (minOff, maxOff, fp = 1.5, maxDiff = 0.8) => { for (let t = 0; t < 150; t++) { const e = edges[Math.floor(rnd() * edges.length)]; const k = 10 + Math.floor(rnd() * (e.pts.length - 20)); const p = e.pts[k], a = e.pts[k - 2], b = e.pts[k + 2]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const off = (rnd() < 0.5 ? -1 : 1) * (minOff + rnd() * (maxOff - minOff)); const x = p.x + nx / L * off, z = p.z + nz / L * off; if (sectorIndex(x, z) === 4 && Math.hypot(x, z) > 160 && !net.nearest(x, z, minOff - 2) && goodSpot(terrain, x, z, fp, maxDiff)) return { x, z, y: terrain.heightAt(x, z), ang: Math.atan2(b.x - a.x, b.z - a.z) }; } return null; };
   const iron = MAT.iron(), wood = MAT.woodDark(), plank = mat('#8a6a46', { roughness: 0.9 }), cream = mat('#d6c7a4', { roughness: 0.75, side: THREE.DoubleSide }), redM = mat('#9a3a2a', { side: THREE.DoubleSide }), tin = mat('#8d98a0', { metalness: 0.7, roughness: 0.4 });
   // Éoliennes de ranch (animées, la tête s'oriente doucement au vent)
   for (let i = 0; i < 5; i++) {
-    const s = spot(14, 40); if (!s) continue;
+    const s = spot(14, 40, 5.5, 1.2); if (!s) continue;
     const grp = new THREE.Group(), k = new Kit();
     const TH = 11, w0 = 1.5, w1 = 0.6, W = y => w0 + (w1 - w0) * (y / TH);
     for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) beam(k, iron, [x * w0, 0, z * w0], [x * w1, TH, z * w1], 0.13);
@@ -221,7 +228,7 @@ export function buildWesternDecor(scene, terrain, net) {
   // Épaves de wagons renversés, entourés de cargaison éparpillée et de squelettes
   const bone = mat('#efe6d0', { roughness: 0.7 }), dark = mat('#2a2018');
   for (let i = 0; i < 3; i++) {
-    const s = spot(10, 25); if (!s) continue;
+    const s = spot(10, 25, 5, 1.2); if (!s) continue;
     const grp = new THREE.Group(), w = westWagon(); w.rotation.z = 1.42; w.position.set(0.6, 1.3, 0); grp.add(w);
     const k = new Kit(), sand = mat('#d9ad6c', { flatShading: true, roughness: 1 });
     k.add(G.cone(3.2, 1.1, 7), sand, { p: [-1.5, 0.1, -2.5], s: [1.5, 0.6, 1] }); k.add(G.cone(2.6, 0.9, 6), sand, { p: [2.2, 0.0, 3.0], s: [1.4, 0.55, 1.1] });
@@ -235,11 +242,17 @@ export function buildWesternDecor(scene, terrain, net) {
     COLLIDERS.box(s.x + Math.sin(s.ang + 0.4) * 0.6, s.z + Math.cos(s.ang + 0.4) * 0.6, 1.6, 3.1, s.ang + 0.4, s.y + 2.8);
   }
   // Squelettes isolés dans la plaine
-  for (let i = 0; i < 5; i++) { const s = spot(12, 60); if (!s) continue; const sk = new Kit(); bisonSkeleton(sk, bone, dark); const sg = sk.build(); sg.position.set(s.x, s.y, s.z); sg.rotation.set((rnd() - 0.5) * 0.08, rnd() * 6, (rnd() - 0.5) * 0.08); sg.scale.setScalar(1 + rnd() * 0.35); scene.add(sg); }
+  for (let i = 0; i < 5; i++) { const s = spot(12, 60, 2.5, 0.8); if (!s) continue; const sk = new Kit(); bisonSkeleton(sk, bone, dark); const sg = sk.build(); sg.position.set(s.x, s.y, s.z); sg.rotation.set((rnd() - 0.5) * 0.08, rnd() * 6, (rnd() - 0.5) * 0.08); sg.scale.setScalar(1 + rnd() * 0.35); scene.add(sg); }
   // Clôtures de ranch par tronçons (montants pointus, 3 lisses, croix de Saint-André, sections cassées)
   const fk = new Kit(), fw = mat('#7a5232', { roughness: 0.9 }), fw2 = mat('#6a4528', { roughness: 0.95 }), wire = mat('#3a3a3a', { metalness: 0.6, roughness: 0.5 });
   for (let i = 0; i < 14; i++) {
-    const s = spot(9, 12); if (!s) continue;
+    let s = null;
+    for (let tr = 0; tr < 14 && !s; tr++) { // clôture : les 6 poteaux doivent tous poser sur du plat, sans rocher ni à-pic entre deux
+      const c = spot(9, 12, 0.8, 0.6); if (!c) break; let ok = true, py = null;
+      for (let p = 0; p < 6 && ok; p++) { const x = c.x + Math.sin(c.ang) * p * 3, z = c.z + Math.cos(c.ang) * p * 3, y = terrain.heightAt(x, z); if (!flatEnough(terrain, x, z, 0.7, 0.6) || overlapsSolid(terrain, x, z, 0.7) || net.nearest(x, z, 6) || (py !== null && Math.abs(y - py) > 0.8)) ok = false; py = y; }
+      if (ok) s = c;
+    }
+    if (!s) continue;
     const broken = Math.floor(rnd() * 5), gate = i % 5 === 0;
     for (let p = 0; p < 6; p++) {
       const dx = Math.sin(s.ang) * p * 3, dz = Math.cos(s.ang) * p * 3;
@@ -258,7 +271,7 @@ export function buildWesternDecor(scene, terrain, net) {
   }
   scene.add(fk.build({ shadow: false }));
   // Panneaux indicateurs de ranch (rapport à la ville)
-  for (let i = 0; i < 4; i++) { const s = spot(7, 10); if (!s) continue; const g2 = new THREE.Group(), kk = new Kit(); kk.add(G.box(0.2, 3, 0.2), wood, { p: [0, 1.5, 0] }); kk.add(G.box(1.8, 0.45, 0.08), plank, { p: [0.5, 2.6, 0.12], r: [0, 0, 0.05] }); kk.add(G.cone(0.34, 0.5, 3), plank, { p: [1.65, 2.62, 0.12], r: [0, 0, -H] }); kk.add(G.box(1.5, 0.4, 0.08), plank, { p: [-0.4, 2.0, -0.12], r: [0, 0, -0.04] });
+  for (let i = 0; i < 4; i++) { const s = spot(7, 10, 1.4, 0.6); if (!s) continue; const g2 = new THREE.Group(), kk = new Kit(); kk.add(G.box(0.2, 3, 0.2), wood, { p: [0, 1.5, 0] }); kk.add(G.box(1.8, 0.45, 0.08), plank, { p: [0.5, 2.6, 0.12], r: [0, 0, 0.05] }); kk.add(G.cone(0.34, 0.5, 3), plank, { p: [1.65, 2.62, 0.12], r: [0, 0, -H] }); kk.add(G.box(1.5, 0.4, 0.08), plank, { p: [-0.4, 2.0, -0.12], r: [0, 0, -0.04] });
     g2.add(kk.build()); const tx = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.36), new THREE.MeshBasicMaterial({ map: textSprite(['POUSSIÈRE →', '', ''], { w: 256, h: 64, bg: '#8a6a46', fg: '#2a1a0c', border: '#5a3a20', font: 'bold 34px Georgia' }) })); tx.position.set(0.5, 2.6, 0.17); tx.rotation.z = 0.05; g2.add(tx);
     g2.position.set(s.x, s.y, s.z); g2.rotation.y = s.ang + (rnd() < 0.5 ? 0 : PI) + H; scene.add(g2); }
   // Rochers sculptés
@@ -266,19 +279,21 @@ export function buildWesternDecor(scene, terrain, net) {
   const rmat = mat('#a0583a', { roughness: 0.95, flatShading: true });
   rocks.forEach((geo, gi) => {
     const n = 140, inst = new THREE.InstancedMesh(geo, rmat, n); const m4 = new THREE.Matrix4(); let c = 0;
-    for (let t = 0; t < n * 8 && c < n; t++) { const r = 150 + rnd() * 1200, a = rnd() * PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; if (sectorIndex(x, z) !== 4 || net.nearest(x, z, 9)) continue; const sc = 0.6 + rnd() * rnd() * 4; m4.compose(new THREE.Vector3(x, terrain.heightAt(x, z) + sc * 0.2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(sc, sc * (0.6 + rnd() * 0.6), sc)); inst.setMatrixAt(c++, m4); if (sc > 1.1) COLLIDERS.circle(x, z, 1.15 * sc, terrain.heightAt(x, z) + sc * 0.75); }
+    for (let t = 0; t < n * 8 && c < n; t++) { const r = 150 + rnd() * 1200, a = rnd() * PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; if (sectorIndex(x, z) !== 4 || net.nearest(x, z, 9)) continue; const sc = 0.6 + rnd() * rnd() * 4; if (!goodSpot(terrain, x, z, Math.min(1.15 * sc, 6), Math.max(0.8, Math.min(1.15 * sc, 6) * 0.3))) continue; m4.compose(new THREE.Vector3(x, terrain.heightAt(x, z) + sc * 0.2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(sc, sc * (0.6 + rnd() * 0.6), sc)); inst.setMatrixAt(c++, m4); if (sc > 1.1) COLLIDERS.circle(x, z, 1.15 * sc, terrain.heightAt(x, z) + sc * 0.75); }
     inst.count = c; inst.receiveShadow = true; inst.castShadow = gi === 0; inst.userData.solidFill = true; scene.add(inst);
   });
   // Virevoltants : pelotes d'herbes sèches (anneaux entremêlés), roulent au vent
   const tk = new Kit(), twig = mat('#a58a55', { roughness: 1, flatShading: true });
   { const r = mulberry(5); for (let i = 0; i < 9; i++) tk.add(G.tor(0.55 + r() * 0.2, 0.035, 3, 11), twig, { r: [r() * PI, r() * PI, r() * PI], s: [0.9 + r() * 0.2, 0.9 + r() * 0.2, 0.9 + r() * 0.2] }); for (let i = 0; i < 6; i++) tk.add(G.cone(0.04, 0.5, 3), twig, { p: [(r() - 0.5) * 0.9, (r() - 0.5) * 0.9, (r() - 0.5) * 0.9], r: [r() * 6, r() * 6, 0] }); }
   const tg = tk.geometry();
-  for (let i = 0; i < 14; i++) { const s = spot(6, 40); if (!s) continue; const m = new THREE.Mesh(tg, twig); m.position.set(s.x, s.y + 0.7, s.z); m.scale.setScalar(0.8 + rnd() * 0.7); scene.add(m); anim.tumbles.push({ m, v: new THREE.Vector3(1.5 + rnd() * 3, 0, (rnd() - 0.5) * 2), home: new THREE.Vector3(s.x, 0, s.z), ph: rnd() * 10 }); }
+  for (let i = 0; i < 14; i++) { const s = spot(6, 40, 1, 0.8); if (!s) continue; const m = new THREE.Mesh(tg, twig); m.position.set(s.x, s.y + 0.7, s.z); m.scale.setScalar(0.8 + rnd() * 0.7); scene.add(m); anim.tumbles.push({ m, v: new THREE.Vector3(1.5 + rnd() * 3, 0, (rnd() - 0.5) * 2), home: new THREE.Vector3(s.x, 0, s.z), ph: rnd() * 10 }); }
   return {
     update(dt, t) {
       anim.windmills.forEach((w, i) => { w.rotor.rotation.z -= dt * (1.2 + Math.sin(t * 0.3 + i) * 0.6); w.head.rotation.y = Math.sin(t * 0.07 + w.ph) * 0.6; });
       for (const tw of anim.tumbles) {
+        const px = tw.m.position.x, pz = tw.m.position.z;
         tw.m.position.addScaledVector(tw.v, dt);
+        if (COLLIDERS.blocked(tw.m.position.x, terrain.heightAt(tw.m.position.x, tw.m.position.z) + 0.5, tw.m.position.z, 0.6)) { tw.m.position.x = px; tw.m.position.z = pz; tw.v.x = -tw.v.x; tw.v.z = (Math.random() - 0.5) * 2; } // rebondit sur les rochers au lieu de les traverser
         if (tw.m.position.distanceTo(tw.home) > 120) tw.m.position.set(tw.home.x, 0, tw.home.z);
         const gy = terrain.heightAt(tw.m.position.x, tw.m.position.z);
         tw.m.position.y = gy + 0.7 + Math.abs(Math.sin(t * 3 + tw.ph)) * 0.8;
@@ -379,17 +394,17 @@ function cabinKit(k, x, v, rnd) {
 export function buildGelureDecor(scene, terrain, net) {
   const rnd = mulberry(4321);
   const edges = net.edges.filter(e => e.biome === 5);
-  const spot = (minOff, maxOff, frac = null) => { for (let t = 0; t < 60; t++) { const e = edges[Math.floor(rnd() * edges.length)]; const k = frac != null ? Math.floor(e.pts.length * frac) : 10 + Math.floor(rnd() * (e.pts.length - 20)); const p = e.pts[k], a = e.pts[Math.max(0, k - 2)], b = e.pts[Math.min(e.pts.length - 1, k + 2)]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const off = (rnd() < 0.5 ? -1 : 1) * (minOff + rnd() * (maxOff - minOff)); const x = p.x + nx / L * off, z = p.z + nz / L * off; if (sectorIndex(x, z) === 5 && Math.hypot(x, z) > 160 && !net.nearest(x, z, minOff - 2)) return { x, z, y: terrain.heightAt(x, z), ang: Math.atan2(b.x - a.x, b.z - a.z) }; } return null; };
+  const spot = (minOff, maxOff, frac = null, fp = 1.5, maxDiff = 0.8) => { for (let t = 0; t < 150; t++) { const e = edges[Math.floor(rnd() * edges.length)]; const k = frac != null ? Math.floor(e.pts.length * frac) : 10 + Math.floor(rnd() * (e.pts.length - 20)); const p = e.pts[k], a = e.pts[Math.max(0, k - 2)], b = e.pts[Math.min(e.pts.length - 1, k + 2)]; const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1; const off = (rnd() < 0.5 ? -1 : 1) * (minOff + rnd() * (maxOff - minOff)); const x = p.x + nx / L * off, z = p.z + nz / L * off; if (sectorIndex(x, z) === 5 && Math.hypot(x, z) > 160 && !net.nearest(x, z, minOff - 2) && goodSpot(terrain, x, z, fp, maxDiff)) return { x, z, y: terrain.heightAt(x, z), ang: Math.atan2(b.x - a.x, b.z - a.z) }; } return null; };
   const snow = mat('#f4fbff', { roughness: 0.7 }), ice = mat('#9fd8f5', { roughness: 0.1, metalness: 0.2, emissive: '#2a6f9a', emissiveIntensity: 0.25, flatShading: true });
   // Trois-mâts pris dans la banquise
   for (let i = 0; i < 2; i++) {
-    const s = spot(22, 45); if (!s) continue;
+    const s = spot(22, 45, null, 9, 2.2); if (!s) continue;
     const ship = galleon(rnd); ship.position.set(s.x, s.y - 2.2, s.z); ship.rotation.set(0.1, s.ang + 0.6 + i * 1.2, -0.16); scene.add(ship);
     ship.updateMatrixWorld(true); { const v = ship.localToWorld(new THREE.Vector3(1, 0, 0)); COLLIDERS.box(v.x, v.z, 12.5, 3.3, s.ang + 0.6 + i * 1.2, s.y + 4.5); }
   }
   // Avant-poste de cabanes enneigées + feu de camp
   let flames = null;
-  const s = spot(14, 18, 0.25);
+  const s = spot(14, 18, 0.25, 13, 2.2) || spot(14, 18, 0.25, 13, 5);
   if (s) {
     const out = new THREE.Group(), k = new Kit(), wood = mat('#5a3a22', { roughness: 0.9 }), wood2 = mat('#6d4a2b', { roughness: 0.9 }), stoneM = mat('#6e6a64', { flatShading: true }), iron = MAT.iron(), cloth = mat('#9a3a2a', { side: THREE.DoubleSide });
     for (let c = 0; c < 3; c++) cabinKit(k, c * 9 - 9, c, rnd);

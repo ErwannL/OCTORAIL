@@ -513,7 +513,7 @@ function handleFootInteract() {
   if (it?.id === 'iceblock' && S.sheriff === 'ice') label = (S.owned.chalumeau ? '[F] maintenir : faire fondre la glace' : 'Un robot figé… il faut un chalumeau');
   if (it) label = interactLabel(it, label);
   const sackNear = fuelSackIdx() >= 0 && S.owned.vapeur && train.head && train.loco.getWorldPosition(_lw).distanceTo(player.pos) < 9;
-  if (sackNear && dCab >= 5 && (!it || it.id === 'coal' || it.id === 'water')) label = `[E] Verser ${bagFuelName()} dans le tender`;
+  if (sackNear && dCab >= 5 && (!it || it.id === 'coal' || it.id === 'water')) label = `[E] Verser ${bagFuelName()} ${player.bag.find(x => x.fuel)?.fuel === 'water' ? 'dans le réservoir' : 'dans le tender'}`;
   else if (sackNear && dCab < 5) label = '[E] Monter en cabine (verse le sac dans le tender)';
   for (const r of remotes.values()) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5 && dCab >= 5) label = `[E] Monter dans le train de ${r.name}`;
   ui.prompt(label);
@@ -680,7 +680,7 @@ ui.setKeys(SET.keys);
 // ------------------------------------------------------------------ Boucle
 const amb = { skyTop: new THREE.Color(), skyBot: new THREE.Color(), fog: new THREE.Color(), sun: new THREE.Color(), fogD: 0 };
 const clock = new THREE.Clock();
-let chuffAcc = 0, lastSwitchEvt = 0, ambTimer = 0;
+let chuffAcc = 0, lastSwitchEvt = 0, ambTimer = 0, cabFace = 0, cabTurn = 0; // cabFace : 0 = conducteur face à l'avant, 1 = face à l'arrière (marche arrière)
 const camPos = new THREE.Vector3(30, 20, 30), camLook = new THREE.Vector3();
 
 function frame() {
@@ -718,10 +718,10 @@ function frame() {
     tin.brake = input.a('jump');
     if (train.kind === 'draisine') tin.pump = input.ah('action');
     else if (input.ah('action')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Tender vide ! Charbonnière du Moyeu.'); } }
-    if (input.ah('left')) { train.pref = 1; audio.clunk(); }
-    if (input.ah('right')) { train.pref = 0; audio.clunk(); }
+    if (input.ah('left')) { train.nudgePref(-1); audio.clunk(); }   // aiguillage : A = à gauche (par rapport au sens de marche), D = à droite, la touche opposée revient tout droit
+    if (input.ah('right')) { train.nudgePref(1); audio.clunk(); }
     if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
-    if (input.ah('interact')) { player.mode = 'foot'; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.consume('interact'); }
+    if (input.ah('interact')) { player.mode = 'foot'; cabFace = 0; cabTurn = 0; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.consume('interact'); }
   }
   if (!(player.mode === 'cab') && Math.abs(train.speed) > 0.1) tin.brake = true; // frein automatique sans conducteur
   train.update(dt, tin);
@@ -755,7 +755,14 @@ function frame() {
     } else ui.prompt(null);
   } else {
     ui.prompt(null);
-    if (player.mode === 'cab') { const c = locoCabWorld(train); player.pos.copy(c); player.avatar.position.copy(c); player.avatar.rotation.y = train.loco.rotation.y; player.animate(0); }
+    if (player.mode === 'cab') {
+      // le conducteur se tourne vers l'arrière en marche arrière (rotation douce), puis revient face à l'avant
+      if (train.speed < -0.3) cabFace = 1; else if (train.speed > 0.3) cabFace = 0;
+      cabTurn += (cabFace - cabTurn) * Math.min(1, dt * 5);
+      const c = train.loco.localToWorld(train.cabLocal(cabTurn));
+      player.pos.copy(c); player.avatar.position.copy(c); player.avatar.rotation.y = train.loco.rotation.y + Math.PI * cabTurn; player.animate(0);
+      if (train.kind === 'draisine') { const lv = train.loco.userData.lever.rotation.x, arms = player.avatar.userData.arms, a = -1.25 - (1 - 2 * cabTurn) * lv * 0.9; arms[0].rotation.x = a; arms[1].rotation.x = a; arms[0].rotation.z = 0.05; arms[1].rotation.z = -0.05; } // mains sur la poignée du balancier
+    }
     else if (player.mode === 'ride') {
       const r = remotes.get(player.rideId);
       if (!r) player.mode = 'foot';
@@ -790,7 +797,7 @@ function frame() {
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
   westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
-  signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
+  signals.update(train, time); // rubans de guidage d'aiguillage + lampes de signal
 
   // --- distants
   for (const r of remotes.values()) {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Kit, G, mat, MAT } from './kit.js';
 import { sectorIndex, BIOMES } from './biomes.js';
 import { mulberry } from '../util/noise.js';
+import { COLLIDERS } from './colliders.js';
 import { FLORA_MAT_DS, FLORA_MAT, grassTuftGeometry, flowerPatchGeometry, birdParts } from './flora.js';
 
 const PI = Math.PI, H = Math.PI / 2;
@@ -58,6 +59,7 @@ export function buildGrass(scene, terrain, net, density = 1) {
       if (near && rnd() < 0.7) { const ed = edges[Math.floor(rnd() * edges.length)]; const p = ed.pts[Math.floor(rnd() * ed.pts.length)]; x = p.x + (rnd() - 0.5) * 60; z = p.z + (rnd() - 0.5) * 60; }
       else { const r = rMin + rnd() * 1250, a = rnd() * PI * 2; x = Math.cos(a) * r; z = Math.sin(a) * r; }
       if (sectorIndex(x, z) !== sector || Math.hypot(x, z) < rMin || net.nearest(x, z, 3.2)) continue;
+      if (COLLIDERS.blocked(x, terrain.heightAt(x, z) + 0.3, z, 0.5)) continue; // pas de touffes plantées dans les rochers / buttes
       const s = 0.7 + rnd() * 1.1;
       M.compose(new THREE.Vector3(x, terrain.heightAt(x, z), z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(s, s, s)); inst.setMatrixAt(c, M); inst.setColorAt(c, tint.setScalar(0.8 + rnd() * 0.4)); c++;
     }

@@ -261,7 +261,7 @@ export function buildSteamLoco(tint = '#8b1e1e') {
   g.userData.wheels = wheels;
   g.userData.chimney = new THREE.Vector3(0, 4.85, 3.6);
   g.userData.whistle = new THREE.Vector3(0.4, 3.6, -1.0);
-  g.userData.cab = new THREE.Vector3(0, 1.45, cz);
+  g.userData.cab = new THREE.Vector3(0, 1.28, cz - 0.45); g.userData.cabBack = new THREE.Vector3(0, 1.28, cz - 0.45);
   g.userData.length = 9.4;
   g.traverse(o => { if (o.isMesh) o.castShadow = !o.material.transparent; });
   return g;
@@ -284,8 +284,8 @@ export function buildDraisine() {
   // garde-corps
   for (const s of [-1, 1]) { add(G.cyl(0.03, 0.03, 3.0, 6), brass, [s * 1.1, 1.45, 0], [H, 0, 0]); for (const z of [-1.4, 0, 1.4]) { add(G.cyl(0.03, 0.03, 0.5, 6), brass, [s * 1.1, 1.2, z]); add(G.sph(0.05, 6, 5), brass, [s * 1.1, 1.46, z]); } add(G.cyl(0.02, 0.02, 3.0, 6), brass, [s * 1.1, 1.0, 0], [H, 0, 0]); }
   // caisse à outils + lampe + banc
-  add(G.rbox(0.5, 0.35, 0.5, 0.04), dark, [0, 1.15, 1.6]); add(G.box(0.52, 0.04, 0.52), brass, [0, 1.34, 1.6]);
-  add(G.rbox(0.7, 0.3, 0.4, 0.05), woodD, [0.55, 1.12, -1.4]); add(G.box(0.72, 0.04, 0.42), steel, [0.55, 1.28, -1.4]); add(G.box(0.2, 0.08, 0.04), brass, [0.55, 1.15, -1.2]);
+  add(G.rbox(0.5, 0.35, 0.5, 0.04), dark, [0.8, 1.15, 1.55]); add(G.box(0.52, 0.04, 0.52), brass, [0.8, 1.34, 1.55]);
+  add(G.rbox(0.5, 0.3, 0.4, 0.05), woodD, [0.8, 1.12, -1.4]); add(G.box(0.52, 0.04, 0.42), steel, [0.8, 1.28, -1.4]); add(G.box(0.2, 0.08, 0.04), brass, [0.8, 1.15, -1.2]);
   add(G.cyl(0.03, 0.03, 0.9, 6), dark, [-0.75, 1.5, 1.55]); add(G.rbox(0.22, 0.26, 0.22, 0.04), dark, [-0.75, 2.0, 1.55]); add(G.box(0.26, 0.04, 0.26), brass, [-0.75, 2.15, 1.55]); // lampadaire
   // frein à levier : sabots
   for (const s of [-1, 1]) { add(G.box(0.05, 0.05, 0.6), dark, [s * 0.58, 0.9, 1.0]); add(G.box(0.06, 0.22, 0.28), woodD, [s * 0.66, 0.5, 1.2]); }
@@ -298,10 +298,10 @@ export function buildDraisine() {
   // balancier (pivot animé)
   const lever = new THREE.Group(); lever.position.set(0, 2.12, 0);
   const lk = new Kit(), ladd = adder(lk);
-  ladd(G.rbox(0.12, 0.12, 2.6, 0.03), wood);
+  ladd(G.rbox(0.12, 0.12, 1.7, 0.03), wood);
   ladd(G.box(0.16, 0.16, 0.3), brass);
-  for (const z of [-1.0, 1.0]) ladd(G.box(0.14, 0.05, 0.12), dark, [0, 0.09, z]);
-  for (const z of [-1.25, 1.25]) {
+  for (const z of [-0.6, 0.6]) ladd(G.box(0.14, 0.05, 0.12), dark, [0, 0.09, z]);
+  for (const z of [-0.75, 0.75]) {
     ladd(G.cyl(0.05, 0.05, 1.3, 8), brass, [0, 0, z], [0, 0, H]);
     for (const x of [-0.5, 0.5]) ladd(G.cyl(0.075, 0.075, 0.4, 10), woodD, [x, 0, z], [0, 0, H]);   // poignées en bois
     for (const x of [-0.7, 0.7]) ladd(G.sph(0.08, 8, 6), red, [x, 0, z]);
@@ -311,7 +311,8 @@ export function buildDraisine() {
   g.add(lever); g.userData.lever = lever;
   const wheels = [];
   for (const z of [-1.2, 1.2]) for (const s of [-1, 1]) { const w = wheel(0.42, { spokes: 8, counter: false, paint: '#3a3a3a' }); w.position.set(s * 0.75, 0.42, z); g.add(w); wheels.push(w); }
-  g.userData.wheels = wheels; g.userData.cab = new THREE.Vector3(0, 1.0, -0.9); g.userData.length = 3.8;
+  g.userData.wheels = wheels; // conducteur : debout à un bout du balancier (face à l'avant) ; en marche arrière il passe à l'autre bout (face à l'arrière)
+  g.userData.cab = new THREE.Vector3(0, 0.98, -1.3); g.userData.cabBack = new THREE.Vector3(0, 0.98, 1.3); g.userData.cabSwing = 0.8; g.userData.length = 3.8;
   g.traverse(o => { if (o.isMesh) o.castShadow = !o.material.transparent; });
   return g;
 }

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { buildAvatarModel } from '../world/models.js';
 import { COLLIDERS } from '../world/colliders.js';
+import { VOX } from '../world/voxcol.js';
+
+const STEP = 0.62, BODY = 1.75, RAD = 0.34;
 
 
 export function buildAvatar(color) { return buildAvatarModel(color); }
@@ -38,27 +41,35 @@ export class Player {
     this.vel.z += (want.z - this.vel.z) * Math.min(1, dt * 12);
     this.vel.y -= 22 * dt;
     if (this.onGround && input.ah('jump')) { this.vel.y = 8; this.onGround = false; }
-    // sous-pas : pas de traversée même à bas FPS
-    const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.25));
-    const P = this.pos, SM = COLLIDERS.stepMax;
-    for (let i = 0; i < steps; i++) {
-      const px = P.x, pz = P.z, py = P.y;
-      P.addScaledVector(this.vel, dt / steps);
-      // marche trop haute (quai, socle, estrade) = mur : on annule l'axe fautif pour glisser le long
-      if (COLLIDERS.floorAt(P.x, P.z) > py + SM) {
-        const nx = P.x, nz = P.z;
-        if (COLLIDERS.floorAt(nx, pz) <= py + SM) P.z = pz;
-        else if (COLLIDERS.floorAt(px, nz) <= py + SM) P.x = px;
-        else { P.x = px; P.z = pz; }
+    // Collision sur la géométrie réelle (VOX) + corps mobiles (trains).
+    const P = this.pos;
+    const ground = (x, z, feet) => Math.max(this.groundAt(x, z), VOX.floor(x, z, feet, STEP));
+    const hits = (x, z, feet) => VOX.solid(x, z, feet + STEP, feet + BODY, RAD) || this.trainHit(x, z, feet);
+    // coincé (apparition, téléportation) : on se dégage vers la case libre la plus proche, jamais à travers
+    const unstick = () => {
+      let done = false;
+      for (let r = 0.3; r <= 6 && !done; r += 0.3) for (let k = 0; k < 24; k++) {
+        const a = k / 24 * Math.PI * 2, x = P.x + Math.cos(a) * r, z = P.z + Math.sin(a) * r;
+        const f = ground(x, z, P.y + 2);
+        if (!hits(x, z, f)) { P.x = x; P.z = z; P.y = f; done = true; break; }
       }
-      COLLIDERS.resolve(P, 0.42);
-      if (COLLIDERS.floorAt(P.x, P.z) > py + SM) { P.x = px; P.z = pz; }
+    };
+    if (hits(P.x, P.z, P.y)) unstick();
+    const startStuck = false;
+    const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.12));
+    for (let i = 0; i < steps; i++) {
+      const dx = this.vel.x * dt / steps, dz = this.vel.z * dt / steps;
+      if (startStuck || !hits(P.x + dx, P.z + dz, P.y)) { P.x += dx; P.z += dz; }
+      else if (!hits(P.x + dx, P.z, P.y)) { P.x += dx; this.vel.z *= 0.5; }
+      else if (!hits(P.x, P.z + dz, P.y)) { P.z += dz; this.vel.x *= 0.5; }
     }
-    // anti-blocage : coincé dans plusieurs obstacles -> case libre la plus proche
-    if (COLLIDERS.resolve(P, 0.42)) COLLIDERS.unstick(P, 0.42);
-    let g = Math.max(this.groundAt(P.x, P.z), COLLIDERS.floorAt(P.x, P.z));
+    P.y += this.vel.y * dt;
+    // plafond : on ne saute pas à travers un auvent
+    if (this.vel.y > 0 && VOX.solid(P.x, P.z, P.y + BODY - 0.05, P.y + BODY + 0.1, RAD * 0.8)) this.vel.y = 0;
+    let g = ground(P.x, P.z, P.y);
     for (const c of extraColliders) { const h = c(P.x, P.z); if (h !== null && h > g && h < P.y + 1.2) g = h; }
     if (P.y <= g) { P.y = g; this.vel.y = 0; this.onGround = true; } else if (P.y > g + 0.05) this.onGround = false;
+    if (hits(P.x, P.z, P.y)) unstick(); // descente d'un rebord : jamais de chevauchement
     const R = Math.hypot(this.pos.x, this.pos.z); if (R > 1380) this.pos.multiplyScalar(1380 / R);
     const moving = Math.hypot(this.vel.x, this.vel.z);
     this.walkPhase += moving * dt * 1.6;
@@ -67,6 +78,17 @@ export class Player {
     this.avatar.position.copy(this.pos);
     if (this.facing !== undefined) this.avatar.rotation.y += ((this.facing - this.avatar.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 12);
     return moving;
+  }
+
+  trainHit(x, z, feet) {
+    const bodies = COLLIDERS._bodies();
+    for (const c of bodies) {
+      if (feet > c.top - 0.3) continue;
+      if (c.t === 0) { if (Math.hypot(x - c.x, z - c.z) < c.r + RAD) return true; continue; }
+      const dx = x - c.x, dz = z - c.z, lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
+      if (Math.abs(lx) < c.hx + RAD && Math.abs(lz) < c.hz + RAD) return true;
+    }
+    return false;
   }
 
   animate(moving) {

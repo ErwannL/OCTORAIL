@@ -231,7 +231,7 @@ function coalMachine() {
   // morceaux de charbon qui défilent sur le convoyeur (animation autonome, 1 draw call)
   { const lk = new Kit(); for (let i = 0; i < 6; i++) lk.add(G.box(0.34, 0.26, 0.34), MAT.coal(), { p: [Math.sin(i * 2.3) * 0.25, 0.15, -2.5 + i], r: [i, i * 2, 0] });
     const lumps = lk.build(); lumps.position.set(0, 2.1, 3.0); lumps.rotation.x = 0.35; grp.add(lumps);
-    lumps.children[0].onBeforeRender = () => { lumps.position.z = 3.0 + ((performance.now() / 1000 * 0.8) % 1) * 0.94; lumps.position.y = 2.1 - ((performance.now() / 1000 * 0.8) % 1) * 0.34; lumps.updateMatrixWorld(true); }; }
+    lumps.userData.noCollide = true; lumps.children[0].onBeforeRender = () => { lumps.position.z = 3.0 + ((performance.now() / 1000 * 0.8) % 1) * 0.94; lumps.position.y = 2.1 - ((performance.now() / 1000 * 0.8) % 1) * 0.34; lumps.updateMatrixWorld(true); }; }
   const fly = new THREE.Group(); fly.position.set(-4.4, 1.3, -1);
   const fk = new Kit(); fk.add(G.tor(1.0, 0.12, 6, 28), iron, { r: [0, H, 0] }); for (let i = 0; i < 6; i++) fk.add(G.box(0.08, 1.9, 0.12), iron, { r: [i * PI / 6, 0, 0] });
   fly.add(fk.build()); grp.add(fly); grp.userData.fly = fly;

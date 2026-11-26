@@ -27,6 +27,7 @@ import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel }
 import { Compass, PHENO_INFO } from './ui/compass.js';
 import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
+import { VOX } from './world/voxcol.js';
 import { WorldCuller } from './world/cull.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -42,12 +43,14 @@ const QUALITY = {
   bas:   { pr: 0.6,  shadow: 0,    bloom: false, env: false, post: false, grass: 0.25, weather: 0.3, range: 0.7 },
   moyen: { pr: 0.85, shadow: 1024, bloom: true,  env: true,  post: true,  grass: 0.6,  weather: 0.6, range: 0.85 },
   haut:  { pr: 1.25, shadow: 2048, bloom: true,  env: true,  post: true,  grass: 1,    weather: 1,   range: 1 },
+  // Ultra « 4K » : rendu interne jusqu'à 2x (sur-échantillonnage, ~4K sur un écran 1080p), ombres 4096, distance +30 %
+  ultra: { pr: 2.0,  shadow: 4096, bloom: true,  env: true,  post: true,  grass: 1,    weather: 1,   range: 1.3, ss: true },
 };
 const SET = loadSettings();
 let qName = SET.quality || 'auto';
 const Q = QUALITY[qName === 'auto' ? 'moyen' : qName];
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
-let pixelRatio = Math.min(devicePixelRatio, Q.pr);
+let pixelRatio = Q.ss ? Q.pr : Math.min(devicePixelRatio, Q.pr);
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = Q.shadow > 0 && SET.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -145,6 +148,25 @@ sheriffSpot.add(iceBlock);
 // le bloc de glace est solide tant qu'il est visible (Shérif non libéré)
 COLLIDERS.dynamic.push(out => { if (iceBlock.visible && iceBlock.parent) { const q = gelure.iceBlockPos; out.push({ t: 0, x: q.x, z: q.z, r: 2.4, R: 2.4, top: q.y + 7, bottom: -99 }); } });
 scene.add(sheriff);
+
+const collExclude = new Set();
+// ------------------------------------------------------------------ Collision sur la géométrie réelle
+// On repère tout ce qui bouge (animaux, foin volant, rotors…) en avançant les animations et en comparant
+// les matrices ; tout le reste (le décor statique visible) devient solide.
+{
+  terrain.mesh.userData.noCollide = true;
+  scene.updateMatrixWorld(true);
+  const snap = new Map();
+  scene.traverse(o => { if (o.isMesh) snap.set(o, o.matrixWorld.clone()); });
+  const far = new THREE.Vector3(1e5, 0, 1e5);
+  for (const tt of [37, 81]) { westDecor.update(0.7, tt); gelDecor.update(0.7, tt); birds.update(0.7, tt); flags.update(tt, far); life.update(0.7, tt, far); }
+  scene.updateMatrixWorld(true);
+  const exclude = collExclude;
+  for (const x of [sheriff, iceBlock, ...nuggets.list.map(n => n.m), ...crystals.list.map(c => c.m), ...finds.map(f => f.g)]) exclude.add(x);
+  scene.traverse(o => { if (o.isMesh && snap.has(o) && !snap.get(o).equals(o.matrixWorld)) exclude.add(o); });
+  VOX.build(scene, exclude);
+  console.log(`Collision géométrique : ${VOX.meshes} modèles, ${VOX.count} colonnes, ${VOX.points} points, ${VOX.ms} ms`);
+}
 
 // ------------------------------------------------------------------ Systèmes
 const audio = new AudioEngine();
@@ -803,6 +825,7 @@ function sheriffTick(dt) {
 let camInit = false; const _o2 = new THREE.Vector3();
 let _camT = null; // cible de la caméra : un volume « caméra seulement » qui la contient (joueur sous un auvent) est ignoré
 function camBlocked(x, y, z) {
+  if (VOX.solid(x, z, y - 0.35, y + 0.35, 0.3)) return true; // vraie géométrie
   for (const c of COLLIDERS.near(x, z)) {
     if (c.cam === false || y > c.top || y < c.bottom) continue;
     if (c.co) { // couronne / auvent / toit : n'importe quelle taille, sauf si le joueur est dedans
@@ -893,7 +916,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
+window.__oct = { VOX, THREE, collExclude, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

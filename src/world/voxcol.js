@@ -93,7 +93,7 @@ export class VoxelCollision {
     const t0 = performance.now();
     scene.updateMatrixWorld(true);
     const m = new THREE.Matrix4(), box = new THREE.Box3(), size = new THREE.Vector3();
-    const skip = (o) => { for (let p = o; p; p = p.parent) if (exclude.has(p) || p.userData.noCollide) return true; return false; };
+    const skip = (o) => { for (let p = o; p; p = p.parent) if (exclude.has(p) || p.userData.noCollide || p.visible === false) return true; return false; };
     scene.traverse(o => {
       if (!o.isMesh || o.isPoints || o.isLine || o.isSprite) return;
       if (skip(o)) return;
@@ -113,6 +113,7 @@ export class VoxelCollision {
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, m); m.premultiply(o.matrixWorld);
           if (!reachable(m.elements[12], m.elements[14])) continue;
+          if (Math.abs(m.determinant()) < 1e-9) continue; // instance masquée (échelle nulle)
           this._addSamples(smp, m, (few || fill) ? Infinity : m.elements[13] + 3.2 * Math.cbrt(Math.abs(m.determinant())), fill ? m.elements[13] - 2 : null); // nombreux : tronc/base seulement ; volumes pleins remplis jusqu'au sol
         }
       } else {

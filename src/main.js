@@ -162,6 +162,53 @@ COLLIDERS.dynamic.push(out => { if (iceBlock.visible && iceBlock.parent) { const
 scene.add(sheriff);
 
 const collExclude = new Set();
+// ------------------------------------------------------------------ Voies dégagées : rien ne doit être posé sur les rails
+{
+  scene.updateMatrixWorld(true);
+  const keep = new Set([terrain.mesh, sky.mesh, signals.group, hub.group, western.town].filter(Boolean));
+  const box = new THREE.Box3(), size = new THREE.Vector3(), cen = new THREE.Vector3(), m4 = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+  let moved = 0, hidden = 0;
+  const trackHits = (b, margin) => { // un point de voie dans l'emprise (xz) de la boîte, sous son sommet ?
+    const c = b.getCenter(cen), r = Math.hypot(b.max.x - b.min.x, b.max.z - b.min.z) / 2 + margin;
+    const n = net.nearest(c.x, c.z, r); if (!n) return null;
+    for (const e of net.edges) { if (Math.abs(e.pts[0].x - c.x) > 3000) continue; }
+    const e = net.edges[n.edge]; for (let k = Math.max(0, n.k - 40); k < Math.min(e.pts.length, n.k + 40); k++) { const t = e.pts[k];
+      if (t.x > b.min.x - margin && t.x < b.max.x + margin && t.z > b.min.z - margin && t.z < b.max.z + margin && b.max.y > t.y + 0.4 && b.min.y < t.y + 4) return t; }
+    return null;
+  };
+  // 1) toutes les instances, où qu'elles soient : celles posées sur une voie sont retirées
+  const inKeep = (o) => { for (let r = o; r; r = r.parent) if (keep.has(r)) return true; return false; };
+  scene.traverse(o => {
+    if (!o.isInstancedMesh || o.userData.noCollide || inKeep(o)) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    const gb = o.geometry.boundingBox; let ch = false;
+    for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m4); m4.premultiply(o.matrixWorld); m4.decompose(p, q, sc); const R = Math.max(gb.max.x - gb.min.x, gb.max.z - gb.min.z) * Math.max(sc.x, sc.z) / 2;
+      const n = net.nearest(p.x, p.z, Math.min(34, R + 2.6)); if (n && p.y + gb.max.y * sc.y > n.y + 0.4 && p.y + gb.min.y * sc.y < n.y + 6) { o.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0)); ch = true; hidden++; } }
+    if (ch) o.instanceMatrix.needsUpdate = true;
+  });
+  const queue = [...scene.children];
+  while (queue.length) { const o = queue.shift();
+    if (keep.has(o) || o.isLight || o.isPoints || o.userData.noCollide) continue;
+    if (o.isInstancedMesh) continue;
+    if (false) {
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const gb = o.geometry.boundingBox; let ch = false;
+      for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m4); m4.decompose(p, q, sc); const R = Math.max(gb.max.x - gb.min.x, gb.max.z - gb.min.z) * Math.max(sc.x, sc.z) / 2;
+        const n = net.nearest(p.x, p.z, R + 2.6); if (n && p.y + gb.max.y * sc.y > n.y + 0.4) { sc.set(0, 0, 0); m4.compose(p, q, sc); o.setMatrixAt(i, m4); ch = true; hidden++; } }
+      if (ch) o.instanceMatrix.needsUpdate = true; continue;
+    }
+    box.setFromObject(o); if (box.isEmpty()) continue; box.getSize(size); if (Math.max(size.x, size.z) > 40) { if (o.children.length) queue.push(...o.children); continue; } // gros groupe : on regarde ses éléments un par un
+    const c0 = box.getCenter(new THREE.Vector3()), g0 = terrain.heightAt(c0.x, c0.z);
+    for (let it = 0; it < 30; it++) {
+      const t = trackHits(box, 2.6); if (!t) { if (it > 0) { const c1 = box.getCenter(cen); o.position.y += terrain.heightAt(c1.x, c1.z) - g0; } break; }
+      const c = box.getCenter(cen); let dx = c.x - t.x, dz = c.z - t.z; if (Math.hypot(dx, dz) < 0.05) { const n = net.nearest(t.x, t.z, 3), E = net.edges[n.edge], a = E.pts[Math.max(0, n.k - 1)], b2 = E.pts[Math.min(E.pts.length - 1, n.k + 1)]; dx = -(b2.z - a.z); dz = b2.x - a.x; } const L = Math.hypot(dx, dz) || 1; dx = dx / L * 1.5; dz = dz / L * 1.5;
+      o.position.x += dx; o.position.z += dz; box.translate(new THREE.Vector3(dx, 0, dz)); if (it === 0) moved++; o.updateMatrixWorld(true);
+      if (it === 29) { o.visible = false; }
+    }
+    if (o.position.y !== undefined && moved) { /* reposé sur le sol après déplacement */ }
+  }
+  console.log(`Voies dégagées : ${moved} objets écartés, ${hidden} instances retirées`);
+}
 // ------------------------------------------------------------------ Collision sur la géométrie réelle
 // On repère tout ce qui bouge (animaux, foin volant, rotors…) en avançant les animations et en comparant
 // les matrices ; tout le reste (le décor statique visible) devient solide.
@@ -197,6 +244,21 @@ let player, train;
 const remotes = new Map(); // id -> { avatar, train, state, name, color }
 let started = false, cinematic = null, time = 0, lastSync = 0;
 let camZoom = 6.5, hintT = 0, oxyWarned = false;
+const OXY_R = 40; // bulle d'oxygène autour du train
+// Bulles visibles autour du train : chaleur (orange, intérieure) dans oxygène (bleue, extérieure)
+const bubbles = (() => {
+  const mk = (c, o) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending })); m.userData.noCollide = true; m.userData.noCull = true; m.renderOrder = 3; scene.add(m); return m; };
+  const heat = mk('#ff8a3a', 0.07), oxy = mk('#5fd0ff', 0.05);
+  return { update(tr, pl, hr, or, t) {
+    const c = new THREE.Vector3(); let n = 0; for (const m of [tr.loco, ...tr.wagons.map(w => w.mesh)]) { c.add(m.position); n++; } c.divideScalar(n);
+    const show = pl.mode === 'foot' && Math.hypot(pl.pos.x, pl.pos.z) > 95 && pl.pos.distanceTo(c) < or + 25;
+    heat.visible = oxy.visible = show; if (!show) return;
+    const half = tr.totalLength / 2;
+    heat.position.copy(tr.loco.position); heat.scale.set(hr, hr * 0.55, hr);
+    oxy.position.copy(c); oxy.scale.set(or + half * 0.3, (or + half * 0.3) * 0.5, or + half * 0.3);
+    heat.material.opacity = 0.05 + Math.sin(t * 2) * 0.015; oxy.material.opacity = 0.035 + Math.sin(t * 1.3) * 0.01;
+  } };
+})();
 function renderHints() {
   const el = document.getElementById('keyhints'); if (!el) return;
   el.classList.toggle('hidden', !SET.hints || !started || !!cinematic);
@@ -791,13 +853,16 @@ function frame() {
   // --- froid en Gelure
   const sec = sectorIndex(player.pos.x, player.pos.z), R = Math.hypot(player.pos.x, player.pos.z);
   const inGelure = sec === 5 && R > 140;
-  const warmTrain = train.head && player.pos.distanceTo(train.head) < (S.owned.dortoir ? 16 : 9) && train.kind === 'vapeur' && train.pressure > 5;
+  const dVeh = (() => { let d = 1e9; for (const m of [train.loco, ...train.wagons.map(w => w.mesh)]) d = Math.min(d, player.pos.distanceTo(m.position)); return d; })();
+  const heatR = train.kind === 'vapeur' ? (S.owned.dortoir ? 22 : 15) : 8; // bulle de chaleur : chaudière (et dortoir)
+  const warmTrain = dVeh < heatR;
+  bubbles.update(train, player, heatR, OXY_R, time);
   if (inGelure && player.mode === 'foot' && !warmTrain) player.temp = Math.max(0, player.temp - dt * (S.owned.doublure ? 1.2 : 3.6));
   else player.temp = Math.min(100, player.temp + dt * (warmTrain || player.mode !== 'foot' ? 25 : 8));
   ui.temp(player.temp, inGelure || player.temp < 100);
   // --- oxygène : l'air d'Halcyre hors du réseau est trop pauvre ; la combinaison se recharge auprès du train (réservoir d'air) ou au Moyeu
   { const R0 = Math.hypot(player.pos.x, player.pos.z), dTrain = train.head ? player.pos.distanceTo(train.head) : 1e9;
-    const safe = player.mode !== 'foot' || R0 < 95 || dTrain < 35;
+    const safe = player.mode !== 'foot' || R0 < 95 || dVeh < OXY_R;
     player.oxy ??= 100;
     if (!safe) player.oxy = Math.max(0, player.oxy - dt * (100 / 75)); // ~75 s d'autonomie loin du train
     else player.oxy = Math.min(100, player.oxy + dt * 30);

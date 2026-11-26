@@ -115,31 +115,52 @@ export class AudioEngine {
     }
   }
 
+  // Structure en sections qui tournent (comme une vraie bande-son) : thème, variation, pont, respiration, silence.
+  // Chaque section dure 8 mesures ; progressions, motifs, registres et instruments changent ; de vrais silences reviennent.
+  section(k) {
+    const s = Math.floor(k / 64);
+    if (s !== this._sec) {
+      this._sec = s;
+      const r = Math.random();
+      this.sec = s % 9 === 8 || (s > 3 && r < 0.18) ? 'silence' : ['theme', 'variation', 'pont', 'respiration', 'variation', 'theme', 'pont', 'respiration'][s % 8];
+      this.prog = Math.floor(Math.random() * 4); this.motif = Math.floor(Math.random() * 4); this.oct = Math.random() < 0.3 ? 1 : 0;
+    }
+    return this.sec;
+  }
   playStep(z, S, k, t, spb) {
+    const sec = this.section(k);
+    if (sec === 'silence') return; // vraie pause : on n'entend plus que l'ambiance et le train
     const bar = Math.floor(k / 8) % 4, beat = k % 8;
-    const chordRoots = { hub: [0, 3, 4, 2], western: [0, 3, 4, 0], gelure: [0, 4, 3, 1], closed: [0, 2, 0, 3] }[z];
-    const deg = chordRoots[bar];
+    const PROGS = {
+      hub: [[0, 3, 4, 2], [0, 2, 3, 4], [2, 3, 0, 4], [0, 4, 2, 3]],
+      western: [[0, 3, 4, 0], [0, 0, 3, 4], [3, 4, 0, 2], [0, 2, 3, 4]],
+      gelure: [[0, 4, 3, 1], [0, 1, 0, 3], [3, 1, 4, 0], [0, 3, 1, 4]],
+      closed: [[0, 2, 0, 3], [0, 3, 2, 0], [2, 0, 3, 0], [0, 0, 2, 3]],
+    };
+    const deg = PROGS[z][this.prog || 0][bar] + (sec === 'pont' ? 2 : 0);
     const note = (d, oct = 0) => S.root + S.scale[((d % 5) + 5) % 5] + 12 * (oct + Math.floor(d / 5));
     const L = this.layers[z];
-    // nappe à chaque mesure
-    if (beat === 0) {
+    const light = sec === 'respiration'; // section aérée : nappe seule, quelques notes
+    // nappe (une mesure sur deux pendant la respiration)
+    if (beat === 0 && (!light || bar % 2 === 0)) {
       for (const d of [deg, deg + 2, deg + 4]) {
         const f = mtof(note(d, 0));
-        for (const dt of [-7, 7]) this.tone(t, f, spb * 8.5, { type: z === 'gelure' ? 'sine' : 'sawtooth', vol: z === 'gelure' ? 0.05 : 0.018, attack: 0.6, dest: L, detune: dt });
+        for (const dt of [-7, 7]) this.tone(t, f, spb * 8.5, { type: z === 'gelure' || light ? 'sine' : 'sawtooth', vol: z === 'gelure' ? 0.045 : (light ? 0.03 : 0.016), attack: 0.8, dest: L, detune: dt });
       }
-      this.tone(t, mtof(note(deg, -1)), spb * 7, { type: 'triangle', vol: 0.12, attack: 0.02, dest: L });
+      if (!light) this.tone(t, mtof(note(deg, -1)), spb * 7, { type: 'triangle', vol: 0.11, attack: 0.02, dest: L });
     }
-    // mélodie / arpège
-    const rnd = Math.random();
+    // mélodie / arpège : motif choisi par section, densité variable
+    const rnd = Math.random(), M = [[0, 2, 4, 2, 5, 4, 2, 0], [0, 4, 2, 4, 0, 5, 4, 2], [4, 2, 0, 2, 4, 5, 7, 5], [0, 1, 2, 4, 2, 1, 0, -1]][this.motif || 0];
+    const dens = light ? 0.15 : sec === 'variation' ? 0.75 : sec === 'pont' ? 0.5 : 0.9, o = this.oct || 0;
     if (z === 'western') {
-      // banjo : arpège galopant
-      if (beat !== 3 && beat !== 7) this.tone(t, mtof(note(deg + [0, 2, 4, 2, 5, 4, 2, 0][beat], 1)), 0.18, { type: 'triangle', vol: 0.09, dest: L });
-      if (beat === 0 || beat === 4) this.tone(t, mtof(note(deg, -1)), 0.25, { type: 'square', vol: 0.03, dest: L });
+      if (beat !== 3 && beat !== 7 && rnd < dens) this.tone(t, mtof(note(deg + M[beat], 1 + o)), 0.18, { type: 'triangle', vol: 0.08, dest: L });
+      if ((beat === 0 || beat === 4) && !light) this.tone(t, mtof(note(deg, -1)), 0.25, { type: 'square', vol: 0.025, dest: L });
     } else if (z === 'gelure') {
-      if (rnd < 0.35) this.tone(t, mtof(note(deg + Math.floor(Math.random() * 7), 2)), 1.8, { vol: 0.05, dest: L });
+      if (rnd < 0.35 * dens) this.tone(t, mtof(note(deg + Math.floor(Math.random() * 7), 2 + o)), 1.8, { vol: 0.045, dest: L });
     } else if (z === 'hub') {
-      if (beat % 2 === 0 && rnd < 0.6) this.tone(t, mtof(note(deg + [0, 2, 4, 1][beat / 2], 1)), 0.9, { type: 'triangle', vol: 0.06, dest: L });
-    } else if (rnd < 0.2) this.tone(t, mtof(note(deg + Math.floor(Math.random() * 5), 1)), 1.2, { vol: 0.05, dest: L });
+      if (beat % 2 === 0 && rnd < 0.65 * dens) this.tone(t, mtof(note(deg + M[beat], 1 + o)), 0.9, { type: 'triangle', vol: 0.055, dest: L });
+    } else if (rnd < 0.2 * dens) this.tone(t, mtof(note(deg + Math.floor(Math.random() * 5), 1)), 1.2, { vol: 0.045, dest: L });
+    if (light) return;
     // percussions liées à la vitesse du train (le train = instrument)
     if (this.intensity > 0.05) {
       if (beat % 4 === 0) { this.tone(t, 110, 0.18, { vol: 0.35, dest: this.drums, glide: 0.35 }); }

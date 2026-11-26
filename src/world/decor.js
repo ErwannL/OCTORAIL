@@ -437,12 +437,12 @@ export function buildGelureDecor(scene, terrain, net) {
     const e = edges[i % edges.length]; const k = Math.floor(e.pts.length * (0.15 + 0.7 * rnd())); const p = e.pts[k], b = e.pts[Math.min(e.pts.length - 1, k + 3)];
     if (sectorIndex(p.x, p.z) !== 5 || Math.hypot(p.x, p.z) < 180) continue;
     const ang = Math.atan2(b.x - p.x, b.z - p.z), rx = Math.cos(ang), rz = -Math.sin(ang);
-    const N = 11, R = 7 + rnd();
+    const N = 13, R = 9.5 + rnd(); // voûte assez large et haute pour le gabarit du train
     for (let j = 0; j <= N; j++) {
-      const th = j / N * PI, lx = Math.cos(th) * R, ly = Math.sin(th) * R, sz = 1.3 + rnd() * 0.8, c = Math.sin(th);
+      const th = j / N * PI, lx = Math.cos(th) * R, ly = Math.sin(th) * R, sz = 1.0 + rnd() * 0.5, c = Math.sin(th);
       archK.add(jitter(new THREE.IcosahedronGeometry(1, 0), 100 + i * 20 + j, 0.5), ice, { p: [p.x + rx * lx, p.y - 0.4 + ly, p.z + rz * lx], s: [sz, sz * (1 + c * 0.5), sz * 1.5 + 0.5], r: [rnd(), ang + (rnd() - 0.5) * 0.3, rnd()] });
       if (j % 2 === 0) archK.add(jitter(new THREE.IcosahedronGeometry(1, 0), 300 + j, 0.4), snow, { p: [p.x + rx * lx * 1.05, p.y - 0.2 + ly * 1.08 + 0.7, p.z + rz * lx * 1.05], s: [sz * 0.9, sz * 0.55, sz * 1.4], r: [0, ang, 0] });
-      if (c > 0.15 && j % 2 === 1) for (let d = 0; d < 3; d++) archK.add(G.cone(0.14, 0.8 + rnd() * 1.6, 5), ice, { p: [p.x + rx * lx * 0.93 + (rnd() - 0.5) * 0.6, p.y - 0.4 + ly * 0.9 - 0.8, p.z + rz * lx * 0.93 + (rnd() - 0.5) * 0.6], r: [PI, 0, 0] });
+      if (c > 0.15 && c < 0.75 && j % 2 === 1) for (let d = 0; d < 3; d++) archK.add(G.cone(0.14, 0.8 + rnd() * 1.6, 5), ice, { p: [p.x + rx * lx * 0.93 + (rnd() - 0.5) * 0.6, p.y - 0.4 + ly * 0.9 - 0.8, p.z + rz * lx * 0.93 + (rnd() - 0.5) * 0.6], r: [PI, 0, 0] });
     }
     for (const sg of [-1, 1]) for (let q = 0; q < 3; q++) archK.add(jitter(new THREE.IcosahedronGeometry(1, 0), 500 + q, 0.5), snow, { p: [p.x + rx * R * sg * 1.1 + (rnd() - 0.5) * 2, p.y - 0.4, p.z + rz * R * sg * 1.1], s: [1.8 + rnd(), 0.9, 1.8 + rnd()] });
   }

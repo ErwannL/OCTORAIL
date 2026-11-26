@@ -34,11 +34,16 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   const tr = edge.pts.map(p => { const dx = p.x - mid.x, dz = p.z - mid.z; return [dx * cth - dz * sth, dx * sth + dz * cth, p.y - oy]; }).sort((a, b) => a[0] - b[0]);
   const track = lx => { if (lx <= tr[0][0]) return tr[0]; if (lx >= tr[tr.length - 1][0]) return tr[tr.length - 1]; let lo = 0, hi = tr.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tr[m][0] <= lx) lo = m; else hi = m; } const a = tr[lo], b = tr[hi], t = (lx - a[0]) / ((b[0] - a[0]) || 1); return [lx, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; };
   const RT = 9.2; // demi-largeur du tunnel
+  // largeur latérale de la vague limitée de chaque côté pour ne JAMAIS recouvrir une autre voie (ex. raccord K5→K4)
+  let LIMP = 350, LIMN = 350;
+  for (const e2 of net.edges) { if (e2 === edge) continue; for (const p of e2.pts) { const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth;
+    if (lx < -420 || lx > 420) continue; const d = Math.abs(lz) - 45; if (Math.abs(lz) < 25) continue; if (lz > 0) LIMP = Math.min(LIMP, d); else LIMN = Math.min(LIMN, d); } }
+  LIMP = Math.max(25, LIMP); LIMN = Math.max(25, LIMN); console.log('Tsunami : largeur limitée', LIMP.toFixed(0), LIMN.toFixed(0));
   const arch = z => { const u = Math.abs(z) / RT; return u >= 1 ? 0 : 9.6 * Math.pow(1 - Math.pow(u, 3.5), 1 / 3.5); };
 
   // hauteurs (relatives à la voie) en un point de la grille : xd = x de conception, zeta = abscisse transversale (m)
   function surf(xd, zeta) {
-    const env = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(zeta) / 350, 3.2)), 0.8);
+    const env = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(zeta) / (zeta > 0 ? LIMP : LIMN), 3.2)), 0.8);
     const m1 = 1 + 0.10 * Math.sin(zeta / 66 + 1) + 0.07 * Math.sin(zeta / 29);
     const shift = 22 * Math.sin(zeta / 120 + 0.5) + 7 * Math.sin(zeta / 41) + 7 * Math.sin(zeta / 17) * smooth(100, 170, xd);
     const xs = xd - shift, n = hash(xd, zeta) * 3.2;
@@ -61,7 +66,7 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
     const zeta = zs[j], [h0, l0] = surf(xs[i], zeta); let h = h0, l = l0;
     const jt = (Math.abs(zeta) > 14 ? 1 : 0.2) * (rnd() - 0.5) * 3.5; if (h > 3) h += jt; if (l > 8) l += (rnd() - 0.5) * 3.5 * (Math.abs(zeta) > 14 ? 1 : 0);
     // creusement du tunnel le long de la voie
-    const a = arch(zeta); if (a > 0 && h > a + 1.5) l = Math.max(l, a); else if (l > h) l = h;
+    const a = arch(zeta); if (a > 0 && h > a + 1.5) l = Math.max(l, a); else if (a > 0 && h > -0.5) { h = -0.5; l = Math.min(l, h - 0.01); } else if (l > h) l = h; // dans le gabarit du tunnel : jamais de glace mince au-dessus des rails
     if (h < a + 1.2 && a > 0) { h = Math.max(h, GR); }
     const z = zeta + c * (1 - smooth(30, 130, Math.abs(zeta)));
     // noyau intérieur
@@ -168,7 +173,7 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
       for (const sz of [-1, 1]) { k.add(G.box(0.6, 3.2, 0.6), rib, { p: [lx, y + 1.4, t[1] + sz * (RT + 0.1)] }); }
       k.add(G.box(0.5, 0.25, 2.2), lamp, { p: [lx, y + RT + 0.15, t[1]] });
       for (const sz of [-1, 1]) k.add(G.box(0.3, 0.3, 0.3), lampW, { p: [lx - 0.4, y + 3.5, t[1] + sz * (RT - 0.4)] });
-      for (let q = 0; q < 3; q++) k.add(G.cone(0.12 + rnd() * 0.12, 0.8 + rnd() * 2.2, 5), rib, { p: [lx + (rnd() - 0.5) * 6, y + RT - 0.6 - rnd() * 0.3, t[1] + (rnd() - 0.5) * 12], r: [PI, 0, 0] }); }
+      for (let q = 0; q < 3; q++) { const off = (rnd() < 0.5 ? -1 : 1) * (3.2 + rnd() * 2.5); k.add(G.cone(0.12 + rnd() * 0.12, 0.6 + rnd() * 0.9, 5), rib, { p: [lx + (rnd() - 0.5) * 6, y + Math.sqrt(Math.max(0, RT * RT - off * off)) - 0.4, t[1] + off], r: [PI, 0, 0] }); } } // stalactites sur les côtés de la voûte : gabarit du train libre
     // portail à l'entrée du tunnel (fond du porche)
     { const lx = 33.5, t = track(lx), y = t[2], zc = t[1];
       for (const sz of [-1, 1]) { k.add(G.box(3.4, 15, 4), stone, { p: [lx, y + 7, zc + sz * (RT + 2.0)] }); k.add(G.box(4.2, 1, 4.8), steel, { p: [lx, y + 14.8, zc + sz * (RT + 2.0)] }); k.add(G.box(0.6, 0.8, 0.5), lampW, { p: [lx + 1.8, y + 4.5, zc + sz * (RT + 0.2)] }); }
@@ -183,7 +188,22 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   wave.position.set(mid.x, oy, mid.z); wave.rotation.y = th;
   wave.traverse(o => { if (o.isMesh && !o.material.transparent && !o.isInstancedMesh) o.castShadow = o.castShadow || false; });
   scene.add(wave); wave.updateMatrixWorld(true);
-  TSUNAMI_ZONE.set = true; TSUNAMI_ZONE.test = (x, z, m = 0) => { const dx = x - mid.x, dz = z - mid.z; const lx = dx * cth - dz * sth, lz = dx * sth + dz * cth; return lx > -118 - m && lx < 125 + m && Math.abs(lz) < 340 + m; };
+  // hors de l'enveloppe de la vague, le « plancher » de glace ne doit jamais dépasser du sol réel (autres voies, plaine)
+  { const v = new THREE.Vector3(), inv = new THREE.Matrix4();
+    wave.traverse(o => { if (!o.isMesh || o.isInstancedMesh) return;
+      inv.copy(o.matrixWorld).invert(); const P = o.geometry.attributes.position; let ch = 0;
+      for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+        const dx = v.x - mid.x, dz = v.z - mid.z, lz = dx * sth + dz * cth, lim = lz > 0 ? LIMP : LIMN;
+        const nt = net.nearest(v.x, v.z, 4.5), onOther = nt && net.edges[nt.edge] !== edge && v.y < nt.y + 7;
+        if (Math.abs(lz) < lim * 0.9 && !onOther) continue; const g = (onOther ? Math.min(terrain.heightAt(v.x, v.z), nt.y - 0.8) : terrain.heightAt(v.x, v.z)) - 1.5; if (v.y > g) { v.y = g; v.applyMatrix4(inv); P.setXYZ(i, v.x, v.y, v.z); ch++; } }
+      if (ch) { P.needsUpdate = true; o.geometry.computeVertexNormals(); o.geometry.computeBoundingSphere(); } });
+    // petits éléments (gouttes, pics…) posés sur une autre voie : retirés
+    const other = net.edges.filter(e2 => e2 !== edge);
+    const sc = new THREE.Vector3();
+    wave.traverse(o => { if (!o.isMesh || o.isInstancedMesh) return; if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if (o.geometry.boundingSphere.radius > 30) return; o.getWorldPosition(v); o.getWorldScale(sc);
+      const R = o.geometry.boundingSphere.radius * Math.max(sc.x, sc.y, sc.z);
+      for (const e2 of net.edges) { for (let k = 0; k < e2.pts.length; k += 2) { const q = e2.pts[k]; if (Math.hypot(q.x - v.x, q.z - v.z) < R + 3 && v.y - R < q.y + 6) { o.visible = false; break; } } if (!o.visible) break; } }); }
+  TSUNAMI_ZONE.set = true; TSUNAMI_ZONE.test = (x, z, m = 0) => { const dx = x - mid.x, dz = z - mid.z; const lx = dx * cth - dz * sth, lz = dx * sth + dz * cth; return lx > -118 - m && lx < 125 + m && (lz > 0 ? lz < LIMP + m : -lz < LIMN + m); };
 
   // collisions : corps de la vague en tronçons de part et d'autre du couloir du tunnel
   { const seg = 14, x0 = -108, x1 = 33, step = (x1 - x0) / seg;

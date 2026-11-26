@@ -203,7 +203,7 @@ function renderHints() {
   let h = '';
   if (player.mode === 'cab') {
     const steam = train.kind === 'vapeur';
-    h += row(K('forward') + K('back'), 'Régulateur / marche arrière') + row(K('jump'), 'Frein') + row(K('action'), steam ? 'Pelleter du charbon' : 'Pomper (spam)') + row(K('left') + K('right'), 'Aiguillage') + row(K('whistle'), 'Sifflet') + row(K('interact'), 'Descendre');
+    h += row(K('forward') + K('back'), 'Régulateur / marche arrière') + row(K('jump'), 'Frein') + row(K('action'), steam ? 'Pelleter du charbon' : 'Pomper (spam)') + row(K('left') + K('right'), 'Aiguillage') + row(K('turn'), 'Demi-tour (à l\'arrêt)') + row(K('whistle'), 'Sifflet') + row(K('interact'), 'Descendre');
   } else {
     h += row(K('forward') + K('left') + K('back') + K('right'), 'Se déplacer') + row(K('run'), player.sprinting ? 'Sprint ⚡' : 'Sprint (élixir ou clé à molette)', R.sprint) + row(K('jump'), 'Sauter') + row('maintenir ' + K('jump'), 'Jambes-ressorts : saut chargé', R.spring || R.jump) + row(K('interact'), 'Interagir') + row(K('action'), 'Action (miner, fondre…)');
   }
@@ -729,6 +729,10 @@ function frame() {
     else if (input.ah('action')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Wagon à charbon vide ! Recharge à la Charbonnière du Moyeu.'); } }
     if (input.ah('left')) { train.nudgePref(-1); audio.clunk(); }   // aiguillage : A = à gauche (par rapport au sens de marche), D = à droite, la touche opposée revient tout droit
     if (input.ah('right')) { train.nudgePref(1); audio.clunk(); }
+    if (input.ah('turn')) {
+      if (train.turnAround()) { audio.whistle(0.5); audio.noiseBurst(audio.now, 1.2, 900, 0.6, 0.5, 'lowpass'); for (let k = 0; k < 40; k++) steam.emit(train.loco.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 0.5, (Math.random() - 0.5) * 6)), new THREE.Vector3((Math.random() - 0.5) * 3, 2 + Math.random() * 3, (Math.random() - 0.5) * 3), { life: 1.6, size: 2.2, color: '#ffffff', alpha: 0.7 }); ui.toast('Vérin de retournement : demi-tour !'); }
+      else { audio.deny(); ui.toast(Math.abs(train.speed) >= 0.6 ? 'Arrête le train pour faire demi-tour.' : 'Pas ici : tout le train doit être sur les rails (éloigne-toi du butoir).'); }
+    }
     if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
     if (input.ah('interact')) { player.mode = 'foot'; cabFace = 0; cabTurn = 0; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.consume('interact'); }
   }

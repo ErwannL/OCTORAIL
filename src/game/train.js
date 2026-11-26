@@ -134,6 +134,17 @@ export class Train {
     }
   }
 
+  // Demi-tour sur place (vérin de retournement des Bâtisseurs) : le convoi se soulève, pivote de 180° et repart dans l'autre sens
+  canTurn() { return !this.turning && this.vlen < 1e-6 && Math.abs(this.speed) < 0.6; }
+  turnAround() {
+    if (!this.canTurn()) return false;
+    this.segs = this.segs.slice().reverse().map(sg => ({ e: sg.e, u: -sg.u, a: sg.b, b: sg.a }));
+    this.speed = 0; this.turning = 1.4; this.turnT = 0;
+    // centre du convoi (repère monde) pour l'animation
+    const c = new THREE.Vector3(), t = new THREE.Vector3(); this.pointAt(this.totalLength / 2, c, t); this.turnC = c;
+    this.events.push('turn');
+    return true;
+  }
   _buffer() { // butoir : arrêt net (l'événement n'est signalé qu'une fois par choc, pas à chaque image)
     this.speed = 0;
     const now = performance.now(); if (now - (this.lastBuf || 0) > 900) this.events.push('buffer'); this.lastBuf = now;
@@ -237,6 +248,13 @@ export class Train {
       this.placeVeh(w.mesh, back, L);
       back += L / 2;
     }
+    // animation du demi-tour : soulever, pivoter autour du centre, reposer
+    if (this.turning) {
+      this.turnT += dt; const k = Math.min(1, this.turnT / this.turning), e = k * k * (3 - 2 * k), C = this.turnC, ang = (1 - e) * Math.PI;
+      this.root.rotation.y = ang; const c = Math.cos(ang), s2 = Math.sin(ang);
+      this.root.position.set(C.x - (c * C.x + s2 * C.z), Math.sin(k * Math.PI) * 1.6, C.z - (-s2 * C.x + c * C.z));
+      if (k >= 1) { this.turning = 0; this.root.rotation.y = 0; this.root.position.set(0, 0, 0); }
+    }
     // roues + bielles
     const spin = this.speed * dt / 0.6;
     for (const m of [this.loco, ...this.wagons.map(w => w.mesh)]) for (const wh of m.userData.wheels) wh.rotation.x += spin;
@@ -258,6 +276,7 @@ export class Train {
   }
 
   physics(dt, input) {
+    if (this.turning) { this.speed = 0; return; }
     const d = this.def;
     let thrust = 0;
     if (input) { this.throttle = input.throttle; this.brake = input.brake; }

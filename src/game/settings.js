@@ -2,13 +2,13 @@
 export const ACTIONS = [
   ['forward', 'Avancer / régulateur +'], ['back', 'Reculer / régulateur −'], ['left', 'Gauche / aiguillage à gauche'], ['right', 'Droite / aiguillage à droite'],
   ['jump', 'Sauter / frein'], ['run', 'Courir'], ['interact', 'Interagir / monter-descendre'], ['action', 'Pomper · pelleter · miner · fondre'],
-  ['whistle', 'Sifflet'], ['map', 'Plan du réseau'], ['view', 'Vue 1re / 3e personne'], ['hints', 'Afficher / masquer les touches'], ['help', 'Aide (liste des commandes)'], ['pause', 'Menu'],
+  ['whistle', 'Sifflet'], ['turn', 'Demi-tour du train (à l\'arrêt)'], ['map', 'Plan du réseau'], ['view', 'Vue 1re / 3e personne'], ['hints', 'Afficher / masquer les touches'], ['help', 'Aide (liste des commandes)'], ['pause', 'Menu'],
 ];
 export const DEFAULT = {
   master: 0.8, music: 0.6, sfx: 0.9, ambience: 0.7,
   quality: 'auto', fov: 62, bloom: true, shadows: true, shake: true,
   sens: 0.6, smooth: true, hints: true, fp: false, invertY: false, compass: true,
-  keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], map: ['KeyM'], view: ['KeyV'], hints: ['KeyK'], help: ['KeyI'], pause: ['Escape', 'KeyP'] },
+  keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], turn: ['KeyR'], map: ['KeyM'], view: ['KeyV'], hints: ['KeyK'], help: ['KeyI'], pause: ['Escape', 'KeyP'] },
 };
 const KEY = 'octorail-settings-v2';
 export function loadSettings() {

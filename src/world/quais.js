@@ -103,8 +103,8 @@ export function buildQuai(k, signs, b, i, mats) {
   const A0 = 47.2, STEPS = [[45.4, 0.48], [46.3, 0.69], [47.2, TOP]];
   const dA0 = D0 - 0.25, dA1 = D1 + 0.25, dAc = (dA0 + dA1) / 2, dAw = dA1 - dA0;
   for (const [r, top] of STEPS) {
-    bx(coping, (r + A0 + 1.2) / 2, dAc, top / 2 - 0.15, A0 + 1.2 - r, top + 0.3, dAw);
-    bx(stoneDark, r + 0.04, dAc, top - 0.1, 0.08, 0.16, dAw);
+    bx(coping, (r + A0 + 1.2) / 2, dAc, top / 2 - 0.4, A0 + 1.2 - r, top + 0.8, dAw);
+    bx(stoneDark, r - 0.03, dAc, top - 0.09, 0.08, 0.16, dAw + 0.02);
   }
   const R_X0 = RING_R - 2.0, R_X1 = RING_R + 2.0;  // 50 .. 54 : passage sur l'anneau
   bx(paving, (A0 + R_X0) / 2, DC, TOP / 2 - 0.65, R_X0 - A0, TOP + 1.3, W);

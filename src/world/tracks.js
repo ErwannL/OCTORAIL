@@ -25,7 +25,7 @@ function mergeExt(arr) {
 // profil de rail Vignole : patin, âme, champignon
 const RAIL = [[-0.1, 0], [-0.1, 0.035], [-0.03, 0.07], [-0.03, 0.12], [-0.06, 0.17], [0.06, 0.17], [0.03, 0.12], [0.03, 0.07], [0.1, 0.035], [0.1, 0]];
 // ballast : talus trapézoïdal
-const BALLAST = [[-2.7, -0.42], [-1.75, 0.0], [1.75, 0.0], [2.7, -0.42]];
+const BALLAST = [[-3.4, -2.2], [-2.7, -0.42], [-1.75, 0.0], [1.75, 0.0], [2.7, -0.42], [3.4, -2.2]];
 
 // ---------------------------------------------------------------- aiguillages
 // Liste des aiguillages « en talon » : pour chaque noeud et chaque arête d'arrivée offrant plusieurs sorties tangentes,

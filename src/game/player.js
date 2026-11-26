@@ -113,10 +113,15 @@ export class Player {
       else if (ok(P.x + dx, P.z)) { P.x += dx; this.vel.z *= 0.5; }
       else if (ok(P.x, P.z + dz)) { P.z += dz; this.vel.x *= 0.5; }
     }
-    P.y += this.vel.y * dt;
-    // plafond : on ne saute pas à travers un auvent
-    if (this.vel.y > 0 && VOX.solid(P.x, P.z, P.y + BODY - 0.05, P.y + BODY + 0.1, RAD * 0.8)) this.vel.y = 0;
-    let g = ground(P.x, P.z, P.y);
+    // déplacement vertical par petits pas : on ne traverse jamais un toit en sautant ni un plancher en tombant
+    const prevY = P.y, dy = this.vel.y * dt, vn = Math.max(1, Math.ceil(Math.abs(dy) / 0.08));
+    for (let i = 0; i < vn; i++) {
+      const ny = P.y + dy / vn;
+      if (dy > 0 && VOX.solid(P.x, P.z, P.y + BODY, ny + BODY + 0.05, RAD * 0.8)) { this.vel.y = 0; break; }
+      P.y = ny;
+    }
+    let g = ground(P.x, P.z, Math.max(prevY, P.y));
+    if (g > P.y + STEP) g = ground(P.x, P.z, P.y);
     for (const c of extraColliders) { const h = c(P.x, P.z); if (h !== null && h > g && h < P.y + 1.2) g = h; }
     if (P.y <= g) { if (!this.onGround) this.springOut = Math.min(this.springOut, 0.25); P.y = g; this.vel.y = 0; this.onGround = true; } else if (P.y > g + 0.05) this.onGround = false;
     if (hits(P.x, P.z, P.y)) unstick(); // descente d'un rebord : jamais de chevauchement

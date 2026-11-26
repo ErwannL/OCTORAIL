@@ -86,6 +86,7 @@ export class UI {
     if ($('cab-keys').dataset.h !== ck) { $('cab-keys').dataset.h = ck; $('cab-keys').innerHTML = ck; }
     $('sw-keys').textContent = `(${L('left')} / ${L('right')})`;
   }
+  oxy(v, visible, msg) { this.show('oxy', visible); $('b-oxy').style.width = v + '%'; $('oxy').classList.toggle('low', v < 30); $('oxy-msg').textContent = msg || ''; }
   temp(v, visible) { this.show('temp', visible); $('b-temp').style.width = v + '%'; $('temp').classList.toggle('cold', v < 30); }
   bag(items, max) { $('bag').innerHTML = Array.from({ length: max }, (_, i) => `<div class="slot">${items[i] ? items[i].icon : ''}</div>`).join(''); }
   players(list) { $('players').innerHTML = list.map(p => `<span><i style="background:${p.color}"></i>${p.name}</span>`).join(''); }

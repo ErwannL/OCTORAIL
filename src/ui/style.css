@@ -166,3 +166,8 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 #keyhints .kh.off { opacity: 0.75; } #keyhints .kh.off span { text-decoration: line-through; text-decoration-color: #ff5a4a; } #keyhints .kh.off small { text-decoration: none; display: block; }
 #keyhints .kh-zone { color: #8fe0ff; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; padding-left: 4px; }
 @media (max-width: 900px) { #keyhints { top: auto; bottom: 90px; transform: none; max-width: 200px; } }
+
+#oxy { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; width: 260px; color: #8fe0ff; font-weight: 700; flex-wrap: wrap; justify-content: center; }
+#oxy > div { flex: 1; height: 8px; background: #2a2018; border-radius: 4px; overflow: hidden; } #b-oxy { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4a, #5fe0ff); transition: width .2s; }
+#oxy small { width: 100%; text-align: center; font-size: 11px; font-weight: 400; color: #f6e9d0; text-shadow: 0 1px 3px #000; }
+#oxy.low { animation: shiver .25s infinite; } #oxy.low small { color: #ff8a6a; }

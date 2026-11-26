@@ -191,7 +191,7 @@ let me = { name: 'Passager', color: COLORS[0], slot: 0 };
 let player, train;
 const remotes = new Map(); // id -> { avatar, train, state, name, color }
 let started = false, cinematic = null, time = 0, lastSync = 0;
-let camZoom = 6.5, hintT = 0;
+let camZoom = 6.5, hintT = 0, oxyWarned = false;
 function renderHints() {
   const el = document.getElementById('keyhints'); if (!el) return;
   el.classList.toggle('hidden', !SET.hints || !started || !!cinematic);
@@ -784,6 +784,21 @@ function frame() {
   if (inGelure && player.mode === 'foot' && !warmTrain) player.temp = Math.max(0, player.temp - dt * (S.owned.doublure ? 1.2 : 3.6));
   else player.temp = Math.min(100, player.temp + dt * (warmTrain || player.mode !== 'foot' ? 25 : 8));
   ui.temp(player.temp, inGelure || player.temp < 100);
+  // --- oxygène : l'air d'Halcyre hors du réseau est trop pauvre ; la combinaison se recharge auprès du train (réservoir d'air) ou au Moyeu
+  { const R0 = Math.hypot(player.pos.x, player.pos.z), dTrain = train.head ? player.pos.distanceTo(train.head) : 1e9;
+    const safe = player.mode !== 'foot' || R0 < 95 || dTrain < 35;
+    player.oxy ??= 100;
+    if (!safe) player.oxy = Math.max(0, player.oxy - dt * (100 / 75)); // ~75 s d'autonomie loin du train
+    else player.oxy = Math.min(100, player.oxy + dt * 30);
+    const msg = safe ? (player.oxy < 100 ? 'Recharge d\'air…' : '') : (player.oxy < 30 ? 'Air presque épuisé : retourne à ton train !' : 'Loin du train : la combinaison consomme sa réserve d\'air');
+    ui.oxy(player.oxy, player.oxy < 100 || !safe, msg);
+    if (!safe && player.oxy < 30 && !oxyWarned) { oxyWarned = true; ui.toast('OCTAVE : ta réserve d\'air baisse. L\'air d\'Halcyre est irrespirable loin des voies, reste près de ton train.'); audio.beeps(4, 900); }
+    if (safe) oxyWarned = false;
+    if (player.oxy <= 0 && !coldFaint) {
+      coldFaint = true; ui.fade(true, true); ui.toast('À bout d\'air… OCTAVE te ramène à ton train.', true);
+      setTimeout(() => { const c = locoCabWorld(train); player.pos.set(c.x + 3, player.groundAt(c.x + 3, c.z) + 0.5, c.z); player.oxy = 60; coldFaint = false; ui.fade(false, true); }, 1300);
+    }
+  }
   if (player.temp <= 0 && !coldFaint) {
     coldFaint = true; ui.fade(true, true); ui.toast('Tu as gelé… OCTAVE te ramène près de ton train.', true);
     setTimeout(() => { const c = locoCabWorld(train); player.pos.set(c.x + 3, player.groundAt(c.x + 3, c.z) + 0.5, c.z); player.temp = 60; coldFaint = false; ui.fade(false, true); }, 1300);

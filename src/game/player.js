@@ -59,7 +59,11 @@ export class Player {
   }
 
   look(input, sens = 1, inv = false) {
-    this.yaw -= input.mouse.dx * 0.0025 * sens; this.pitch -= input.mouse.dy * 0.0025 * sens * (inv ? -1 : 1);
+    // sensibilité : 0,0016 rad/pixel × réglage, mouvement par image plafonné (anti-toupie)
+    const k = 0.0016 * sens;
+    const dx = Math.max(-300, Math.min(300, input.mouse.dx)), dy = Math.max(-300, Math.min(300, input.mouse.dy));
+    this.yaw -= dx * k; this.pitch -= dy * k * (inv ? -1 : 1);
+    this.yaw = ((this.yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     if (input.down('ArrowLeft')) this.yaw += 0.03; if (input.down('ArrowRight')) this.yaw -= 0.03;
     if (input.down('ArrowUp')) this.pitch += 0.02; if (input.down('ArrowDown')) this.pitch -= 0.02;
     this.pitch = Math.max(-1.2, Math.min(0.5, this.pitch));

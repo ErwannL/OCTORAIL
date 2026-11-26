@@ -97,6 +97,13 @@ export function buildSteamLoco(tint = '#8b1e1e') {
     k.add(G.box(0.14, 0.05, 2.4), brass, { p: [x, cy + 1.2, cz] });
     k.add(G.rbox(0.15, 0.5, 1.0, 0.04), mat('#f1e3c2'), { p: [x + s * 0.02, cy + 0.65, cz] }); // plaque n°
   }
+  // intérieur de cabine : façade de foyer, manomètres, régulateur, pelle, siège
+  k.add(G.box(2.2, 1.6, 0.1), MAT.iron(), { p: [0, 2.2, cz + 1.05] });
+  k.add(G.rbox(0.9, 0.7, 0.12, 0.04), brass, { p: [0, 1.85, cz + 0.98] });
+  for (const [x, y] of [[-0.55, 2.7], [0.55, 2.7], [0, 2.85]]) { k.add(G.cyl(0.17, 0.17, 0.08, 18), brass, { p: [x, y, cz + 0.97], r: [H, 0, 0] }); k.add(G.cyl(0.14, 0.14, 0.09, 18), mat('#f6ecd2'), { p: [x, y, cz + 0.96], r: [H, 0, 0] }); k.add(G.box(0.02, 0.11, 0.02), MAT.red(), { p: [x + 0.03, y + 0.03, cz + 0.91], r: [0, 0, -0.6] }); }
+  k.add(G.box(0.06, 0.06, 0.7), brass, { p: [0.4, 2.4, cz + 0.6], r: [0.5, 0, 0] }); k.add(G.sph(0.07, 8, 6), MAT.red(), { p: [0.4, 2.55, cz + 0.3] });
+  for (const x of [-0.85, 0.85]) { k.add(G.rbox(0.5, 0.12, 0.5, 0.04), mat('#5a3a1e'), { p: [x, 2.0, cz - 0.6] }); k.add(G.box(0.08, 0.7, 0.08), MAT.iron(), { p: [x, 1.6, cz - 0.6] }); }
+  k.add(G.cyl(0.03, 0.03, 1.1, 6), wood, { p: [-0.6, 1.9, cz + 0.2], r: [0.4, 0, 0.3] }); k.add(G.box(0.3, 0.03, 0.35), MAT.steel(), { p: [-0.75, 1.42, cz + 0.55], r: [0.4, 0, 0.3] });
   g.add(k.build());
   // toit bombé (arc) avec débord
   const roof = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.75, 3.0, 24, 1, true, PI - 0.85, 1.7), mat('#1a1b1e', { metalness: 0.6, roughness: 0.5, side: THREE.DoubleSide }));
@@ -107,7 +114,7 @@ export function buildSteamLoco(tint = '#8b1e1e') {
   g.userData.firebox = fire;
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.2, 18), glow('#ffe7b0', 5)); lens.position.set(0, 3.55, 4.47); g.add(lens);
   // faisceau du phare (factice, additif, sans lumière dynamique)
-  const beam = new THREE.Mesh(new THREE.ConeGeometry(3.5, 26, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffe2a8', transparent: true, opacity: 0.07, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(3.5, 26, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffe2a8', transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide }));
   beam.rotation.x = -H; beam.position.set(0, 3.0, 4.5 + 13); g.add(beam);
   g.userData.beam = beam;
 

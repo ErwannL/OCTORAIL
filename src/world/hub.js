@@ -25,7 +25,7 @@ export function buildHub(scene, interact) {
   // rose des vents gravée : 8 rayons de couleur
   BIOMES.forEach((b, i) => {
     const a = i * PI / 4;
-    const c = mat(b.skyBot, { emissive: b.skyBot, emissiveIntensity: b.open ? 0.45 : 0.05, roughness: 0.6 });
+    const c = b.open ? mat(b.skyBot, { emissive: b.skyBot, emissiveIntensity: 0.45, roughness: 0.6 }) : mat('#' + new THREE.Color(b.skyBot).lerp(new THREE.Color('#a8977c'), 0.6).getHexString(), { roughness: 0.8 });
     for (let s = 0; s < 6; s++) { const [x, z] = at(a, 12 + s * 5); k.add(G.box(3.6, 0.08, 1.1 - s * 0.12), c, { p: [x, 0.28, z], r: [0, a, 0] }); }
     const [x, z] = at(a, 42); k.add(G.cyl(1.2, 1.2, 0.1, 6), c, { p: [x, 0.29, z] });
   });

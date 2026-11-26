@@ -7,10 +7,10 @@ export const ACTIONS = [
 export const DEFAULT = {
   master: 0.8, music: 0.6, sfx: 0.9, ambience: 0.7,
   quality: 'auto', fov: 62, bloom: true, shadows: true, shake: true,
-  sens: 1, invertY: false, compass: true,
+  sens: 0.6, invertY: false, compass: true,
   keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], map: ['KeyM'], pause: ['Escape', 'KeyP'] },
 };
-const KEY = 'octorail-settings-v1';
+const KEY = 'octorail-settings-v2';
 export function loadSettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}

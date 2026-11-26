@@ -3,6 +3,8 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { EnvLighting, GradeShader, buildGrass, buildBirds, buildFlags, buildLamps } from './world/ambience.js';
 
 import { BIOMES, ambianceAt, sectorIndex } from './world/biomes.js';
 import { Network } from './world/network.js';
@@ -49,7 +51,9 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.4, 0.45, 0.9);
 bloom.enabled = Q.bloom && SET.bloom;
 composer.addPass(bloom);
+const grade = new ShaderPass(GradeShader); composer.addPass(grade);
 composer.addPass(new OutputPass());
+const envLight = new EnvLighting(renderer, scene);
 const resize = () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth * pixelRatio / 2, innerHeight * pixelRatio / 2); };
 addEventListener('resize', resize);
 // résolution dynamique : vise ~50 FPS
@@ -66,7 +70,7 @@ function adaptQuality(dt) {
   if (Math.abs(pr - pixelRatio) > 0.01) { pixelRatio = pr; resize(); }
 }
 
-const hemi = new THREE.HemisphereLight('#bfd8ff', '#6b4a2a', 0.9); scene.add(hemi);
+const hemi = new THREE.HemisphereLight('#bfd8ff', '#6b4a2a', 0.6); scene.add(hemi);
 const sun = new THREE.DirectionalLight('#fff0d0', 2.6);
 sun.castShadow = Q.shadow > 0; sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 400 });
@@ -93,6 +97,10 @@ buildClosedWorlds(scene, terrain, net);
 buildTrackside(scene, net, terrain);
 const westDecor = buildWesternDecor(scene, terrain, net);
 const gelDecor = buildGelureDecor(scene, terrain, net);
+buildGrass(scene, terrain, net);
+const birds = buildBirds(scene, terrain);
+const flags = buildFlags(scene);
+buildLamps(scene);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
@@ -521,7 +529,7 @@ function renderKeys() {
   for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
   $('s-quality').onchange = e => { SET.quality = e.target.value; saveSettings(SET); ui.toast('Qualité appliquée au prochain lancement (page rechargée).'); setTimeout(() => location.reload(), 900); };
   $('keys-reset').onclick = () => { SET.keys = JSON.parse(JSON.stringify(DEFAULT_SET.keys)); applySettings(); renderKeys(); };
-  $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; canvas.requestPointerLock?.(); };
+  $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; input.lock(); };
   $('to-title').onclick = () => { saveState(S); location.reload(); };
   document.addEventListener('pointerlockchange', () => {
     if (!document.pointerLockElement && started && !ui.panel && !ui.dialogOpen && !cinematic && input.wantLock && $('endcard').classList.contains('hidden')) openPause();
@@ -625,7 +633,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time);
+  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
 
@@ -668,7 +676,8 @@ function frame() {
   const bName = amb.hub > 0.5 ? 'Le Moyeu' : BIOMES[amb.biome].name;
   ui.world(bName, amb.hub > 0.5 ? '#ffd27a' : BIOMES[amb.biome].skyBot);
   ambTimer += dt;
-  if (ambTimer > 0.5) { ambTimer = 0; audio.setZone(amb.hub > 0.5 ? 'hub' : amb.biome === 4 ? 'western' : amb.biome === 5 ? 'gelure' : 'closed'); }
+  if (ambTimer > 0.5) { ambTimer = 0;
+    { const B = amb.hub > 0.5 ? null : BIOMES[amb.biome].c; envLight.update(B ? B.skyTop : new THREE.Color('#1d2b4a'), B ? B.skyBot : new THREE.Color('#e9c79a'), B ? B.g0 : new THREE.Color('#8c7a63')); } audio.setZone(amb.hub > 0.5 ? 'hub' : amb.biome === 4 ? 'western' : amb.biome === 5 ? 'gelure' : 'closed'); }
   const wkind = amb.biome === 5 && amb.hub < 0.5 ? 'snow' : 'dust';
   weather.update(dt, camera.position, pf?.kind || wkind, amb.hub > 0.5 ? 0 : Math.max(phenoK * (pf?.weather || 0), wkind === 'snow' ? 0.9 : (amb.biome === 4 ? 0.35 : 0.1)) * (pf?.weather ? 2.2 : 1));
   audio.setWind(amb.hub > 0.5 ? 0.1 : wkind === 'snow' ? 0.8 : 0.4);
@@ -768,6 +777,8 @@ function updateCamera(dt) {
 }
 
 function titleCam(dt) {
+  if (!envLight.key) envLight.update(new THREE.Color('#1d2b4a'), new THREE.Color('#e9c79a'), new THREE.Color('#8c7a63'));
+  flags.update(time); birds.update(dt, time);
   const a = time * 0.05;
   camera.position.set(Math.cos(a) * 150, 55, Math.sin(a) * 150);
   camera.lookAt(0, 5, 0);

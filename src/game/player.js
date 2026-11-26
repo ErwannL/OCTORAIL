@@ -117,7 +117,7 @@ export class Player {
     const prevY = P.y, dy = this.vel.y * dt, vn = Math.max(1, Math.ceil(Math.abs(dy) / 0.08));
     for (let i = 0; i < vn; i++) {
       const ny = P.y + dy / vn;
-      if (dy > 0 && VOX.solid(P.x, P.z, P.y + BODY, ny + BODY + 0.05, RAD * 0.8)) { this.vel.y = 0; break; }
+      if (dy > 0 && VOX.solid(P.x, P.z, P.y + BODY, ny + BODY + 0.05, RAD + 0.05)) { this.vel.y = 0; break; }
       P.y = ny;
     }
     let g = ground(P.x, P.z, Math.max(prevY, P.y));

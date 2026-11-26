@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OCTORAIL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rye&family=Chakra+Petch:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/src/ui/style.css" />
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="letterbox"><div class="bar top"></div><div class="bar bot"></div></div>
+  <div id="fade"></div>
+
+  <section id="title" class="screen">
+    <div class="logo">
+      <div class="logo-ring"></div>
+      <h1>OCTO<span>RAIL</span></h1>
+      <p class="tag">Huit voies. Huit mondes. Un seul réseau à rallumer.</p>
+    </div>
+    <div class="menu">
+      <label>Ton nom de passager <input id="name" maxlength="14" placeholder="Passager"></label>
+      <div class="colors" id="colors"></div>
+      <button id="play-solo" class="big">▶ Jouer</button>
+      <div class="mp">
+        <input id="room" maxlength="12" placeholder="Code salon (ex: VAPEUR)">
+        <button id="play-mp">Rejoindre / créer un salon (1-8)</button>
+      </div>
+      <button id="reset" class="small">Effacer la sauvegarde</button>
+      <p class="hint">Souris : regarder · ZQSD/WASD : bouger · E : interagir · M : carte · H : sifflet · Échap : libérer la souris</p>
+    </div>
+    <div class="credits">Démo technique · Monde 1-2 sur 8 · Halcyre</div>
+  </section>
+
+  <div id="hud" class="hidden">
+    <div id="top-left">
+      <div id="credits"><span class="ico">◈</span> <b id="cr">0</b> crédits Octave</div>
+      <div id="world-name"></div>
+      <div id="players"></div>
+    </div>
+    <div id="objective"><div class="obj-title">OBJECTIF</div><div id="obj-text"></div></div>
+    <div id="train-panel" class="hidden">
+      <div class="tp-head"><span id="loco-name"></span></div>
+      <div class="gauge-row">
+        <div class="dial"><svg viewBox="0 0 100 60"><path d="M10 55 A40 40 0 0 1 90 55" class="track"/><path id="speed-arc" d="M10 55 A40 40 0 0 1 90 55" class="val"/></svg><div class="dv"><b id="speed">0</b><small>km/h</small></div></div>
+        <div class="bars">
+          <div class="bar-l"><span>Pression</span><div><i id="b-press"></i></div></div>
+          <div class="bar-l"><span>Charbon</span><div><i id="b-coal"></i></div></div>
+          <div class="bar-l"><span>Eau</span><div><i id="b-water"></i></div></div>
+          <div class="bar-l" id="pump-row"><span>Pompage</span><div><i id="b-pump"></i></div></div>
+        </div>
+      </div>
+      <div id="switch">Aiguillage : <b id="sw">TOUT DROIT</b> <small>(A / D)</small></div>
+      <div id="next-node"></div>
+      <div class="keys" id="cab-keys"></div>
+    </div>
+    <div id="temp" class="hidden"><span>❄</span><div><i id="b-temp"></i></div></div>
+    <div id="bag"></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="toasts"></div>
+    <div id="crosshair"></div>
+    <div id="progress" class="hidden"><div><i id="b-prog"></i></div><span id="prog-label"></span></div>
+  </div>
+
+  <div id="dialog" class="hidden">
+    <div class="portrait" id="d-portrait"></div>
+    <div class="body"><div class="who" id="d-who"></div><div class="text" id="d-text"></div><div class="next">▼ [E] / clic</div></div>
+  </div>
+
+  <section id="shop" class="panel hidden">
+    <h2>COMPTOIR DU MOYEU</h2>
+    <p class="sub">Les Bâtisseurs acceptent les crédits Octave.</p>
+    <div id="shop-list"></div>
+    <button class="close">Fermer [Échap]</button>
+  </section>
+
+  <section id="map" class="panel hidden">
+    <h2>PLAN DE L'OCTAVE</h2>
+    <canvas id="map-cv" width="720" height="720"></canvas>
+    <button class="close">Fermer [M]</button>
+  </section>
+
+  <section id="endcard" class="screen hidden">
+    <h1>1 / 8</h1>
+    <h2>GARDIENS RENTRÉS CHEZ EUX</h2>
+    <p id="end-text"></p>
+    <button id="end-continue" class="big">Continuer à explorer</button>
+  </section>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

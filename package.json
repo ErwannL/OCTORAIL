@@ -1,0 +1,31 @@
+{
+  "name": "octorail",
+  "version": "1.0.0",
+  "description": "OCTORAIL — huit voies, huit mondes.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "server": "node server/server.js",
+    "start": "npm run build && node server/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ErwannL/octorail.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ErwannL/octorail/issues"
+  },
+  "homepage": "https://github.com/ErwannL/octorail#readme",
+  "dependencies": {
+    "three": "^0.170.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  },
+  "type": "module"
+}

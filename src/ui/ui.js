@@ -50,6 +50,9 @@ export class UI {
     if (p.dataset.t !== text) { p.dataset.t = text; p.innerHTML = this.kt(text).replace(/\[([^\]]+)\]/g, '<kbd>$1</kbd>'); }
   }
   toast(text, big = false) {
+    const now = performance.now(); this._recent ||= new Map();
+    if (now - (this._recent.get(text) || 0) < 4000) return; this._recent.set(text, now);
+    const box = document.getElementById('toasts'); while (box.children.length >= 4) box.firstChild.remove();
     const t = document.createElement('div'); t.className = 'toast' + (big ? ' big' : ''); t.innerHTML = this.kt(text); $('toasts').appendChild(t);
     setTimeout(() => t.remove(), 3200);
   }

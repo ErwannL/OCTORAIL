@@ -51,9 +51,9 @@ export function buildLife(scene, terrain, net, envGetter) {
       const bm = new THREE.Mesh(frozenBirdGeometry(['#e8eef4', '#3a3a44', '#9a6a4a'][i % 3], 0.1 + rnd() * 0.6, 1.1 + rnd() * 0.5), FLORA_MAT_DS); bm.scale.setScalar(1.3); g.add(bm);
       const shell = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 0), ice); shell.scale.set(1.4, 0.8, 1.1); g.add(shell);
       for (let d = 0; d < 3; d++) { const ic = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.5 + rnd() * 0.5, 4), ice); ic.position.set((rnd() - 0.5) * 1.2, -0.8, (rnd() - 0.5) * 0.8); ic.rotation.x = PI; g.add(ic); }
-      g.position.set(s.x, s.y + 4 + rnd() * 9, s.z); g.rotation.set((rnd() - 0.5) * 0.5, rnd() * 6, (rnd() - 0.5) * 0.6);
+      g.position.set(s.x, s.y + 1.0, s.z); g.rotation.set(0, rnd() * 6, (rnd() - 0.5) * 0.2); // posé au sol dans son bloc de glace (plus rien ne flotte)
       scene.add(g); const by = g.position.y; const ph = rnd() * 9;
-      anim.push((dt, t) => { g.position.y = by + Math.sin(t * 0.4 + ph) * 0.05; shell.rotation.y = Math.sin(t * 0.2 + ph) * 0.03; });
+      anim.push((dt, t) => { g.position.y = by; shell.rotation.y = Math.sin(t * 0.2 + ph) * 0.03; });
     }
   }
 
@@ -64,7 +64,8 @@ export function buildLife(scene, terrain, net, envGetter) {
       const g = new THREE.Group(), me = new THREE.Mesh(bales[i % 4], FLORA_MAT); me.castShadow = true; g.add(me);
       const wm = new THREE.Mesh(wisp, FLORA_MAT); g.add(wm); scene.add(g);
       const o = { g, wm, home: new THREE.Vector3(s.x, s.y, s.z), h: 2 + rnd() * 10, ph: rnd() * 20, drift: 15 + rnd() * 30, sp: 0.05 + rnd() * 0.08 };
-      anim.push((dt, t) => { const a = t * o.sp + o.ph; const bx = o.home.x + Math.sin(a) * o.drift, bz = o.home.z + Math.cos(a * 0.7) * o.drift * 0.6; if (t - (o.gt || -9) > 0.25) { o.gt = t; o.gy = terrain.heightAt(bx, bz); } o.gy2 = (o.gy2 ?? o.gy) + (o.gy - (o.gy2 ?? o.gy)) * Math.min(1, dt * 3); o.g.position.set(bx, Math.max(o.home.y, o.gy2) + o.h + Math.sin(t * 0.7 + o.ph) * 1.2, bz); o.g.rotation.set(Math.sin(t * 0.5 + o.ph) * 0.5, a * 2, Math.cos(t * 0.4 + o.ph) * 0.4); o.wm.rotation.y = t * 0.8 + o.ph; o.wm.rotation.x = Math.sin(t + o.ph) * 0.3; });
+      // botte posée au sol (on ne fait plus flotter le foin)
+      o.g.position.set(o.home.x, terrain.heightAt(o.home.x, o.home.z) + 0.45, o.home.z); o.g.rotation.set(0, o.ph, 0); o.wm.visible = false;
     }
     // bottes posées au sol aussi
     const Ls = [[], [], [], []]; for (let i = 0; i < 60; i++) { const s = nearTrack(4, 7, 40); if (!s) continue; const v = i % 4; Ls[v].push(M4(s.x, s.y + (v < 2 ? 0.45 : 0.68), s.z, rnd() * 6, 1)); COLLIDERS.circle(s.x, s.z, v < 2 ? 0.9 : 0.75, s.y + (v < 2 ? 0.9 : 1.3)); }

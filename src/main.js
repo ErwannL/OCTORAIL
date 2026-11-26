@@ -110,6 +110,11 @@ const t0 = performance.now();
 const net = new Network(7);
 net.applyHeights(rawHeight);
 const terrain = new Terrain(net);
+{ // la ville est posée à plat : on aplanit le terrain autour du terminus Ouest
+  const T = net.nodes.get('T4'), e = net.edges.find(x => x.b === 'T4' || x.a === 'T4'), pts = e.pts, end = e.b === 'T4' ? pts[pts.length - 1] : pts[0], prev = e.b === 'T4' ? pts[pts.length - 40] : pts[39];
+  const dx = prev.x - end.x, dz = prev.z - end.z, L = Math.hypot(dx, dz) || 1;
+  terrain.flatten({ x: end.x + dx / L * 40, z: end.z + dz / L * 40, r: 78, fall: 45, y: end.y - 0.75 });
+}
 terrain.build(scene);
 buildTracks(scene, net);
 const signals = buildSignals(scene, net, BIOMES);
@@ -964,7 +969,7 @@ function updateCamera(dt) {
   for (let d = 0.35; d <= dist; d += 0.25) if (blockedAt(d)) { free = Math.max(0.35, d - 0.35); break; }
   if (!Number.isFinite(armLen) || !camInit) armLen = free;
   if (free < armLen) armLen = free; // raccourcit instantanément : jamais dans un objet
-  else armLen += (free - armLen) * (1 - Math.exp(-dt * 3));
+  else armLen += (free - armLen) * (1 - Math.exp(-dt * 7));
   camPos.copy(target).addScaledVector(dir, armLen);
   if (!Number.isFinite(camPos.x + camPos.y + camPos.z)) camPos.copy(target).add(_o2.set(0, 3, 6));
   camInit = true;

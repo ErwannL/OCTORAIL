@@ -61,7 +61,8 @@ export class Compass {
     this.hist.push({ view, pos: { x: pos.x, z: pos.z } }); if (this.hist.length > 1800) this.hist.shift();
     // --- perturbation de la lecture
     let shown = view, opacity = 1, jitter = 0, blur = 0, src = pos, mirage = false;
-    if (ev === 'magnetique' || ev === 'aurore') { this.spin += dt * (ev === 'aurore' ? 40 : 160) * (0.5 + Math.sin(this.event.dur * 1.7)); shown = view + this.spin + (ev === 'aurore' ? 180 : 0); jitter = 6; }
+    if (ev === 'magnetique') { shown = view + Math.sin(this.event.dur * 2.3) * 70 + Math.sin(this.event.dur * 7.1) * 18; jitter = 3; }
+    if (ev === 'aurore') { shown = view + 180 + Math.sin(this.event.dur * 0.8) * 25; jitter = 2; }
     if (ev === 'givre') shown = this.frozenYaw;
     if (ev === 'tempete' || ev === 'blizzard') { opacity = Math.max(0.06, 0.5 - this.event.dur * 0.08); blur = 3; }
     if (ev === 'brume') { opacity = 0.25; blur = 2; }

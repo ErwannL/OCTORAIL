@@ -40,8 +40,24 @@ export class Terrain {
     this.net = network;
   }
 
+  // Après construction : hauteur EXACTE du maillage affiché (triangles), pour que rien ne flotte ni ne s'enfonce
   heightAt(x, z) {
+    if (this.grid) {
+      const G = this.grid, fx0 = (x + G.half) / G.st, fz0 = (z + G.half) / G.st;
+      const ix = Math.max(0, Math.min(G.n - 1, Math.floor(fx0))), iz = Math.max(0, Math.min(G.n - 1, Math.floor(fz0)));
+      const fx = Math.min(1, Math.max(0, fx0 - ix)), fz = Math.min(1, Math.max(0, fz0 - iz)), g1 = G.n + 1, H = G.h;
+      const ha = H[iz * g1 + ix], hb = H[(iz + 1) * g1 + ix], hc = H[(iz + 1) * g1 + ix + 1], hd = H[iz * g1 + ix + 1];
+      return fx + fz <= 1 ? ha + (hd - ha) * fx + (hb - ha) * fz : hc + (hb - hc) * (1 - fx) + (hd - hc) * (1 - fz);
+    }
+    return this.shapeAt(x, z);
+  }
+
+  // Zones aplanies (ville…) : { x, z, r, fall, y }
+  flatten(zone) { (this.zones ||= []).push(zone); }
+
+  shapeAt(x, z) {
     let h = rawHeight(x, z);
+    for (const Z of this.zones || []) { const d = Math.hypot(x - Z.x, z - Z.z); if (d < Z.r + Z.fall) h = lerp(Z.y, h, smooth(Z.r, Z.r + Z.fall, d)); }
     const r = Math.hypot(x, z);
     if (r < HUB_RADIUS + 10) h = lerp(0, h, smooth(HUB_RADIUS - 10, HUB_RADIUS + 10, r));
     const q = this.net.nearest(x, z, 34);
@@ -61,7 +77,7 @@ export class Terrain {
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
-      const h = this.heightAt(x, z);
+      const h = this.shapeAt(x, z);
       pos.setY(i, h);
       const n = N.fbm(x * 0.03, z * 0.03, 3);
       groundColor(x, z, n, c);
@@ -83,6 +99,7 @@ export class Terrain {
         col[k * 3] = cc.r; col[k * 3 + 1] = cc.g; col[k * 3 + 2] = cc.b;
       } }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    { const H = new Float32Array(pos.count); for (let i = 0; i < pos.count; i++) H[i] = pos.getY(i); this.grid = { h: H, n: SEG, st: S / SEG, half: S / 2 }; }
     geo.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, map: groundDetailTexture() });
     // Tuiles : frustum culling + masquage par distance (au lieu d'un unique maillage de 205k triangles)

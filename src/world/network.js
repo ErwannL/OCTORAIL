@@ -18,7 +18,7 @@ const at = (i, r, side = 0) => {
 
 export const RING_R = 52;      // rayon de la boucle du Moyeu
 export const STUB_R = 54.5;    // bout de voie (butoir) du quai
-export const MERGE_R = 76;     // aiguillage où le raccord de l'anneau rejoint la voie du quai
+export const MERGE_R = 100;    // aiguillage où le raccord de l'anneau rejoint la voie du quai
 export const CONN_ARC = 22;    // distance (le long de l'anneau) entre l'aiguillage d'anneau et l'axe du quai
 
 // Hermite cubique par morceaux : passe par les points de contrôle, tangentes imposées aux extrémités.

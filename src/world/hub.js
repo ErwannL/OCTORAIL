@@ -3,6 +3,7 @@ import { Kit, G, mat, MAT, glow } from './kit.js';
 import { BIOMES } from './biomes.js';
 import { textSprite } from './tracks.js';
 import { COLLIDERS } from './colliders.js';
+import { buildBalustrade, buildQuai } from './quais.js';
 
 const PI = Math.PI, H = PI / 2;
 const at = (a, r) => [Math.cos(a) * r, -Math.sin(a) * r];
@@ -21,8 +22,7 @@ export function buildHub(scene, interact) {
   for (let i = 0; i < 48; i++) { const a = i / 48 * PI * 2; const [x, z] = at(a, 29); k.add(G.box(0.18, 0.06, 30), stoneDark, { p: [x, 0.27, z], r: [0, a + H, 0] }); }
   // bordure + marches + balustrade
   k.add(G.tor(48.2, 0.5, 6, 96), stoneDark, { p: [0, 0.2, 0], r: [H, 0, 0] });
-  for (let i = 0; i < 64; i++) { const a = i / 64 * PI * 2; if (Math.abs(((a / (PI / 4)) % 1) - 0) < 0.12 || Math.abs(((a / (PI / 4)) % 1) - 1) < 0.12) continue; const [x, z] = at(a, 47.4); k.add(G.cyl(0.18, 0.22, 1.1, 8), stone, { p: [x, 0.75, z] }); }
-  k.add(G.tor(47.4, 0.12, 4, 96), brass, { p: [0, 1.32, 0], r: [H, 0, 0] });
+  // balustrade du pourtour : ouverte devant chaque quai (voir quais.js)
   // rose des vents gravée : 8 rayons de couleur
   BIOMES.forEach((b, i) => {
     const a = i * PI / 4;
@@ -30,72 +30,11 @@ export function buildHub(scene, interact) {
     for (let s = 0; s < 6; s++) { const [x, z] = at(a, 12 + s * 5); k.add(G.box(3.6, 0.08, 1.1 - s * 0.12), c, { p: [x, 0.28, z], r: [0, a, 0] }); }
     const [x, z] = at(a, 42); k.add(G.cyl(1.2, 1.2, 0.1, 6), c, { p: [x, 0.29, z] });
   });
-  // --- Quais des 8 voies : quai, auvent, lampadaires, bancs, horloge
+  // --- Quais des 8 voies : plate-forme longeant la voie, accès, auvent, mobilier (voir quais.js)
   const signs = [];
-  BIOMES.forEach((b, i) => {
-    const a = i * PI / 4, tan = [-Math.sin(a), -Math.cos(a)];
-    const side = (d) => { const [x, z] = at(a, 60); return [x + tan[0] * d, z + tan[1] * d]; };
-    const [qx, qz] = side(5.6);
-    k.add(G.rbox(4.6, 1.0, 20, 0.1), stone, { p: [qx, 0.3, qz], r: [0, a + H, 0] });
-    k.add(G.box(4.7, 0.12, 20.2), mat('#e8c84a', { roughness: 0.6 }), { p: [qx - tan[0] * 2.1, 0.82, qz - tan[1] * 2.1], r: [0, a + H, 0], s: [0.08, 1, 1] });
-    // auvent en fer forgé
-    for (const d of [-7, 0, 7]) {
-      const ax = qx + Math.cos(a) * d, az = qz - Math.sin(a) * d;
-      k.add(G.cyl(0.12, 0.16, 4.2, 10), iron, { p: [ax, 2.9, az] });
-      k.add(G.tor(0.5, 0.05, 4, 12, PI), iron, { p: [ax, 4.5, az], r: [0, a, 0] });
-    }
-    k.add(G.box(5.6, 0.12, 19), mat(b.open ? '#3a5a4a' : '#4a4a4a', { roughness: 0.6, metalness: 0.3 }), { p: [qx - tan[0] * 0.4, 5.1, qz - tan[1] * 0.4], r: [0.12, a + H, 0] });
-    for (const d of [-9, -4.5, 0, 4.5, 9]) { const ax = qx + Math.cos(a) * d - tan[0] * 0.4, az = qz - Math.sin(a) * d - tan[1] * 0.4; k.add(G.box(5.6, 0.1, 0.1), brass, { p: [ax, 5.05, az], r: [0, a + H, 0] }); }
-    // banc
-    const bx = qx + tan[0] * 1.2, bz = qz + tan[1] * 1.2;
-    k.add(G.box(0.5, 0.08, 2.2), wood, { p: [bx, 1.3, bz], r: [0, a, 0] });
-    k.add(G.box(0.08, 0.5, 2.2), wood, { p: [bx + tan[0] * 0.25, 1.55, bz + tan[1] * 0.25], r: [0, a, 0] });
-    // horloge sur poteau
-    const [cx, cz] = side(9.5);
-    k.add(G.cyl(0.1, 0.12, 4, 8), iron, { p: [cx, 2.8, cz] });
-    k.add(G.cyl(0.5, 0.5, 0.25, 20), brass, { p: [cx, 4.9, cz], r: [H, 0, a + H] });
-    k.add(G.cyl(0.42, 0.42, 0.27, 20), mat('#f6ecd2'), { p: [cx, 4.9, cz], r: [H, 0, a + H] });
-    // aiguilles de l'horloge (face hub)
-    k.add(G.box(0.05, 0.34, 0.05), iron, { p: [cx - Math.cos(a) * 0.15, 4.98, cz + Math.sin(a) * 0.15], r: [0, a, 0.5] });
-    // --- mobilier de quai, repère local (lx radial, lz vers la voie)
-    const O = side(5.6), cs = Math.cos(a), sn = Math.sin(a);
-    const L = (lx, lz) => [O[0] + lx * cs + lz * sn, O[1] - lx * sn + lz * cs];
-    const rxg = (geo) => geo.rotateX(H);
-    const lk = (geo, m, lx, y, lz, ry = 0) => { const [x, z] = L(lx, lz); k.add(geo, m, { p: [x, y, z], r: [0, a + ry, 0] }); };
-    const canvas = mat('#c8b78a', { roughness: 1 }), crateM = mat('#a07a48', { roughness: 0.9 }), cartM = mat('#2a4a5a', { roughness: 0.6, metalness: 0.3 });
-    // chariot à bagages (plateau, ridelles, timon, 4 roues, malles)
-    lk(G.box(2.6, 0.12, 1.3), cartM, 5.2, 1.0, 0.3);
-    lk(G.box(2.6, 0.3, 0.08), cartM, 5.2, 1.25, 0.93); lk(G.box(2.6, 0.3, 0.08), cartM, 5.2, 1.25, -0.33);
-    lk(G.box(0.08, 0.3, 1.3), cartM, 6.5, 1.25, 0.3); lk(G.box(0.08, 0.3, 1.3), cartM, 3.9, 1.25, 0.3);
-    for (const wx of [4.4, 6.0]) for (const wz of [-0.3, 0.9]) lk(rxg(G.cyl(0.32, 0.32, 0.1, 12)), iron, wx, 0.55, wz);
-    for (const wx of [4.4, 6.0]) lk(rxg(G.cyl(0.05, 0.05, 1.5, 5)), iron, wx, 0.55, 0.3);
-    lk(G.box(2.0, 0.07, 0.07), iron, 3.0, 0.85, 0.3, 0); lk(G.tor(0.18, 0.03, 4, 8), iron, 2.0, 0.9, 0.3);
-    lk(G.rbox(0.9, 0.55, 0.6, 0.05), mat('#7a4a2a'), 5.5, 1.38, 0.4); lk(G.rbox(0.7, 0.4, 0.5, 0.05), mat('#4a3a2a'), 4.7, 1.3, 0.2, 0.3);
-    lk(G.box(0.95, 0.05, 0.65), brass, 5.5, 1.67, 0.4); lk(G.sph(0.28, 8, 6), canvas, 6.0, 1.3, 0.9);
-    // pile de caisses + sacs + tonneau
-    lk(G.box(0.8, 0.8, 0.8), crateM, -5.2, 0.85, 0.0, 0.2); lk(G.box(0.7, 0.7, 0.7), crateM, -5.0, 0.8, 0.9, -0.2); lk(G.box(0.6, 0.6, 0.6), crateM, -5.2, 1.55, 0.1, 0.5);
-    lk(G.sph(0.34, 8, 6), canvas, -6.4, 0.65, 0.2); lk(G.sph(0.3, 8, 6), canvas, -6.2, 0.62, 0.8);
-    lk(G.lathe([[0.35, 0], [0.42, 0.4], [0.35, 0.85], [0, 0.85]], 12), wood, -6.8, 0.8, 1.0);
-    // panneau d'horaires + panneau destination sur potence
-    lk(G.box(0.1, 3.0, 0.1), iron, -9.2, 2.3, 1.4); lk(G.box(0.12, 1.3, 1.0), mat('#1d1a14'), -9.2, 3.1, 1.4);
-    for (let r = 0; r < 4; r++) lk(G.box(0.14, 0.1, 0.78), glow(b.open ? '#8be0a0' : '#6a5a4a', 0.8), -9.2, 3.5 - r * 0.28, 1.4);
-    lk(G.box(0.14, 1.4, 1.1), brass, -9.17, 3.1, 1.4); 
-    // lampadaires de quai ouvragés
-    for (const lx of [-9.3, 0, 9.3]) {
-      lk(G.cyl(0.07, 0.12, 3.6, 8), iron, lx, 2.0, -1.8); lk(G.cyl(0.2, 0.25, 0.3, 8), iron, lx, 0.95, -1.8); lk(G.tor(0.3, 0.04, 4, 10, PI), iron, lx, 3.7, -1.8, 0);
-      lk(G.box(0.32, 0.46, 0.32), iron, lx, 3.95, -1.8); lk(G.box(0.22, 0.34, 0.22), glow('#ffcf7a', 3), lx, 3.95, -1.8); lk(G.cone(0.28, 0.3, 4), brass, lx, 4.33, -1.8, PI / 4);
-    }
-    // butoir en bout de quai (côté monde)
-    lk(G.box(0.4, 0.7, 4.4), mat('#8a1f1f', { roughness: 0.6 }), 9.6, 1.2, 0);
-    // plaque de monde : visible depuis le hub
-    const lbl = textSprite([b.name, b.dir.toUpperCase()], { bg: '#20160f', fg: b.open ? '#ffe9b8' : '#8a7a66', border: b.skyBot, font: 'bold 48px Georgia' });
-    const pn = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 2.1), new THREE.MeshBasicMaterial({ map: lbl, side: THREE.DoubleSide }));
-    const [px, pz] = L(-10.3, 0); pn.position.set(px, 5.9, pz); pn.rotation.y = Math.atan2(-cs, sn); signs.push(pn);
-    const [ex, ez] = L(-10.3, 0);
-    k.add(G.box(0.16, 1.6, 0.16), iron, { p: [ex + Math.cos(a) * 0.0 + sn * 1.7, 5.2, ez + cs * 1.7] }); k.add(G.box(0.16, 1.6, 0.16), iron, { p: [ex - sn * 1.7, 5.2, ez - cs * 1.7] });
-    k.add(G.box(4.5, 0.14, 0.18), brass, { p: [ex, 6.95, ez], r: [0, a + H, 0] }); k.add(G.box(4.5, 0.14, 0.18), brass, { p: [ex, 4.85, ez], r: [0, a + H, 0] });
-    for (const d of [-1.7, 1.7]) k.add(G.cyl(0.14, 0.18, 4.6, 8), iron, { p: [ex - sn * d, 2.5, ez - cs * d] });
-  });
+  const qm = { stone, stoneDark, brass, iron, wood };
+  buildBalustrade(k, qm);
+  BIOMES.forEach((b, i) => buildQuai(k, signs, b, i, qm));
   // --- Dôme des capsules : armature en fer + verrière
   for (let i = 0; i < 12; i++) k.add(G.tor(10, 0.14, 6, 32, PI), iron, { p: [0, 0.3, 0], r: [0, i * PI / 12, 0] });
   for (const y of [3.5, 6.6, 8.9]) { const r = Math.sqrt(100 - y * y); k.add(G.tor(r, 0.1, 4, 48), brass, { p: [0, 0.3 + y, 0], r: [H, 0, 0] }); }
@@ -173,26 +112,6 @@ export function buildHub(scene, interact) {
   COLLIDERS.floorCircle(0, 0, 10.6, 0.6); COLLIDERS.circle(0, 0, 0.5, 7);
   // socle du Hall des trouvailles (deux marches : 0,45 puis 0,85)
   { const h = machines.hall, v = W(h, 0, 0); COLLIDERS.floorBox(v.x, v.z, 6.3, 2.8, h.rotation.y, 0.45); COLLIDERS.floorBox(v.x, v.z, 6, 2.5, h.rotation.y, 0.85); }
-  // balustrade du pourtour : poteaux
-  for (let i = 0; i < 64; i++) { const a = i / 64 * PI * 2; if (Math.abs(((a / (PI / 4)) % 1) - 0) < 0.12 || Math.abs(((a / (PI / 4)) % 1) - 1) < 0.12) continue; const [x, z] = at(a, 47.4); COLLIDERS.circle(x, z, 0.24, 2); }
-  // quais des 8 voies : quai praticable (marche ~0,8 m), poteaux d'auvent, banc, horloge
-  BIOMES.forEach((b, i) => {
-    const a = i * PI / 4, tan = [-Math.sin(a), -Math.cos(a)];
-    const side = (d) => { const [x, z] = at(a, 60); return [x + tan[0] * d, z + tan[1] * d]; };
-    const [qx, qz] = side(5.6);
-    COLLIDERS.floorBox(qx, qz, 2.3, 10, a + H, 0.8);
-    for (const d of [-7, 0, 7]) COLLIDERS.circle(qx + Math.cos(a) * d, qz - Math.sin(a) * d, 0.22, 99, -99, false);
-    COLLIDERS.box(qx + tan[0] * 1.2, qz + tan[1] * 1.2, 0.3, 1.1, a, 1.9);
-    const [cx, cz] = side(9.5); COLLIDERS.circle(cx, cz, 0.2);
-    { const [rx, rz] = side(5.6); COLLIDERS.camBox(rx - tan[0] * 0.4, rz - tan[1] * 0.4, 2.8, 9.5, a + H, 4.6, 5.6); } // auvent du quai (la caméra l'évite, le joueur passe dessous)
-    const O = side(5.6), cs = Math.cos(a), sn = Math.sin(a), L = (lx, lz) => [O[0] + lx * cs + lz * sn, O[1] - lx * sn + lz * cs];
-    { const [x, z] = L(5.2, 0.3); COLLIDERS.box(x, z, 1.35, 0.7, a, 1.9, 0.8, false); }          // chariot à bagages
-    { const [x, z] = L(-5.1, 0.4); COLLIDERS.box(x, z, 0.5, 0.7, a, 2.0, 0.8, false); }         // pile de caisses
-    { const [x, z] = L(-9.2, 1.4); COLLIDERS.circle(x, z, 0.2, 99, -99, false); }                // panneau d'horaires
-    for (const lx of [-9.3, 0, 9.3]) { const [x, z] = L(lx, -1.8); COLLIDERS.circle(x, z, 0.2, 99, -99, false); }
-    { const [x, z] = L(9.6, 0); COLLIDERS.box(x, z, 0.25, 2.2, a, 2.0, 0.8, false); }           // butoir
-    for (const d of [-1.7, 1.7]) { const [x, z] = L(-10.3, 0); COLLIDERS.circle(x - sn * d, z - cs * d, 0.2, 99, -99, false); }
-  });
   return { group: g, core, coreLight: { intensity: 0 }, machines, nucleus };
 }
 

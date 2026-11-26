@@ -82,14 +82,15 @@ function cam3(fov = 32) { return new THREE.PerspectiveCamera(fov, W / H, 0.1, 20
 // ------------------------------------------------------------------ overlays 2D
 function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function gauge(ctx, x, y, w, h, v, color, label) {
+  if (h < 22) { y -= 22 - h; h = 22; }
   ctx.save();
   ctx.fillStyle = 'rgba(10,6,3,.72)'; roundRect(ctx, x, y, w, h, h / 2); ctx.fill();
   ctx.fillStyle = color; roundRect(ctx, x + 2, y + 2, Math.max(h - 4, (w - 4) * clamp(v)), h - 4, (h - 4) / 2); ctx.fill();
   ctx.strokeStyle = '#d2a24c'; ctx.lineWidth = 1.5; roundRect(ctx, x, y, w, h, h / 2); ctx.stroke();
-  if (label) { ctx.fillStyle = '#fff3d6'; ctx.font = 'bold 12px "Chakra Petch", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + 8, y + h / 2 + 1); }
+  if (label) { ctx.fillStyle = '#fff3d6'; ctx.font = 'bold 15px "Chakra Petch", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + 8, y + h / 2 + 1); }
   ctx.restore();
 }
-function label(ctx, txt, x, y, { size = 14, color = '#ffe3a8', align = 'center' } = {}) {
+function label(ctx, txt, x, y, { size = 19, color = '#ffe3a8', align = 'center' } = {}) {
   ctx.save(); ctx.font = `bold ${size}px "Chakra Petch", sans-serif`; ctx.textAlign = align; ctx.textBaseline = 'middle';
   ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,6,3,.85)'; ctx.strokeText(txt, x, y); ctx.fillStyle = color; ctx.fillText(txt, x, y); ctx.restore();
 }
@@ -104,8 +105,8 @@ const DEMOS = {};
 DEMOS.vapeur = {
   cap: 'Elle roule à 26 m/s… tant que tu la nourris.',
   build() {
-    const scene = mkScene('#2a1f15'), cam = cam3(30); ground(scene, '#34261a'); const tr = track(scene, 40);
-    const loco = buildSteamLoco(); scene.add(loco); look(cam, [-24, 5.5, 0.5], [0, 2.2, 0.4]);
+    const scene = mkScene('#2a1f15'), cam = cam3(19); ground(scene, '#34261a'); const tr = track(scene, 40);
+    const loco = buildSteamLoco(); scene.add(loco); look(cam, [-24, 5, 0.5], [0, 2.7, 0.4]);
     const pf = puffs(scene, 9, '#b8b8c0'), lumps = [], lm = new THREE.MeshStandardMaterial({ color: '#111', roughness: 1, flatShading: true });
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28), lm); scene.add(m); lumps.push(m); }
     const ud = loco.userData, rodsBase = ud.rods.map(r => r.position.clone());
@@ -124,7 +125,7 @@ DEMOS.vapeur = {
       draw(ctx, tn) {
         const p = 0.25 + 0.7 * sm(seg(tn, 0.5, 0.95)) ;
         gauge(ctx, 8, H - 26, 120, 18, p, p > 0.7 ? '#ffb347' : '#d2a24c', 'PRESSION');
-        emoji(ctx, '🪨', W - 24, 24, 22, tn > 0.45 && tn < 0.85 ? 1 : 0.25); emoji(ctx, '💧', W - 52, 24, 20, 0.85);
+        emoji(ctx, '🪨', W - 26, 26, 32, tn > 0.45 && tn < 0.85 ? 1 : 0.25); emoji(ctx, '💧', W - 62, 26, 30, 0.85);
       },
     };
   },
@@ -134,16 +135,16 @@ DEMOS.vapeur = {
 DEMOS.chalumeau = {
   cap: 'Maintiens [F] : la glace fond, ce qu\'elle cache est libéré.',
   build() {
-    const scene = mkScene('#1b1e26', { sun: 1.6 }), cam = cam3(34); ground(scene, '#2a2622'); look(cam, [0.8, 2.4, 6.2], [-0.2, 0.9, 0]);
+    const scene = mkScene('#1b1e26', { sun: 1.6 }), cam = cam3(36); ground(scene, '#2a2622'); look(cam, [0.6, 2.2, 7.2], [-0.4, 0.9, 0]);
     const ice = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), new THREE.MeshPhysicalMaterial({ color: '#9fe6ff', transparent: true, opacity: 0.62, roughness: 0.08, metalness: 0, emissive: '#2a7aa0', emissiveIntensity: 0.35 })); scene.add(ice);
     const nug = new THREE.Mesh(new THREE.IcosahedronGeometry(0.36, 0), std('#f2c85a', { metalness: 0.9, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.7 })); scene.add(nug);
     const pud = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshStandardMaterial({ color: '#7fd4f5', transparent: true, opacity: 0.6, roughness: 0.05, metalness: 0.2 })); pud.rotation.x = -PI / 2; pud.position.y = 0.02; scene.add(pud);
     // chalumeau
     const torch = new THREE.Group(); scene.add(torch);
     const brass = std('#d2a24c', { metalness: 0.9, roughness: 0.3 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.5, 12), brass); body.rotation.z = PI / 2; body.position.set(-4.2, 1.0, 0); torch.add(body);
-    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 12), std('#9c1f1f')); tank.position.set(-4.6, 0.6, 0); torch.add(tank);
-    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.5, 10), brass); nozzle.rotation.z = -PI / 2; nozzle.position.set(-3.3, 1.0, 0); torch.add(nozzle);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.5, 12), brass); body.rotation.z = PI / 2; body.position.set(-3.4, 1.0, 0); torch.add(body);
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 12), std('#9c1f1f')); tank.position.set(-3.8, 0.6, 0); torch.add(tank);
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.5, 10), brass); nozzle.rotation.z = -PI / 2; nozzle.position.set(-2.5, 1.0, 0); torch.add(nozzle);
     const fl = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.9, 12), basic('#ff8a1a', { transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })); fl.rotation.z = -PI / 2; scene.add(fl);
     const fl2 = new THREE.Mesh(new THREE.ConeGeometry(0.1, 1.2, 10), basic('#9fe3ff', { transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })); fl2.rotation.z = -PI / 2; scene.add(fl2);
     const lite = new THREE.PointLight('#ff9a3a', 6, 7, 1.5); scene.add(lite);
@@ -158,13 +159,13 @@ DEMOS.chalumeau = {
         const rel = sm(seg(tn, 0.55, 0.9));
         nug.position.set(0, lerp(0.9, 1.5 * 0.9, rel) + Math.sin(rel * PI) * 0.4, 0); nug.rotation.y = t * 3; nug.scale.setScalar(lerp(0.7, 1.4, rel));
         const on = tn < 0.85, fk = 0.9 + Math.sin(t * 40) * 0.1 + Math.sin(t * 23) * 0.06;
-        fl.visible = fl2.visible = on; fl.position.set(-2.3, 1.0, 0); fl.scale.set(fk, 1, fk); fl2.position.set(-2.7, 1.0, 0); fl2.scale.set(1, fk, 1); lite.visible = on; lite.position.set(-1.8, 1.2, 0.6); lite.intensity = 5 + Math.sin(t * 37) * 1.5;
+        fl.visible = fl2.visible = on; fl.position.set(-1.65, 1.0, 0); fl.scale.set(fk, 1, fk); fl2.position.set(-2.0, 1.0, 0); fl2.scale.set(1, fk, 1); lite.visible = on; lite.position.set(-1.3, 1.2, 0.6); lite.intensity = 5 + Math.sin(t * 37) * 1.5;
         pf.forEach((m, i) => { const k = (t / T * 3 + i / pf.length) % 1; m.visible = p > 0.02 && p < 0.97; m.position.set(Math.sin(i * 2.4) * 0.5 * sx, 1.0 * sy + k * 2.4, Math.cos(i * 1.7) * 0.4); m.scale.setScalar(0.18 + k * 0.5); m.material.opacity = 0.7 * (1 - k); });
       },
       draw(ctx, tn) {
-        label(ctx, 'F', 22, 26, { size: 15 }); ctx.save(); ctx.strokeStyle = '#ffe3a8'; ctx.lineWidth = 2; roundRect(ctx, 10, 12, 24, 24, 6); ctx.stroke(); ctx.restore();
-        gauge(ctx, 44, 16, 90, 14, sm(seg(tn, 0.05, 0.82)), '#ff8a1a', 'FONTE');
-        if (tn > 0.62 && tn < 0.97) label(ctx, '+ libéré !', W / 2 + 40, 30, { size: 14, color: '#ffd65a' });
+        label(ctx, 'F', 26, 28, { size: 24 }); ctx.save(); ctx.strokeStyle = '#ffe3a8'; ctx.lineWidth = 2; roundRect(ctx, 10, 12, 32, 32, 7); ctx.stroke(); ctx.restore();
+        gauge(ctx, 50, 16, 110, 22, sm(seg(tn, 0.05, 0.82)), '#ff8a1a', 'FONTE');
+        if (tn > 0.62 && tn < 0.97) label(ctx, '+ libéré !', W / 2 + 40, 62, { size: 22, color: '#ffd65a' });
       },
     };
   },
@@ -174,15 +175,15 @@ DEMOS.chalumeau = {
 DEMOS.vitrine = {
   cap: 'Le robot-gardien voyage en sécurité, sous verre.',
   build() {
-    const scene = mkScene('#2a1f17'), cam = cam3(32); ground(scene, '#34261a'); track(scene, 30);
-    const wag = buildWagonModel('vitrine'); scene.add(wag); look(cam, [-17, 6, -1.5], [0, 2.5, -2.4]);
-    const sh = buildSheriffModel(); const holder = new THREE.Group(); holder.add(sh); scene.add(holder); fitHeight(sh, 1.9); sh.rotation.y = PI / 2 * 0;
+    const scene = mkScene('#2a1f17'), cam = cam3(27); ground(scene, '#34261a'); track(scene, 30);
+    const wag = buildWagonModel('vitrine'); scene.add(wag); look(cam, [-16, 5.5, -1.5], [0, 2.4, -2.2]);
+    const sh = buildSheriffModel(); const holder = new THREE.Group(); holder.add(sh); scene.add(holder); fitHeight(sh, 2.5); sh.rotation.y = PI / 2 * 0;
     const st = new THREE.PointLight('#ffe3a8', 4, 8, 1.6); st.position.set(-1, 4, 0); scene.add(st);
     return {
       scene, cam,
       update(tn, t) {
         const k = seg(tn, 0.12, 0.62), inside = tn >= 0.62;
-        const x = lerp(-3.0, -0.05, sm(k)), z = lerp(-8.5, 0, k);
+        const x = lerp(-3.0, -0.05, sm(k)), z = lerp(-6.2, 0, k);
         const y = inside ? 1.68 : Math.sin(k * PI) * 3.4;
         holder.position.set(inside ? 0 : x, y, inside ? 0 : z);
         holder.rotation.y = inside ? (tn - 0.62) * 8 * (1 - seg(tn, 0.62, 0.8)) : lerp(0.9, 0.3, k);
@@ -192,7 +193,7 @@ DEMOS.vitrine = {
         st.intensity = inside ? 4 + 4 * Math.sin(clamp((tn - 0.62) / 0.3) * PI) : 4;
       },
       draw(ctx, tn) {
-        if (tn > 0.66 && tn < 0.98) { label(ctx, '✔ en sécurité', W / 2, 24, { size: 14, color: '#a9f0a0' }); }
+        if (tn > 0.66 && tn < 0.98) { label(ctx, '✔ en sécurité', W / 2, 24, { size: 18, color: '#a9f0a0' }); }
       },
     };
   },
@@ -202,12 +203,12 @@ DEMOS.vitrine = {
 DEMOS.stockage = {
   cap: 'Tout ce que tu ramasses près du train y est rangé.',
   build() {
-    const scene = mkScene('#2a1f17'), cam = cam3(32); ground(scene, '#34261a'); track(scene, 30);
-    const wag = buildWagonModel('stockage'); scene.add(wag); look(cam, [-17, 6, -1.5], [0, 2.5, -1.5]);
+    const scene = mkScene('#2a1f17'), cam = cam3(25); ground(scene, '#34261a'); track(scene, 30);
+    const wag = buildWagonModel('stockage'); scene.add(wag); look(cam, [-16, 5.5, -0.5], [0, 2.4, -0.5]);
     const gems = [], N = 9;
     const mats = [std('#ffcf4a', { metalness: 0.9, roughness: 0.25, emissive: '#7a5200', emissiveIntensity: 0.6 }), std('#6fe0ff', { metalness: 0.2, roughness: 0.15, emissive: '#1b7fa8', emissiveIntensity: 0.9 }), std('#b6ff6a', { roughness: 0.2, emissive: '#3d8a1a', emissiveIntensity: 0.8 })];
     for (let i = 0; i < N; i++) { const m = new THREE.Mesh(i % 3 === 1 ? new THREE.OctahedronGeometry(0.34) : new THREE.IcosahedronGeometry(0.3, 0), mats[i % 3]); scene.add(m); gems.push(m); }
-    const src = gems.map((_, i) => [-7 - (i % 3) * 1.2, 0.5 + (i % 2) * 0.3, -4.5 + i * 1.1]);
+    const src = gems.map((_, i) => [-5 - (i % 3) * 0.8, 0.5 + (i % 2) * 0.3, -3.2 + i * 0.8]);
     return {
       scene, cam,
       update(tn, t) {
@@ -230,7 +231,7 @@ DEMOS.stockage = {
 DEMOS.doublure = {
   cap: 'Tu gèles 3× moins vite : la jauge descend lentement.',
   build() {
-    const scene = mkScene('#1a2430', { sun: 1.7 }), cam = cam3(34); ground(scene, '#c9dbe6', 20); look(cam, [0, 2.6, 8.5], [0, 1.1, 0]);
+    const scene = mkScene('#1a2430', { sun: 1.7 }), cam = cam3(30); ground(scene, '#c9dbe6', 20); look(cam, [0, 2.4, 7.2], [0, 1.15, 0]);
     const a = buildAvatarModel('#7a96b0'), b = buildAvatarModel('#e0703a'); a.position.x = -1.6; b.position.x = 1.6; scene.add(a, b);
     const sn = snow(scene, 130, [12, 8, 7]);
     // doublure : halo bleu discret autour du passager équipé
@@ -248,8 +249,8 @@ DEMOS.doublure = {
         const fa = 1 - 0.92 * tn, fb = 1 - 0.3 * tn;
         const c = (v) => v > 0.55 ? '#8fe0ff' : v > 0.28 ? '#5aa8e8' : '#4a60d8';
         gauge(ctx, 14, H - 26, 120, 16, fa, c(fa)); gauge(ctx, W - 134, H - 26, 120, 16, fb, c(fb));
-        label(ctx, 'SANS', 74, H - 38, { size: 12 }); label(ctx, 'AVEC ×3', W - 74, H - 38, { size: 12, color: '#a9f0ff' });
-        emoji(ctx, '🥶', 20, 24, 22, 0.9); emoji(ctx, '🧥', W - 22, 24, 22, 0.95);
+        label(ctx, 'SANS', 74, H - 38, { size: 16 }); label(ctx, 'AVEC ×3', W - 74, H - 38, { size: 16, color: '#a9f0ff' });
+        emoji(ctx, '🥶', 24, 26, 32, 0.9); emoji(ctx, '🧥', W - 26, 26, 32, 0.95);
       },
     };
   },
@@ -275,10 +276,10 @@ DEMOS.sac = {
           const pulse = extra && tn > 0.4 && tn < 0.62 ? 1 + 0.8 * Math.sin(tn * 40) : 1;
           ctx.strokeStyle = extra ? '#ffe3a8' : '#d2a24c'; ctx.lineWidth = extra ? 2 : 1.5; roundRect(ctx, x, y, cw, cw, 8); ctx.stroke(); ctx.restore();
           const fill = i < 4 ? seg(tn, i * 0.07, i * 0.07 + 0.08) : seg(tn, 0.55 + (i - 4) * 0.07, 0.63 + (i - 4) * 0.07);
-          if (fill > 0) emoji(ctx, items[i], x + cw / 2, y + cw / 2 + 1 - (1 - fill) * 10, 22 * (0.6 + 0.4 * fill), fill * a);
+          if (fill > 0) emoji(ctx, items[i], x + cw / 2, y + cw / 2 + 1 - (1 - fill) * 10, 26 * (0.6 + 0.4 * fill), fill * a);
         }
-        label(ctx, tn < 0.45 ? '4' : '8', 42, 24, { size: 22, color: tn < 0.45 ? '#ffe3a8' : '#a9f0a0' });
-        if (tn > 0.45) label(ctx, '4 → 8', 52, H - 24, { size: 18, color: '#a9f0a0' });
+        label(ctx, tn < 0.45 ? '4' : '8', 42, 24, { size: 29, color: tn < 0.45 ? '#ffe3a8' : '#a9f0a0' });
+        if (tn > 0.45) label(ctx, '4 → 8', 52, H - 24, { size: 23, color: '#a9f0a0' });
       },
     };
   },
@@ -288,8 +289,8 @@ DEMOS.sac = {
 DEMOS.convoyeur = {
   cap: 'À quai, le Moyeu remplit charbon et eau sans toi.',
   build() {
-    const scene = mkScene('#2a1f15'), cam = cam3(30); ground(scene, '#34261a'); track(scene, 30);
-    const loco = buildSteamLoco(); scene.add(loco); look(cam, [-24, 6, 0.4], [0, 3.0, 0.2]);
+    const scene = mkScene('#2a1f15'), cam = cam3(22); ground(scene, '#34261a'); track(scene, 30);
+    const loco = buildSteamLoco(); scene.add(loco); look(cam, [-24, 5.5, 0.4], [1.5, 3.3, 0.2]);
     // quai + trémie du Moyeu (derrière la loco)
     const brass = std('#d2a24c', { metalness: 0.9, roughness: 0.3 }), dk = std('#3a3028', { roughness: 0.8 });
     const plat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 16), dk); plat.position.set(3.6, 0.25, 0); scene.add(plat);
@@ -298,7 +299,7 @@ DEMOS.convoyeur = {
     const pipe = new THREE.Mesh(new THREE.BoxGeometry(5, 0.35, 0.35), brass); pipe.position.set(2.1, 6.1, -3.2); scene.add(pipe);
     const pipe2 = new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 0.3), std('#3a7ab8', { metalness: 0.7, roughness: 0.3 })); pipe2.position.set(2.1, 6.1, 1.4); scene.add(pipe2);
     const tank = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 2, 12), std('#3a7ab8', { metalness: 0.5, roughness: 0.4 })); tank.position.set(4.8, 7.2, 1.6); scene.add(tank);
-    const lm = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 1, flatShading: true }), dm = basic('#7fd4f5', { transparent: true, opacity: 0.85 });
+    const lm = new THREE.MeshStandardMaterial({ color: '#55555e', roughness: 0.8, flatShading: true }), dm = basic('#7fd4f5', { transparent: true, opacity: 0.85 });
     const lumps = [], drops = [];
     for (let i = 0; i < 7; i++) { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.26), lm); scene.add(m); lumps.push(m); }
     for (let i = 0; i < 9; i++) { const m = new THREE.Mesh(new THREE.SphereGeometry(0.13, 6, 5), dm); scene.add(m); drops.push(m); }
@@ -313,9 +314,9 @@ DEMOS.convoyeur = {
       },
       draw(ctx, tn) {
         const f = sm(seg(tn, 0.08, 0.88));
-        gauge(ctx, 8, H - 46, 118, 16, f, '#6a6a72', `CHARBON`);
-        gauge(ctx, 8, H - 26, 118, 16, f, '#3a8ad8', `EAU`);
-        if (tn > 0.9) label(ctx, '✔ plein', W - 50, H - 28, { size: 15, color: '#a9f0a0' });
+        gauge(ctx, 8, H - 60, 128, 22, f, '#9a9aa6', `CHARBON`);
+        gauge(ctx, 8, H - 32, 128, 22, f, '#3a8ad8', `EAU`);
+        if (tn > 0.9) label(ctx, '✔ plein', W - 50, H - 28, { size: 20, color: '#a9f0a0' });
       },
     };
   },
@@ -325,8 +326,8 @@ DEMOS.convoyeur = {
 DEMOS.dortoir = {
   cap: 'Chauffé : tu te réchauffes, et tu réapparais ici.',
   build() {
-    const scene = mkScene('#18222e', { sun: 1.3, warm: 14 }), cam = cam3(32); ground(scene, '#c9dbe6', 24); track(scene, 30);
-    const wag = buildWagonModel('dortoir'); scene.add(wag); look(cam, [-17, 6, -0.5], [-0.5, 2.3, -0.8]);
+    const scene = mkScene('#18222e', { sun: 1.3, warm: 14 }), cam = cam3(29); ground(scene, '#c9dbe6', 24); track(scene, 30);
+    const wag = buildWagonModel('dortoir'); scene.add(wag); look(cam, [-16, 5.5, -0.5], [-1.2, 2.2, -0.8]);
     const av = buildAvatarModel('#e0703a'); av.position.set(-3.6, 0, -1.8); av.rotation.y = 0.5; scene.add(av);
     const sn = snow(scene, 130, [22, 9, 14], [-1, 0]);
     const halo = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 40), basic('#ffb347', { transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })); halo.rotation.x = -PI / 2; halo.position.set(-3.6, 0.05, -1.8); scene.add(halo);
@@ -343,8 +344,8 @@ DEMOS.dortoir = {
       draw(ctx, tn) {
         const f = sm(seg(tn, 0.05, 0.8)), col = f > 0.7 ? '#ff9a3a' : f > 0.35 ? '#d8c85a' : '#5aa8e8';
         gauge(ctx, 8, H - 26, 130, 18, 0.12 + 0.88 * f, col, f > 0.5 ? 'CHAUD' : 'FROID');
-        if (tn > 0.84) label(ctx, '✦ réapparition', W - 66, 26, { size: 13, color: '#ffd890' });
-        else emoji(ctx, f > 0.5 ? '😌' : '🥶', W - 22, 24, 22, 0.95);
+        if (tn > 0.84) label(ctx, '✦ réapparition', W - 66, 26, { size: 17, color: '#ffd890' });
+        else emoji(ctx, f > 0.5 ? '😌' : '🥶', W - 26, 26, 32, 0.95);
       },
     };
   },

@@ -134,6 +134,10 @@ export class Train {
     }
   }
 
+  _buffer() { // butoir : arrêt net (l'événement n'est signalé qu'une fois par choc, pas à chaque image)
+    this.speed = 0;
+    const now = performance.now(); if (now - (this.lastBuf || 0) > 900) this.events.push('buffer'); this.lastBuf = now;
+  }
   _exitsOf(node, edge) { return this.net.exits(node, edge).filter(x => x.dot > 0.5); }
   _pick(ex) {
     if (ex.length < 2) return ex[0] || null;
@@ -177,7 +181,7 @@ export class Train {
       if (rem <= room) { sg.a += sg.u * rem; this._shrinkRear(rem); return; }
       sg.a = end; this._shrinkRear(room); rem -= room;
       const node = sg.u > 0 ? e.b : e.a, ex = this._exitsOf(node, sg.e);
-      if (!ex.length) { this.speed = 0; this.events.push('buffer'); return; }
+      if (!ex.length) { this._buffer(); return; }
       const ch = this._pick(ex), ne = E[ch.edge], enter = ne.a === node, st = enter ? 0 : ne.len;
       this.segs.unshift({ e: ch.edge, u: enter ? 1 : -1, a: st, b: st });
       this.events.push(ex.length > 1 ? 'switch' : 'node');
@@ -186,13 +190,13 @@ export class Train {
   }
   _advRear(d) {
     const E = this.net.edges;
-    if (this.vlen > 1e-6) { this.speed = 0; this.events.push('buffer'); return; } // l'arrière est au butoir
+    if (this.vlen > 1e-6) { this._buffer(); return; } // l'arrière est au butoir
     for (let rem = d, g = 0; rem > 1e-9 && g < 16; g++) {
       const sg = this.segs[this.segs.length - 1], e = E[sg.e], t = -sg.u, end = t > 0 ? e.len : 0, room = Math.abs(end - sg.b);
       if (rem <= room) { sg.b += t * rem; this._shrinkFront(rem); return; }
       sg.b = end; this._shrinkFront(room); rem -= room;
       const node = t > 0 ? e.b : e.a, ex = this._exitsOf(node, sg.e);
-      if (!ex.length) { this.speed = 0; this.events.push('buffer'); return; }
+      if (!ex.length) { this._buffer(); return; }
       const ch = this._pick(ex), ne = E[ch.edge], enter = ne.a === node, st = enter ? 0 : ne.len;
       this.segs.push({ e: ch.edge, u: enter ? -1 : 1, a: st, b: st });
       this.events.push(ex.length > 1 ? 'switch' : 'node');

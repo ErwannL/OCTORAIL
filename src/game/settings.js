@@ -1,6 +1,6 @@
 // Réglages joueur (persistés localement)
 export const ACTIONS = [
-  ['forward', 'Avancer / régulateur +'], ['back', 'Reculer / régulateur −'], ['left', 'Gauche / aiguillage bifurcation'], ['right', 'Droite / aiguillage tout droit'],
+  ['forward', 'Avancer / régulateur +'], ['back', 'Reculer / régulateur −'], ['left', 'Gauche / aiguillage à gauche'], ['right', 'Droite / aiguillage à droite'],
   ['jump', 'Sauter / frein'], ['run', 'Courir'], ['interact', 'Interagir / monter-descendre'], ['action', 'Pomper · pelleter · miner · fondre'],
   ['whistle', 'Sifflet'], ['map', 'Plan du réseau'], ['view', 'Vue 1re / 3e personne'], ['hints', 'Afficher / masquer les touches'], ['pause', 'Menu'],
 ];

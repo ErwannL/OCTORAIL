@@ -219,7 +219,7 @@ export function buildSteamLoco(tint = '#8b1e1e') {
   add(G.box(0.05, 0.05, 0.6), steel, [-0.3, 2.3, cz + 0.7], [0.9, 0, 0]); add(G.sph(0.05, 6, 5), black, [-0.3, 2.5, cz + 0.45]);  // inverseur
   add(G.cyl(0.02, 0.02, 0.5, 5), copper, [0.9, 2.4, cz + 0.85], [0, 0, 0]);
   for (const x of [-0.85, 0.85]) { add(G.rbox(0.5, 0.12, 0.5, 0.04), mat('#5a3a1e'), [x, 2.0, cz - 0.6]); add(G.box(0.08, 0.7, 0.08), black, [x, 1.6, cz - 0.6]); add(G.rbox(0.5, 0.5, 0.06, 0.03), mat('#5a3a1e'), [x, 2.25, cz - 0.85]); }
-  add(G.cyl(0.03, 0.03, 1.1, 6), wood, [-0.6, 1.9, cz + 0.2], [0.4, 0, 0.3]); add(G.box(0.3, 0.03, 0.35), steel, [-0.75, 1.42, cz + 0.55], [0.4, 0, 0.3]);  // pelle
+  add(G.cyl(0.03, 0.03, 1.1, 6), wood, [-0.95, 1.9, cz + 0.2], [0.4, 0, 0.3]); add(G.box(0.3, 0.03, 0.35), steel, [-1.0, 1.42, cz + 0.55], [0.4, 0, 0.3]);  // pelle
   add(G.cyl(0.05, 0.05, 0.5, 8), steel, [0.9, 1.5, cz + 0.4], [0, 0, 0]);                       // seau
   // montants arrière + corniche
   for (const s of [-1, 1]) { add(G.box(0.1, ch - 0.1, 0.1), body, [s * 1.2, cy + ch / 2, cz - 1.17]); }

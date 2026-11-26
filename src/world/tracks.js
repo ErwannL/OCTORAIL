@@ -10,7 +10,7 @@ const _up = new THREE.Vector3(0, 1, 0), _n = new THREE.Vector3();
 function extrude(pts, tan, a0, a1, offset, profile, yOff = 0) {
   const pos = [], idx = [], P = profile.length;
   for (let k = a0; k <= a1; k++) {
-    const t = tan[k]; _n.set(-t.z, 0, t.x).normalize(); // normale horizontale (même repère aux deux bouts d'un noeud)
+    const t = tan[k]; _n.set(t.z, 0, -t.x).normalize(); // normale horizontale (up x t) ; même repère aux deux bouts d'un noeud
     const c = pts[k];
     for (const [l, h] of profile) pos.push(c.x + _n.x * (offset + l), c.y + yOff + h, c.z + _n.z * (offset + l));
     if (k > a0) { const o = (k - 1 - a0) * P, q = (k - a0) * P; for (let j = 0; j < P - 1; j++) idx.push(o + j, q + j, o + j + 1, o + j + 1, q + j, q + j + 1); }
@@ -277,9 +277,23 @@ export function buildSignals(scene, net, BIOMES) {
   const matG = new THREE.MeshBasicMaterial({ map: texG, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, opacity: 0.95 });
   const matR = new THREE.MeshBasicMaterial({ map: texR, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, opacity: 0.55 });
   const ribbons = new Map(), shown = new Set();
+  // balise : grande flèche flottante dans le sens de la voie + colonne de lumière, visibles de loin
+  const arrowGeo = new THREE.ConeGeometry(0.9, 2.4, 4); arrowGeo.rotateX(H); // pointe vers +z
+  const beamGeo = new THREE.CylinderGeometry(0.28, 0.28, 14, 8, 1, true); beamGeo.translate(0, 7, 0);
+  const aG = new THREE.MeshBasicMaterial({ color: '#3dff7a', toneMapped: false, transparent: true, opacity: 0.95 });
+  const aR = new THREE.MeshBasicMaterial({ color: '#ff4a3a', toneMapped: false, transparent: true, opacity: 0.55 });
+  const bG = new THREE.MeshBasicMaterial({ color: '#3dff7a', toneMapped: false, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
   const ribbon = (nodeId, edgeId) => {
     const key = nodeId + ':' + edgeId;
-    if (!ribbons.has(key)) { const m = new THREE.Mesh(ribbonGeometry(net.edges[edgeId], nodeId), matR); m.renderOrder = 6; m.frustumCulled = false; m.visible = false; g.add(m); ribbons.set(key, m); }
+    if (!ribbons.has(key)) {
+      const e = net.edges[edgeId], m = new THREE.Mesh(ribbonGeometry(e, nodeId), matR); m.renderOrder = 6; m.frustumCulled = false; m.visible = false;
+      // position de la balise : ~14 m après le noeud sur cette sortie
+      const k = Math.min(7, e.pts.length - 1), idx = e.a === nodeId ? k : e.pts.length - 1 - k, P = e.pts[idx], T = e.tan[idx];
+      const arrow = new THREE.Mesh(arrowGeo, aR); arrow.position.set(P.x, P.y + 3.6, P.z); arrow.rotation.y = Math.atan2(e.a === nodeId ? T.x : -T.x, e.a === nodeId ? T.z : -T.z); arrow.frustumCulled = false; m.userData.arrow = arrow; m.userData.baseY = P.y + 3.6;
+      const beam = new THREE.Mesh(beamGeo, bG); beam.position.set(P.x, P.y, P.z); beam.frustumCulled = false; m.userData.beam = beam;
+      m.add(arrow); m.add(beam); // (positions en repère monde : le ruban reste à l'origine)
+      g.add(m); ribbons.set(key, m);
+    }
     return ribbons.get(key);
   };
   const lampOff = '#2a8a50';
@@ -294,6 +308,9 @@ export function buildSignals(scene, net, BIOMES) {
     if (near) for (const ex of ap.exits) {
       const m = ribbon(ap.node, ex.edge), chosen = ex === ap.chosen;
       m.material = chosen ? matG : matR; m.position.y = chosen ? 0.02 : 0; m.visible = true; shown.add(m);
+      const ar = m.userData.arrow, bm = m.userData.beam;
+      ar.material = chosen ? aG : aR; ar.position.y = m.userData.baseY + Math.sin(time * 3.2) * 0.25; ar.scale.setScalar(chosen ? 1.15 + Math.sin(time * 6) * 0.08 : 0.8);
+      bm.visible = chosen;
     }
     for (const l of lamps) {
       if (ap && ap.dist < 160 && l.node === ap.node) l.mat.emissive.set(ap.chosen.branch ? '#ffb347' : '#40ff80');

@@ -41,7 +41,7 @@ export function buildTrackside(scene, net, terrain) {
       const y = terrain.heightAt(x, z);
       const ang = Math.atan2(b.x - a.x, b.z - a.z) + H;
       const sec = sectorIndex(x, z);
-      posts.push({ x, y, z, ang, ice: sec === 5 });
+      posts.push({ x, y, z, ang, ice: sec === 5 }); COLLIDERS.circle(x, z, 0.22, 99, -99, false);
       const top = new THREE.Vector3(x, y + 7.08, z);
       if (prev) {
         for (const off of [-0.85, -0.3, 0.3, 0.85]) {
@@ -124,6 +124,7 @@ export function buildWesternDecor(scene, terrain, net) {
     for (let p = 0; p < 6; p++) {
       const dx = Math.sin(s.ang) * p * 3, dz = Math.cos(s.ang) * p * 3;
       const y = terrain.heightAt(s.x + dx, s.z + dz);
+      if (p === 0) COLLIDERS.box(s.x + Math.sin(s.ang) * 7.5, s.z + Math.cos(s.ang) * 7.5, 0.14, 7.7, s.ang, s.y + 1.4, -99, false);
       fk.add(G.box(0.18, 1.4, 0.18), fw, { p: [s.x + dx, y + 0.7, s.z + dz], r: [0, s.ang, (rnd() - 0.5) * 0.15] });
       if (p < 5) for (const h of [0.55, 1.1]) fk.add(G.box(0.08, 0.12, 3.1), fw, { p: [s.x + dx + Math.sin(s.ang) * 1.5, y + h, s.z + dz + Math.cos(s.ang) * 1.5], r: [0, s.ang, 0] });
     }
@@ -134,7 +135,7 @@ export function buildWesternDecor(scene, terrain, net) {
   const rmat = mat('#a0583a', { roughness: 0.95, flatShading: true });
   rocks.forEach((geo, gi) => {
     const n = 140, inst = new THREE.InstancedMesh(geo, rmat, n); const m4 = new THREE.Matrix4(); let c = 0;
-    for (let t = 0; t < n * 8 && c < n; t++) { const r = 150 + rnd() * 1200, a = rnd() * PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; if (sectorIndex(x, z) !== 4 || net.nearest(x, z, 9)) continue; const sc = 0.6 + rnd() * rnd() * 4; m4.compose(new THREE.Vector3(x, terrain.heightAt(x, z) + sc * 0.2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(sc, sc * (0.6 + rnd() * 0.6), sc)); inst.setMatrixAt(c++, m4); }
+    for (let t = 0; t < n * 8 && c < n; t++) { const r = 150 + rnd() * 1200, a = rnd() * PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; if (sectorIndex(x, z) !== 4 || net.nearest(x, z, 9)) continue; const sc = 0.6 + rnd() * rnd() * 4; m4.compose(new THREE.Vector3(x, terrain.heightAt(x, z) + sc * 0.2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(sc, sc * (0.6 + rnd() * 0.6), sc)); inst.setMatrixAt(c++, m4); if (sc > 1.1) COLLIDERS.circle(x, z, 1.15 * sc, terrain.heightAt(x, z) + sc * 0.75); }
     inst.count = c; inst.receiveShadow = true; inst.castShadow = gi === 0; scene.add(inst);
   });
   // Virevoltants (boules d'herbes sèches qui roulent)
@@ -181,7 +182,7 @@ export function buildGelureDecor(scene, terrain, net) {
     k.add(G.cyl(16, 18, 3, 24), snow, { p: [0, 0.3, 0], s: [1, 1, 0.45] });
     for (let p = 0; p < 14; p++) k.add(rockGeometry(p + 50), ice, { p: [-14 + rnd() * 28, 1 + rnd() * 2, (rnd() - 0.5) * 12], s: [2 + rnd() * 3, 1.5 + rnd() * 2.5, 2 + rnd() * 2] });
     const ship = k.build(); ship.position.set(s.x, s.y - 1, s.z); ship.rotation.set(0.12, s.ang + 0.6, -0.18); scene.add(ship);
-    COLLIDERS.box(s.x, s.z, 13, 4, s.ang + 0.6 + PI / 2);
+    ship.updateMatrixWorld(true); { const v = ship.localToWorld(new THREE.Vector3(1, 0, 0)); COLLIDERS.box(v.x, v.z, 12.5, 3.2, s.ang + 0.6); }
   }
   // Avant-poste de cabanes enneigées + feu de camp
   const s = spot(14, 18, 0.25);
@@ -198,7 +199,7 @@ export function buildGelureDecor(scene, terrain, net) {
     for (let l = 0; l < 5; l++) k.add(G.cyl(0.12, 0.12, 1.6, 6), wood, { p: [0, 0.4, 6], r: [0.4, l * 1.25, H] });
     k.add(G.cone(0.6, 1.4, 7), glow('#ff7a2a', 3), { p: [0, 0.9, 6] });
     out.add(k.build()); out.position.set(s.x, s.y, s.z); out.rotation.y = s.ang; scene.add(out);
-    out.updateMatrixWorld(true); for (const cx of [-9, 0, 9]) { const v = out.localToWorld(new THREE.Vector3(cx, 0, 0)); COLLIDERS.box(v.x, v.z, 3.0, 2.5, s.ang); }
+    out.updateMatrixWorld(true); for (const cx of [-9, 0, 9]) { const v = out.localToWorld(new THREE.Vector3(cx, 0, 0)); COLLIDERS.box(v.x, v.z, 3.1, 2.6, s.ang); } { const v = out.localToWorld(new THREE.Vector3(0, 0, 6)); COLLIDERS.circle(v.x, v.z, 0.9, s.y + 1.2); }
   }
   // Arches de glace au-dessus de la voie
   const archK = new Kit();

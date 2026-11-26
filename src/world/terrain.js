@@ -73,8 +73,21 @@ export class Terrain {
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, map: groundDetailTexture() });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.receiveShadow = true;
+    // Tuiles : frustum culling + masquage par distance (au lieu d'un unique maillage de 205k triangles)
+    const mesh = new THREE.Group();
+    const T = 10, per = SEG / T, idx = geo.index.array, g1 = SEG + 1;
+    for (let ty = 0; ty < T; ty++) for (let tx = 0; tx < T; tx++) {
+      const I = new Uint32Array(per * per * 6); let o = 0;
+      for (let iy = ty * per; iy < (ty + 1) * per; iy++) { const q0 = (iy * SEG + tx * per) * 6; I.set(idx.subarray(q0, q0 + per * 6), o); o += per * 6; }
+      const tg = new THREE.BufferGeometry(); tg.attributes = geo.attributes; tg.setIndex(new THREE.BufferAttribute(I, 1));
+      const box = new THREE.Box3(); const v = new THREE.Vector3();
+      box.expandByPoint(v.set(pos.getX(ty * per * g1 + tx * per), 0, pos.getZ(ty * per * g1 + tx * per)));
+      box.expandByPoint(v.set(pos.getX((ty + 1) * per * g1 + (tx + 1) * per), 0, pos.getZ((ty + 1) * per * g1 + (tx + 1) * per)));
+      let ymin = 1e9, ymax = -1e9; for (let iy = ty * per; iy <= (ty + 1) * per; iy++) for (let ix = tx * per; ix <= (tx + 1) * per; ix++) { const y = pos.getY(iy * g1 + ix); if (y < ymin) ymin = y; if (y > ymax) ymax = y; }
+      box.min.y = ymin; box.max.y = ymax;
+      tg.boundingBox = box; tg.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+      const m = new THREE.Mesh(tg, mat); m.receiveShadow = true; mesh.add(m);
+    }
     scene.add(mesh);
     this.mesh = mesh;
     return mesh;

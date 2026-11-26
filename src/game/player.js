@@ -39,11 +39,26 @@ export class Player {
     this.vel.y -= 22 * dt;
     if (this.onGround && input.ah('jump')) { this.vel.y = 8; this.onGround = false; }
     // sous-pas : pas de traversée même à bas FPS
-    const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.3));
-    for (let i = 0; i < steps; i++) { this.pos.addScaledVector(this.vel, dt / steps); COLLIDERS.resolve(this.pos, 0.42); }
-    let g = this.groundAt(this.pos.x, this.pos.z);
-    for (const c of extraColliders) { const h = c(this.pos.x, this.pos.z); if (h !== null && h > g && h < this.pos.y + 1.2) g = h; }
-    if (this.pos.y <= g) { this.pos.y = g; this.vel.y = 0; this.onGround = true; } else if (this.pos.y > g + 0.05) this.onGround = false;
+    const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.25));
+    const P = this.pos, SM = COLLIDERS.stepMax;
+    for (let i = 0; i < steps; i++) {
+      const px = P.x, pz = P.z, py = P.y;
+      P.addScaledVector(this.vel, dt / steps);
+      // marche trop haute (quai, socle, estrade) = mur : on annule l'axe fautif pour glisser le long
+      if (COLLIDERS.floorAt(P.x, P.z) > py + SM) {
+        const nx = P.x, nz = P.z;
+        if (COLLIDERS.floorAt(nx, pz) <= py + SM) P.z = pz;
+        else if (COLLIDERS.floorAt(px, nz) <= py + SM) P.x = px;
+        else { P.x = px; P.z = pz; }
+      }
+      COLLIDERS.resolve(P, 0.42);
+      if (COLLIDERS.floorAt(P.x, P.z) > py + SM) { P.x = px; P.z = pz; }
+    }
+    // anti-blocage : coincé dans plusieurs obstacles -> case libre la plus proche
+    if (COLLIDERS.resolve(P, 0.42)) COLLIDERS.unstick(P, 0.42);
+    let g = Math.max(this.groundAt(P.x, P.z), COLLIDERS.floorAt(P.x, P.z));
+    for (const c of extraColliders) { const h = c(P.x, P.z); if (h !== null && h > g && h < P.y + 1.2) g = h; }
+    if (P.y <= g) { P.y = g; this.vel.y = 0; this.onGround = true; } else if (P.y > g + 0.05) this.onGround = false;
     const R = Math.hypot(this.pos.x, this.pos.z); if (R > 1380) this.pos.multiplyScalar(1380 / R);
     const moving = Math.hypot(this.vel.x, this.vel.z);
     this.walkPhase += moving * dt * 1.6;
@@ -61,10 +76,16 @@ export class Player {
     u.body.position.y = 0.95 + Math.abs(Math.sin(this.walkPhase * 3)) * 0.06 * k;
   }
 
-  look(input, sens = 1, inv = false) {
+  look(input, sens = 1, inv = false, smooth = false) {
     // sensibilité : 0,0016 rad/pixel × réglage, mouvement par image plafonné (anti-toupie)
     const k = 0.0016 * sens;
-    const dx = Math.max(-300, Math.min(300, input.mouse.dx)), dy = Math.max(-300, Math.min(300, input.mouse.dy));
+    let dx = Math.max(-300, Math.min(300, input.mouse.dx)), dy = Math.max(-300, Math.min(300, input.mouse.dy));
+    // lissage : on écoule une fraction du mouvement accumulé à chaque image (aucune rotation perdue)
+    const b = this._lookBuf || (this._lookBuf = { x: 0, y: 0 });
+    b.x += dx; b.y += dy;
+    const f = smooth ? 0.55 : 1;
+    dx = b.x * f; dy = b.y * f; b.x -= dx; b.y -= dy;
+    if (Math.abs(b.x) < 0.05) b.x = 0; if (Math.abs(b.y) < 0.05) b.y = 0;
     this.yaw -= dx * k; this.pitch -= dy * k * (inv ? -1 : 1);
     this.yaw = ((this.yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     if (input.down('ArrowLeft')) this.yaw += 0.03; if (input.down('ArrowRight')) this.yaw -= 0.03;

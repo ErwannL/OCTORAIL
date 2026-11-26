@@ -212,7 +212,7 @@ export function buildWestern(scene, terrain, net, interact) {
     if (b.userData.bw) { const v = b.getWorldPosition(new THREE.Vector3()); const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion())); COLLIDERS.box(v.x + fw.x * 0.1, v.z + fw.z * 0.1, b.userData.bw / 2 + 0.3, b.userData.bd / 2 + 0.3, Math.atan2(fw.x, fw.z)); }
   }
   for (const a of autos) { const v = a.getWorldPosition(new THREE.Vector3()); COLLIDERS.circle(v.x, v.z, 1.1); }
-  { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)); COLLIDERS.circle(v.x, v.z, 2.5, terrain.heightAt(v.x, v.z) + 1.2); }
+  { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)); COLLIDERS.floorCircle(v.x, v.z, 2.5, terrain.heightAt(v.x, v.z) + 1.2); }
   const pedWorld = town.localToWorld(new THREE.Vector3(0, 1.2, 18));
   interact.add({ id: 'pedestal', pos: pedWorld, r: 7, label: 'Piédestal du gardien' });
   return { town, autos, pedestal: pedWorld };
@@ -222,7 +222,7 @@ export function buildGelure(scene, terrain, net, interact) {
   const rnd = mulberry(55);
   const ice = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.25, emissive: '#3a8fc0', emissiveIntensity: 0.3, flatShading: true });
   scatter(scene, terrain, net, rnd, 700, [5], new THREE.ConeGeometry(1.4, 8, 5), ice, { sMin: 0.5, sMax: 2.4, tilt: 0.6, yOff: 2, collide: 1.0 });
-  scatter(scene, terrain, net, rnd, 500, [5], new THREE.DodecahedronGeometry(1.5, 0), M('#f2fbff', { flatShading: true, roughness: 0.6 }), { sMin: 0.5, sMax: 3, yStretch: 0.4 });
+  scatter(scene, terrain, net, rnd, 500, [5], new THREE.DodecahedronGeometry(1.5, 0), M('#f2fbff', { flatShading: true, roughness: 0.6 }), { sMin: 0.5, sMax: 3, yStretch: 0.4, collide: 1.3, collideTop: 0.55 });
   scatter(scene, terrain, net, rnd, 220, [5], firGeometry(), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: false, collide: 0.5 }); // sapins gelés
 
   // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5

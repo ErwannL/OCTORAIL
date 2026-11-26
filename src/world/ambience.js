@@ -46,14 +46,16 @@ export const GradeShader = {
 };
 
 // Touffes d'herbe sèche / de neige / fleurs du Moyeu (instanciées)
-export function buildGrass(scene, terrain, net) {
+export function buildGrass(scene, terrain, net, density = 1) {
   const rnd = mulberry(77);
-  const tuft = (color, h, n = 7) => { const k = new Kit(), m = mat(color, { roughness: 0.9, side: THREE.DoubleSide }); for (let i = 0; i < n; i++) { const a = i / n * PI * 2; k.add(G.cone(0.05, h * (0.6 + 0.4 * ((i * 37) % 10) / 10), 3), m, { p: [Math.cos(a) * 0.12, h * 0.4, Math.sin(a) * 0.12], r: [Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35] }); } return [k.geometry(), m]; };
+  const tuft = (color, h, n = 5) => { const k = new Kit(), m = mat(color, { roughness: 0.9, side: THREE.DoubleSide }); for (let i = 0; i < n; i++) { const a = i / n * PI * 2; const bh = h * (0.6 + 0.4 * ((i * 37) % 10) / 10); k.add(new THREE.ConeGeometry(0.06, bh, 3, 1, true), m, { p: [Math.cos(a) * 0.12, h * 0.4, Math.sin(a) * 0.12], r: [Math.sin(a) * 0.35, 0, Math.cos(a) * 0.35] }); } return [k.geometry(), m]; };
   const spread = (geo, m, sector, count, rMin, near) => {
+    count = Math.max(0, Math.round(count * density)); if (!count) return;
     const inst = new THREE.InstancedMesh(geo, m, count); const M = new THREE.Matrix4(); let c = 0;
+    const edges = near ? net.edges.filter(q => q.biome === sector) : null;
     for (let t = 0; t < count * 10 && c < count; t++) {
       let x, z;
-      if (near && rnd() < 0.7) { const e = net.edges.filter(q => q.biome === sector); const ed = e[Math.floor(rnd() * e.length)]; const p = ed.pts[Math.floor(rnd() * ed.pts.length)]; x = p.x + (rnd() - 0.5) * 60; z = p.z + (rnd() - 0.5) * 60; }
+      if (near && rnd() < 0.7) { const ed = edges[Math.floor(rnd() * edges.length)]; const p = ed.pts[Math.floor(rnd() * ed.pts.length)]; x = p.x + (rnd() - 0.5) * 60; z = p.z + (rnd() - 0.5) * 60; }
       else { const r = rMin + rnd() * 1250, a = rnd() * PI * 2; x = Math.cos(a) * r; z = Math.sin(a) * r; }
       if (sectorIndex(x, z) !== sector || Math.hypot(x, z) < rMin || net.nearest(x, z, 3.2)) continue;
       const s = 0.7 + rnd() * 1.1;
@@ -62,9 +64,9 @@ export function buildGrass(scene, terrain, net) {
     inst.count = c; inst.receiveShadow = true; scene.add(inst);
   };
   const [g1, m1] = tuft('#c9a35a', 0.9); spread(g1, m1, 4, 3500, 120, true);
-  const [g2, m2] = tuft('#8a7a3a', 0.6, 9); spread(g2, m2, 4, 1500, 120, true);
-  const [g3, m3] = tuft('#f4fbff', 0.5, 6); spread(g3, m3, 5, 2500, 120, true);
-  const [g4, m4] = tuft('#6a8a5a', 0.7, 6); spread(g4, m4, 5, 600, 120, true);
+  const [g2, m2] = tuft('#8a7a3a', 0.6, 6); spread(g2, m2, 4, 1500, 120, true);
+  const [g3, m3] = tuft('#f4fbff', 0.5, 5); spread(g3, m3, 5, 2500, 120, true);
+  const [g4, m4] = tuft('#6a8a5a', 0.7, 5); spread(g4, m4, 5, 600, 120, true);
 }
 
 // Vautours qui tournent au-dessus du western, corbeaux des neiges en Gelure
@@ -98,7 +100,11 @@ export function buildFlags(scene) {
     m.position.set(pole.position.x, 9, pole.position.z); scene.add(m);
     flags.push({ m, base: geo.attributes.position.array.slice(), ph: i });
   });
-  return { update(t) { for (const f of flags) { const p = f.m.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const x = f.base[i * 3]; p.setZ(i, Math.sin(x * 1.6 - t * 5 + f.ph) * 0.25 * (x / 3.2)); p.setY(i, f.base[i * 3 + 1] - (x / 3.2) * 0.2); } p.needsUpdate = true; f.m.geometry.computeVertexNormals(); f.m.rotation.y = 0.4 + Math.sin(t * 0.3 + f.ph) * 0.3; } } };
+  let tick = 0;
+  return { update(t, cam) {
+    if (cam && cam.x * cam.x + cam.z * cam.z > 180 * 180) return; // drapeaux invisibles loin du Moyeu
+    const doN = !(tick++ & 1);
+    for (const f of flags) { const p = f.m.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const x = f.base[i * 3]; p.setZ(i, Math.sin(x * 1.6 - t * 5 + f.ph) * 0.25 * (x / 3.2)); p.setY(i, f.base[i * 3 + 1] - (x / 3.2) * 0.2); } p.needsUpdate = true; if (doN) f.m.geometry.computeVertexNormals(); f.m.rotation.y = 0.4 + Math.sin(t * 0.3 + f.ph) * 0.3; } } };
 }
 
 // Lampadaires du Moyeu (bulbes émissifs, pas de lumière dynamique)

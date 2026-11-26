@@ -7,7 +7,7 @@ export const ACTIONS = [
 export const DEFAULT = {
   master: 0.8, music: 0.6, sfx: 0.9, ambience: 0.7,
   quality: 'auto', fov: 62, bloom: true, shadows: true, shake: true,
-  sens: 0.6, invertY: false, compass: true,
+  sens: 0.6, smooth: true, invertY: false, compass: true,
   keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], map: ['KeyM'], pause: ['Escape', 'KeyP'] },
 };
 const KEY = 'octorail-settings-v2';
@@ -23,4 +23,9 @@ export function keyLabel(code) {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
   return ({ Space: 'Espace', ShiftLeft: 'Maj', ShiftRight: 'Maj D', Escape: 'Échap', ControlLeft: 'Ctrl', Tab: 'Tab', Enter: 'Entrée', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Mouse0: 'Clic G', Mouse2: 'Clic D' })[code] || code;
+}
+// Touche(s) réellement assignée(s) à une action, pour l'affichage (HUD, prompts, aide)
+export function actionLabel(keys, act, all = false) {
+  const l = (keys?.[act] || []).filter(Boolean).map(keyLabel);
+  return (all ? [...new Set(l)].join('/') : l[0]) || '—';
 }

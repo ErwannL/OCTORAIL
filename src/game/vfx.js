@@ -26,26 +26,29 @@ export class Particles {
     });
     this.points = new THREE.Points(g, mat); this.points.frustumCulled = false; scene.add(this.points);
     this.p = Array.from({ length: max }, () => ({ life: 0, max: 1, v: new THREE.Vector3(), x: new THREE.Vector3(), s: 1, c: new THREE.Color(), a: 1 }));
-    this.i = 0;
+    this.i = 0; this.alive = 0;
   }
   emit(x, v, { life = 2, size = 1, color = '#fff', alpha = 1 } = {}) {
     const p = this.p[this.i]; this.i = (this.i + 1) % this.max;
     this.dirty = true; p.x.copy(x); p.v.copy(v); p.life = p.max = life; p.s = size; p.c.set(color); p.a = alpha;
   }
   update(dt) {
-    if (!this.dirty && !this.p.some(q => q.life > 0)) return;
+    if (!this.dirty && this.alive <= 0) { this.points.visible = false; return; }
+    this.points.visible = true;
     this.dirty = false;
+    let alive = 0;
     for (let k = 0; k < this.max; k++) {
       const p = this.p[k];
       if (p.life > 0) {
-        p.life -= dt; p.v.y += this.gravity * dt; p.v.multiplyScalar(1 - this.drag * dt); p.x.addScaledVector(p.v, dt);
+        alive++; p.life -= dt; p.v.y += this.gravity * dt; p.v.multiplyScalar(1 - this.drag * dt); p.x.addScaledVector(p.v, dt);
         const f = Math.max(0, p.life / p.max);
         const i3 = k * 3, i4 = k * 4;
         this.pos[i3] = p.x.x; this.pos[i3 + 1] = p.x.y; this.pos[i3 + 2] = p.x.z;
         this.col[i4] = p.c.r; this.col[i4 + 1] = p.c.g; this.col[i4 + 2] = p.c.b; this.col[i4 + 3] = p.a * Math.min(1, f * 2) * Math.min(1, (1 - f) * 8);
         this.size[k] = p.s * (1 + (1 - f) * this.grow);
-      } else { this.size[k] = 0; this.col[k * 4 + 3] = 0; }
+      } else if (this.size[k] !== 0) { this.size[k] = 0; this.col[k * 4 + 3] = 0; }
     }
+    this.alive = alive;
     const a = this.points.geometry.attributes; a.position.needsUpdate = a.color.needsUpdate = a.size.needsUpdate = true;
   }
 }
@@ -59,8 +62,9 @@ export class Weather {
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.mat = new THREE.PointsMaterial({ size: 0.35, map: TEX, transparent: true, depthWrite: false, color: '#ffffff', opacity: 0 });
     this.points = new THREE.Points(g, this.mat); this.points.frustumCulled = false; scene.add(this.points);
-    this.t = 0;
+    this.t = 0; this.use = n;
   }
+  setDensity(f) { this.use = Math.max(0, Math.min(this.n, Math.round(this.n * f))); this.points.geometry.setDrawRange(0, this.use); }
   update(dt, cam, kind, amount) {
     this.t += dt;
     this.points.visible = this.mat.opacity > 0.02 || amount > 0;
@@ -69,7 +73,7 @@ export class Weather {
     this.mat.color.set(kind === 'snow' ? '#ffffff' : '#e8b070');
     this.mat.size = kind === 'snow' ? 0.35 : 0.18;
     this.mat.opacity += ((amount) - this.mat.opacity) * Math.min(1, dt * 1.5);
-    for (let i = 0; i < this.n; i++) {
+    for (let i = 0; i < this.use; i++) {
       let y = (this.base[i * 3 + 1] - this.t * fall * (0.6 + (i % 7) / 10)) % 60; if (y < 0) y += 60;
       let x = (this.base[i * 3] + Math.sin(this.t * 0.7 + i) * sway + this.t * (kind === 'dust' ? 8 : 0)) % 120; if (x < -60) x += 120; if (x > 60) x -= 120;
       this.pos[i * 3] = cam.x + x; this.pos[i * 3 + 1] = cam.y - 20 + y; this.pos[i * 3 + 2] = cam.z + this.base[i * 3 + 2];

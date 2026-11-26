@@ -25,8 +25,9 @@ import { UI } from './ui/ui.js';
 import { Net } from './net/net.js';
 import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
 import { Compass, PHENO_INFO } from './ui/compass.js';
-import { COLLIDERS } from './world/colliders.js';
+import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
+import { WorldCuller } from './world/cull.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 const COLORS = ['#e0703a', '#3aa0e0', '#7ad05a', '#e05ab0', '#e0c03a', '#9a6ae0', '#3ad0c0', '#f0f0f0'];
@@ -35,7 +36,13 @@ const TRAIN_TINTS = ['#8b1e1e', '#1e4a8b', '#2a6b2a', '#7a1e6b', '#8b6b1e', '#4a
 // ------------------------------------------------------------------ Rendu
 const canvas = document.getElementById('c');
 // Qualité graphique : auto (résolution dynamique selon les FPS), réglable au titre.
-const QUALITY = { bas: { pr: 0.6, shadow: 0, bloom: false }, moyen: { pr: 0.75, shadow: 1024, bloom: true }, haut: { pr: 1.25, shadow: 2048, bloom: true } };
+// bas : rendu direct sans post-traitement/ombres/env ; moyen/haut : composer + bloom basse résolution + ombres autour du joueur.
+// range = multiplicateur de la distance d'affichage ; grass/weather = densités.
+const QUALITY = {
+  bas:   { pr: 0.6,  shadow: 0,    bloom: false, env: false, post: false, grass: 0.25, weather: 0.3, range: 0.7 },
+  moyen: { pr: 0.85, shadow: 1024, bloom: true,  env: true,  post: true,  grass: 0.6,  weather: 0.6, range: 0.85 },
+  haut:  { pr: 1.25, shadow: 2048, bloom: true,  env: true,  post: true,  grass: 1,    weather: 1,   range: 1 },
+};
 const SET = loadSettings();
 let qName = SET.quality || 'auto';
 const Q = QUALITY[qName === 'auto' ? 'moyen' : qName];
@@ -47,37 +54,50 @@ renderer.shadowMap.enabled = Q.shadow > 0 && SET.shadows; renderer.shadowMap.typ
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2('#e8b98a', 0.002);
-const camera = new THREE.PerspectiveCamera(SET.fov, innerWidth / innerHeight, 0.3, 2800);
+const camera = new THREE.PerspectiveCamera(SET.fov, innerWidth / innerHeight, 0.3, 1600);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.4, 0.45, 0.9);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * 0.4, innerHeight * 0.4), 0.4, 0.45, 0.9);
 bloom.enabled = Q.bloom && SET.bloom;
 composer.addPass(bloom);
 const grade = new ShaderPass(GradeShader); composer.addPass(grade);
 composer.addPass(new OutputPass());
 const envLight = new EnvLighting(renderer, scene);
-const resize = () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth * pixelRatio / 2, innerHeight * pixelRatio / 2); };
+const resize = () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth * pixelRatio * 0.4, innerHeight * pixelRatio * 0.4); };
 addEventListener('resize', resize);
-// résolution dynamique : vise ~50 FPS
-let perfAcc = 0, perfN = 0;
+// Mode Auto : mesure les FPS par fenêtres de ~0.6 s ; < 40 FPS => on dégrade vite (résolution, puis bloom, ombres, distance) ;
+// > 58 FPS durablement => on remonte la résolution doucement. Pas de réactivation des effets (évite l'oscillation).
+let perfAcc = 0, perfN = 0, perfWarm = 0, upStreak = 0;
+function setShadows(on) {
+  if (renderer.shadowMap.enabled === on) return;
+  renderer.shadowMap.enabled = on; sun.castShadow = on; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+}
 function adaptQuality(dt) {
   if (qName !== 'auto') return;
+  perfWarm += dt; if (perfWarm < 2.5) return; // compilation des shaders au démarrage
   perfAcc += dt; perfN++;
-  if (perfAcc < 1.0) return;
+  if (perfAcc < 0.6 && !(perfAcc > 0.35 && perfN < 6)) return;
   const fps = perfN / perfAcc; perfAcc = 0; perfN = 0;
   let pr = pixelRatio;
-  if (fps < 40) pr = Math.max(0.45, pr - 0.12); else if (fps > 57) pr = Math.min(Math.min(devicePixelRatio, 1.25), pr + 0.08);
-  if (fps < 24 && bloom.enabled) bloom.enabled = false;
-  if (fps < 20 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
+  if (fps < 40) {
+    upStreak = 0;
+    const big = fps < 28 ? 0.2 : 0.12;
+    if (pr > 0.72) pr = Math.max(0.7, pr - big);
+    else if (bloom.enabled) bloom.enabled = false;
+    else if (renderer.shadowMap.enabled) setShadows(false);
+    else if (pr > 0.5) pr = Math.max(0.5, pr - big);
+    else if (culler.mul > 0.55) culler.mul -= 0.15;
+  } else if (fps > 58 && ++upStreak >= 4) { upStreak = 0; pr = Math.min(Math.min(devicePixelRatio, 1.0), pr + 0.06); }
   if (Math.abs(pr - pixelRatio) > 0.01) { pixelRatio = pr; resize(); }
 }
 
-const hemi = new THREE.HemisphereLight('#bfd8ff', '#6b4a2a', 0.6); scene.add(hemi);
+const hemi = new THREE.HemisphereLight('#bfd8ff', '#6b4a2a', Q.env ? 0.6 : 0.95); scene.add(hemi);
 const sun = new THREE.DirectionalLight('#fff0d0', 2.6);
 sun.castShadow = Q.shadow > 0; sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 400 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
 scene.add(sun, sun.target);
+const WHITE = new THREE.Color('#ffffff');
 const SUN_DIR = new THREE.Vector3(0.45, 0.75, 0.35).normalize();
 
 // ------------------------------------------------------------------ Monde
@@ -99,7 +119,7 @@ buildClosedWorlds(scene, terrain, net);
 buildTrackside(scene, net, terrain);
 const westDecor = buildWesternDecor(scene, terrain, net);
 const gelDecor = buildGelureDecor(scene, terrain, net);
-buildGrass(scene, terrain, net);
+buildGrass(scene, terrain, net, Q.grass);
 const birds = buildBirds(scene, terrain);
 const flags = buildFlags(scene);
 buildLamps(scene);
@@ -107,12 +127,15 @@ const life = buildLife(scene, terrain, net);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
+// découpe spatiale des instances + masquage par distance (brouillard) ; voir world/cull.js
+const culler = new WorldCuller(scene).chunk().register(); culler.mul = Q.range;
+const envUpdate = (a, b, c) => { if (Q.env) envLight.update(a, b, c); };
 console.log(`Monde généré en ${Math.round(performance.now() - t0)} ms`);
 
 const smoke = new Particles(scene, 900, { gravity: 1.2, drag: 0.6, grow: 3 });
 const sparks = new Particles(scene, 600, { additive: true, gravity: -14, drag: 0.4, grow: 0 });
 const steam = new Particles(scene, 400, { gravity: 2, drag: 1.2, grow: 2.5 });
-const weather = new Weather(scene);
+const weather = new Weather(scene); weather.setDensity(Q.weather);
 
 // Shérif-7 dans son bloc de glace
 const sheriff = buildSheriff();
@@ -175,8 +198,10 @@ function start() {
   const startNode = me.slot % 2 ? 'H5' : 'H4';
   train = new Train(net, scene, { loco: S.owned.vapeur ? 'vapeur' : 'draisine', wagons: wagonList(), tint: TRAIN_TINTS[me.slot % 8], startNode });
   if (S.owned.vapeur) { train.coal = 20; train.water = 60; }
+  if (S.owned.sac) player.bagMax = 8;
+  if (S.sheriff === 'carried' && S.carrier !== (netc.id ?? 'me') && S.carrier !== 'me' && !remotes.has(S.carrier)) S.carrier = netc.id ?? 'me'; // porteur disparu (rechargement)
   // spawn à côté des capsules
-  const pa = me.slot * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 4.6, 0.3, -Math.sin(pa) * 4.6);
+  const pa = me.slot * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 11, 0.3, -Math.sin(pa) * 11); camInit = false; // hors des capsules (anneau à 6,6 m), espace dégagé
   player.yaw = Math.PI / 2; // regarde vers l'Ouest (quai de la draisine)
   if (!S.introDone) intro(); else { ui.toast('Bon retour sur Halcyre.', true); ui.objective(STAGES[S.stage].text); }
   refreshFinds(); refreshResources(); placeSheriff();
@@ -285,7 +310,7 @@ function intro() {
     { ...OCT, text: 'Une draisine t\'attend au quai Ouest. Elle n\'a pas de moteur. Toi, si. Bonne chance, passager.' },
   ], () => {
     cinematic = null; ui.letterbox(false); S.introDone = true; S.stage = Math.max(S.stage, 1); ui.objective(STAGES[S.stage].text); pushShared(); input.wantLock = true;
-    ui.toast('Clique pour contrôler la caméra', false);
+    
   }), 1400);
 }
 
@@ -375,6 +400,7 @@ function nearestInteract() {
   return best;
 }
 function trainNear(pos, R) { return train.head && train.head.distanceTo(pos) < R; }
+const FUEL_R = 70; // le quai Ouest est à ~55 m de la Charbonnière : on peut servir le train depuis son point de départ
 function locoCabWorld(tr) { return tr.loco.localToWorld(tr.loco.userData.cab.clone()); }
 
 function handleFootInteract() {
@@ -394,8 +420,8 @@ function handleFootInteract() {
   if (pick?.kind === 'find') label = `[E] Ramasser : ${finds[pick.i].name}`;
   if (crystal !== null) label = '[F] Miner la glace-mémoire';
   if (it?.id === 'iceblock' && S.sheriff === 'ice') label = (S.owned.chalumeau ? '[F] maintenir : faire fondre la glace' : 'Un robot figé… il faut un chalumeau');
-  if (it?.id === 'coal' && S.owned.vapeur) label = trainNear(it.pos, 45) ? '[E] Charger 10 charbon dans le tender' : 'Gare ton train près du quai pour charger';
-  if (it?.id === 'water' && S.owned.vapeur) label = trainNear(it.pos, 45) ? '[E] Remplir le réservoir d\'eau' : 'Gare ton train près du quai pour remplir';
+  if (it?.id === 'coal' && S.owned.vapeur) label = trainNear(it.pos, FUEL_R) ? '[E] Charger 10 charbon dans le tender' : 'Gare ton train près du quai pour charger';
+  if (it?.id === 'water' && S.owned.vapeur) label = trainNear(it.pos, FUEL_R) ? '[E] Remplir le réservoir d\'eau' : 'Gare ton train près du quai pour remplir';
   for (const r of remotes.values()) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5 && dCab >= 5) label = `[E] Monter dans le train de ${r.name}`;
   ui.prompt(label);
 
@@ -425,6 +451,7 @@ function handleFootInteract() {
 let mineAcc = 0;
 function mineCrystal(i) {
   const c = crystals.list[i];
+  if (player.bag.length >= player.bagMax && !(S.owned.stockage && trainNear(player.pos, 30))) { if (time - (mineCrystal.warn || -9) > 2) { mineCrystal.warn = time; ui.toast('Sac plein ! Revends au Comptoir du Moyeu.'); audio.deny(); } return; }
   mineAcc += 1 / 60; c.hp -= 1 / 60 / 1.5;
   c.m.scale.set(0.8 * (0.5 + c.hp / 2), 1.8 * (0.5 + c.hp / 2), 0.8 * (0.5 + c.hp / 2));
   if (Math.random() < 0.5) sparks.emit(c.m.position, new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 6, (Math.random() - 0.5) * 6), { life: 0.6, size: 0.4, color: '#8fe0ff' });
@@ -447,7 +474,7 @@ function collectNugget(i) {
   if (player.bag.length >= player.bagMax && !(S.owned.stockage && trainNear(player.pos, 30))) { ui.toast('Sac plein ! Revends au Comptoir du Moyeu.'); audio.deny(); return; }
   const n = nuggets.list[i]; n.alive = false; n.m.visible = false; S.nuggets.push(i);
   for (let k = 0; k < 20; k++) sparks.emit(n.m.position, new THREE.Vector3((Math.random() - 0.5) * 8, Math.random() * 8, (Math.random() - 0.5) * 8), { life: 0.7, size: 0.5, color: '#ffcc33' });
-  audio.pickup(); stash({ icon: '🪙', value: 25 }); pushShared();
+  audio.pickup(); stash({ icon: '🪙', value: 30 }); pushShared();
 }
 function collectFind(i) {
   const f = finds[i]; S.finds.push(f.id); audio.fanfare();
@@ -457,8 +484,8 @@ function collectFind(i) {
 }
 function useInteract(it) {
   if (it.id === 'shop') return openShop();
-  if (it.id === 'coal' && S.owned.vapeur && trainNear(it.pos, 45)) { train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
-  if (it.id === 'water' && S.owned.vapeur && trainNear(it.pos, 45)) { train.water = train.maxWater; audio.setMelt(1); setTimeout(() => audio.setMelt(0), 900); ui.toast('Réservoir plein'); checkFuel(); return; }
+  if (it.id === 'coal' && S.owned.vapeur && trainNear(it.pos, FUEL_R)) { train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
+  if (it.id === 'water' && S.owned.vapeur && trainNear(it.pos, FUEL_R)) { train.water = train.maxWater; audio.setMelt(1); setTimeout(() => audio.setMelt(0), 900); ui.toast('Réservoir plein'); checkFuel(); return; }
   if (it.id === 'hall') { ui.say([{ who: 'Hall des trouvailles', icon: '🏛', text: `${S.finds.length} / 5 trouvailles exposées. Elles brillent sous un rayon de lumière dans les mondes.` }]); return; }
   if (it.id === 'iceblock' && S.sheriff === 'ice') {
     const lines = [{ who: 'Toi', icon: '👤', color: me.color, text: 'Un robot en laiton… figé en plein saut de monocycle. Son chapeau est encore en l\'air.' }];
@@ -479,7 +506,7 @@ function freeSheriff() {
     { ...SH, text: 'Ramène-moi à Poussière-sur-Rail, partenaire. Je monte dans ta vitrine. Roule doucement, j\'ai le mal des rails.' },
   ], () => {
     if (S.owned.vitrine && trainNear(gelure.iceBlockPos, 45)) { S.sheriff = 'carried'; S.carrier = netc.id ?? 'me'; setStage('carry'); }
-    else { ui.toast('Gare ton train (avec la vitrine) près du Shérif, puis parle-lui [E].'); }
+    else { ui.toast(S.owned.vitrine ? 'Amène ton train (avec la vitrine) près du Shérif : il montera tout seul.' : 'Il te faut le wagon-vitrine (Comptoir du Moyeu) pour emmener le Shérif.'); }
     pushShared();
   });
 }
@@ -498,7 +525,7 @@ function objectivePos() {
 // ------------------------------------------------------------------ Menu pause / réglages
 const $ = id => document.getElementById(id);
 function applySettings() {
-  saveSettings(SET); audio.setVolumes(SET); input.setBindings(SET.keys);
+  saveSettings(SET); audio.setVolumes(SET); input.setBindings(SET.keys); ui.setKeys(SET.keys);
   camera.fov = SET.fov; camera.updateProjectionMatrix();
   bloom.enabled = SET.bloom && (qName === 'auto' ? true : QUALITY[qName].bloom);
   const sh = SET.shadows && (qName === 'auto' || QUALITY[qName].shadow > 0);
@@ -507,7 +534,7 @@ function applySettings() {
 function openPause() {
   ui.openPanel('pause'); input.wantLock = false;
   for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).value = SET[k];
-  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY']) $('s-' + k).checked = SET[k];
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth']) $('s-' + k).checked = SET[k];
   $('s-quality').value = SET.quality; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2);
   renderKeys();
 }
@@ -523,13 +550,22 @@ function renderKeys() {
     box.appendChild(row);
   }
 }
+function updateLockHint() {
+  let t = '';
+  if (!ui.panel && !ui.dialogOpen && !cinematic && input.wantLock && !input.mouse.locked && $('endcard').classList.contains('hidden')) {
+    t = input.lockFailed ? 'Capture de la souris indisponible ici : maintiens le clic gauche ou droit et glisse pour tourner' : 'Clique sur l\'écran pour capturer la souris (ou maintiens le clic droit pour tourner)';
+  }
+  ui.lockHint(t);
+}
+input.canLock = () => !ui.panel && !cinematic && !ui.dialogOpen;
+ui.setKeys(SET.keys);
 (function wirePause() {
   document.querySelectorAll('#pause .tabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('#pause .tabs button').forEach(x => x.classList.toggle('on', x === b));
     document.querySelectorAll('#pause .tab').forEach(t => t.classList.toggle('hidden', t.dataset.tab !== b.dataset.tab)); audio.ui();
   });
   for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).oninput = e => { SET[k] = +e.target.value; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2); applySettings(); if (k === 'sfx') audio.ui(); };
-  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
   $('s-quality').onchange = e => { SET.quality = e.target.value; saveSettings(SET); ui.toast('Qualité appliquée au prochain lancement (page rechargée).'); setTimeout(() => location.reload(), 900); };
   $('keys-reset').onclick = () => { SET.keys = JSON.parse(JSON.stringify(DEFAULT_SET.keys)); applySettings(); renderKeys(); };
   $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; input.lock(); };
@@ -551,14 +587,17 @@ function frame() {
   if (started) adaptQuality(Math.min(0.5, raw));
   if (!started) { titleCam(dt); render(); return; }
 
-  if (input.ah('pause')) { if (ui.panel) { ui.closePanels(); input.wantLock = true; } else if (!cinematic) openPause(); }
+  // Échap : si le navigateur vient de libérer la souris (même appui), on ne referme pas le menu aussitôt
+  if (input.ah('pause') && !(performance.now() - input.lastUnlock < 300 && ui.panel === 'pause')) { if (ui.panel) { ui.closePanels(); input.wantLock = true; } else if (!cinematic && !ui.dialogOpen) openPause(); }
+  if (input.hit('Help')) ui.toggleHelp();
+  updateLockHint();
   if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
   if (ui.panel === 'map') drawMap();
   if (input.ah('interact') && ui.dialogOpen) { ui.advance(); input.consume('interact'); }
   if (input.hit('Mouse0') && ui.dialogOpen && !input.mouse.locked) ui.advance();
   const busy = ui.dialogOpen || ui.panel || cinematic;
 
-  if (!busy) player.look(input, SET.sens, SET.invertY);
+  if (!busy) player.look(input, SET.sens, SET.invertY, SET.smooth);
 
   // --- train local
   let tin = { throttle: 0, brake: false, pump: false };
@@ -636,7 +675,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
+  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
 
@@ -673,14 +712,14 @@ function frame() {
   scene.fog.color.copy(amb.fog); scene.fog.density = amb.fogD * (1 + phenoK * ((pf?.fog || lastFog) - 1));
   if (pf?.fog) lastFog = pf.fog;
   sky.uniforms.top.value.copy(amb.skyTop); sky.uniforms.bot.value.copy(amb.skyBot); sky.uniforms.sunCol.value.copy(amb.sun); sky.uniforms.time.value = time;
-  sun.color.copy(amb.sun); hemi.color.copy(amb.skyTop).lerp(new THREE.Color('#fff'), 0.5); hemi.groundColor.copy(amb.fog).multiplyScalar(0.6);
+  sun.color.copy(amb.sun); hemi.color.copy(amb.skyTop).lerp(WHITE, 0.5); hemi.groundColor.copy(amb.fog).multiplyScalar(0.6);
   sky.mesh.position.copy(camera.position);
   sun.position.copy(focus).addScaledVector(SUN_DIR, 200); sun.target.position.copy(focus);
   const bName = amb.hub > 0.5 ? 'Le Moyeu' : BIOMES[amb.biome].name;
   ui.world(bName, amb.hub > 0.5 ? '#ffd27a' : BIOMES[amb.biome].skyBot);
   ambTimer += dt;
   if (ambTimer > 0.5) { ambTimer = 0;
-    { const B = amb.hub > 0.5 ? null : BIOMES[amb.biome].c; envLight.update(B ? B.skyTop : new THREE.Color('#1d2b4a'), B ? B.skyBot : new THREE.Color('#e9c79a'), B ? B.g0 : new THREE.Color('#8c7a63')); } audio.setZone(amb.hub > 0.5 ? 'hub' : amb.biome === 4 ? 'western' : amb.biome === 5 ? 'gelure' : 'closed'); }
+    { const B = amb.hub > 0.5 ? null : BIOMES[amb.biome].c; envUpdate(B ? B.skyTop : new THREE.Color('#1d2b4a'), B ? B.skyBot : new THREE.Color('#e9c79a'), B ? B.g0 : new THREE.Color('#8c7a63')); } audio.setZone(amb.hub > 0.5 ? 'hub' : amb.biome === 4 ? 'western' : amb.biome === 5 ? 'gelure' : 'closed'); }
   const wkind = amb.biome === 5 && amb.hub < 0.5 ? 'snow' : 'dust';
   weather.update(dt, camera.position, pf?.kind || wkind, amb.hub > 0.5 ? 0 : Math.max(phenoK * (pf?.weather || 0), wkind === 'snow' ? 0.9 : (amb.biome === 4 ? 0.35 : 0.1)) * (pf?.weather ? 2.2 : 1));
   audio.setWind(amb.hub > 0.5 ? 0.1 : wkind === 'snow' ? 0.8 : 0.4);
@@ -688,6 +727,7 @@ function frame() {
   smoke.update(dt); sparks.update(dt); steam.update(dt);
   updateCamera(dt);
   ui.credits(S.credits);
+  updateRange();
   render();
   input.endFrame();
 }
@@ -711,6 +751,8 @@ function questTick() {
     ], () => { setStage('find'); questGuard = false; });
   }
   if (st === 'find' && !questGuard && player.pos.distanceTo(gelure.iceBlockPos) < 22 && !ui.dialogOpen) { questGuard = true; useInteract({ id: 'iceblock' }); setTimeout(() => questGuard = false, 3000); }
+  if (st === 'gold' && S.credits >= 120) setStage('buy');
+  if (st === 'buy' && S.owned.vapeur) setStage('fuel');
   if (st === 'gear' && S.owned.chalumeau && S.owned.vitrine) setStage('melt');
   if (S.sheriff === 'free' && S.owned.vitrine && trainNear(gelure.iceBlockPos, 45) && !ui.dialogOpen && player.pos.distanceTo(gelure.iceBlockPos) < 30) {
     S.sheriff = 'carried'; S.carrier = netc.id ?? 'me'; setStage('carry'); pushShared(); ui.toast('SHÉRIF-7 saute dans la vitrine !', true); audio.beeps(8, 500);
@@ -755,6 +797,15 @@ function sheriffTick(dt) {
   }
 }
 
+let camInit = false; const _o2 = new THREE.Vector3();
+function camBlocked(x, y, z) {
+  for (const c of COLLIDERS.near(x, z)) {
+    if (c.cam === false || y > c.top || y < c.bottom) continue;
+    if (c.t === 0) { if (c.r >= 1.6 && Math.hypot(x - c.x, z - c.z) < c.r + 0.3) return true; }
+    else if (Math.max(c.hx, c.hz) >= 2) { const dx = x - c.x, dz = z - c.z, lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c; if (Math.abs(lx) < c.hx + 0.3 && Math.abs(lz) < c.hz + 0.3) return true; }
+  }
+  return false;
+}
 function updateCamera(dt) {
   let target, dist;
   if (cinematic?.kind === 'intro') {
@@ -771,23 +822,42 @@ function updateCamera(dt) {
   else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = 13 + Math.abs(tr.speed) * 0.25; }
   const off = new THREE.Vector3(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch)).multiplyScalar(dist);
   const want = target.clone().add(off);
-  // la caméra ne traverse ni le décor ni le sol : on la rapproche
-  for (let i = 1; i <= 10; i++) {
-    const t = i / 10, x = target.x + off.x * t, y = target.y + off.y * t, z = target.z + off.z * t;
-    if (COLLIDERS.blocked(x, y, z, 0.3) || y < terrain.heightAt(x, z) + 0.4) { const f = Math.max(0.12, (i - 1.3) / 10); want.copy(target).addScaledVector(off, f); break; }
+  // la caméra ne traverse que les petits objets : seuls les gros volumes (bâtiments, silo, murs) la repoussent.
+  const NSTEP = 24;
+  const freeOf = (o) => { for (let i = 1; i <= NSTEP; i++) { const t = i / NSTEP; if (camBlocked(target.x + o.x * t, target.y + o.y * t, target.z + o.z * t)) return Math.max(0, (i - 1.5) / NSTEP); } return 1; };
+  const free = freeOf(off);
+  if (free < 1) {
+    const df = free * dist, MIN = 3.0;
+    if (df >= MIN) want.copy(target).addScaledVector(off, free);
+    else { // trop près : on monte (survol), sinon on contourne par le côté, jamais collé à la tête
+      const hl = Math.hypot(off.x, off.z) || 1, dh = Math.max(0.4, df);
+      const hh = Math.min(4.2, Math.sqrt(Math.max(0, MIN * MIN - dh * dh)) + 0.6);
+      want.set(target.x + off.x / hl * dh, target.y + hh, target.z + off.z / hl * dh);
+      if (camBlocked(want.x, want.y, want.z)) {
+        let best = df, bo = null;
+        for (const da of [0.6, -0.6, 1.2, -1.2, 1.9, -1.9, 2.6, -2.6, 3.14]) {
+          const ca = Math.cos(da), sa = Math.sin(da), o2 = _o2.set(off.x * ca - off.z * sa, off.y, off.x * sa + off.z * ca);
+          const f2 = freeOf(o2) * dist; if (f2 > best + 0.3) { best = f2; bo = o2.clone(); if (f2 >= MIN) break; }
+        }
+        if (bo) want.copy(target).addScaledVector(bo, Math.min(1, best / dist)); else want.copy(target).addScaledVector(off, Math.max(free, 2.2 / dist));
+      }
+    }
   }
   const gh = terrain.heightAt(want.x, want.z) + 0.8; if (want.y < gh) want.y = gh;
-  if (camPos.distanceTo(want) > 60) { camPos.copy(want); camLook.copy(target); } // téléportation / respawn
-  if (camPos.distanceTo(target) > want.distanceTo(target) + 0.2) camPos.lerp(want, 0.6); // rapprochement immédiat si obstacle
-  camPos.lerp(want, 1 - Math.exp(-dt * 12)); camLook.lerp(target, 1 - Math.exp(-dt * 18));
+  if (camPos.distanceTo(want) > 60 || !camInit) { camPos.copy(want); camLook.copy(target); camInit = true; } // téléportation / respawn / 1re image
+  else {
+    const closer = camPos.distanceTo(target) > want.distanceTo(target) + 0.05;
+    camPos.lerp(want, 1 - Math.exp(-dt * (closer ? 16 : 2.5))); // rapprochement vif, éloignement lent (pas de pompage)
+  }
+  camLook.lerp(target, 1 - Math.exp(-dt * 18));
   camera.position.copy(camPos); camera.lookAt(camLook);
   // légère vibration en cabine à vitesse
   if (player.mode === 'cab' && SET.shake) { const sh = Math.min(0.08, Math.abs(train.speed) * 0.003); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
 }
 
 function titleCam(dt) {
-  if (!envLight.key) envLight.update(new THREE.Color('#1d2b4a'), new THREE.Color('#e9c79a'), new THREE.Color('#8c7a63'));
-  flags.update(time); birds.update(dt, time);
+  if (!envLight.key) envUpdate(new THREE.Color('#1d2b4a'), new THREE.Color('#e9c79a'), new THREE.Color('#8c7a63'));
+  flags.update(time, camera.position); birds.update(dt, time);
   const a = time * 0.05;
   camera.position.set(Math.cos(a) * 150, 55, Math.sin(a) * 150);
   camera.lookAt(0, 5, 0);
@@ -796,12 +866,24 @@ function titleCam(dt) {
   sky.mesh.position.copy(camera.position); scene.fog.color.copy(amb.fog); scene.fog.density = 0.0012;
   sun.position.set(200 * SUN_DIR.x, 200 * SUN_DIR.y, 200 * SUN_DIR.z); sun.target.position.set(0, 0, 0);
   hub.core.rotation.y += dt * 0.6;
+  updateRange();
 }
 
-function render() { composer.render(); }
+function render() {
+  if (Q.post) composer.render(); else renderer.render(scene, camera);
+}
+// distance de visibilité (brouillard ~6 %) : règle camera.far et le masquage par distance
+function updateRange() {
+  const D = Math.min(1500, 1.7 / Math.max(0.0005, scene.fog.density));
+  const far = Math.min(1600, Math.max(450, D * 1.3));
+  if (Math.abs(far - camera.far) > far * 0.06) { camera.far = far; camera.updateProjectionMatrix(); }
+  culler.update(camera.position, D);
+}
 
 // accès debug / tests automatisés
-window.__oct = { compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
+// collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
+COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
+window.__oct = { culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

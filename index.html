@@ -30,7 +30,7 @@
       </div>
       <label class="q">Qualité graphique <select id="quality"><option value="auto">Auto (s'adapte à ton PC)</option><option value="bas">Basse (PC modeste)</option><option value="moyen">Moyenne</option><option value="haut">Haute</option></select></label>
       <button id="reset" class="small">Effacer la sauvegarde</button>
-      <p class="hint">Souris : regarder (clic pour capturer, ou maintenir clic droit) · ZQSD/WASD : bouger · E : interagir · M : carte · H : sifflet · Échap : libérer la souris</p>
+      <p class="hint" id="title-hint">Souris : regarder (clic pour capturer, ou maintenir clic droit) · ZQSD/WASD : bouger · E : interagir · M : carte · H : sifflet · Échap : libérer la souris</p>
     </div>
     <div class="credits">Démo technique · Monde 1-2 sur 8 · Halcyre</div>
   </section>
@@ -54,7 +54,7 @@
           <div class="bar-l" id="pump-row"><span>Pompage</span><div><i id="b-pump"></i></div></div>
         </div>
       </div>
-      <div id="switch">Aiguillage : <b id="sw">TOUT DROIT</b> <small>(A / D)</small></div>
+      <div id="switch">Aiguillage : <b id="sw">TOUT DROIT</b> <small id="sw-keys">(A / D)</small></div>
       <div id="next-node"></div>
       <div class="keys" id="cab-keys"></div>
     </div>
@@ -63,12 +63,15 @@
     <div id="prompt" class="hidden"></div>
     <div id="toasts"></div>
     <div id="crosshair"></div>
+    <div id="lockhint" class="hidden"></div>
+    <div id="helpbtn">F1 · Aide</div>
+    <div id="help" class="hidden"><h3>COMMANDES <small>(F1 pour fermer)</small></h3><div id="help-body"></div></div>
     <div id="progress" class="hidden"><div><i id="b-prog"></i></div><span id="prog-label"></span></div>
   </div>
 
   <div id="dialog" class="hidden">
     <div class="portrait" id="d-portrait"></div>
-    <div class="body"><div class="who" id="d-who"></div><div class="text" id="d-text"></div><div class="next">▼ [E] / clic</div></div>
+    <div class="body"><div class="who" id="d-who"></div><div class="text" id="d-text"></div><div class="next" id="d-next">▼ [E] / clic</div></div>
   </div>
 
   <section id="shop" class="panel hidden">
@@ -98,6 +101,7 @@
     </div>
     <div class="tab hidden" data-tab="ctrl">
       <label class="row">Sensibilité souris <input type="range" id="s-sens" min="0.05" max="2" step="0.05"><output id="o-sens"></output></label>
+      <label class="row">Lissage souris <input type="checkbox" id="s-smooth"></label>
       <label class="row">Inverser l'axe vertical <input type="checkbox" id="s-invertY"></label>
     </div>
     <div class="tab hidden" data-tab="touches"><div id="keylist"></div><button id="keys-reset" class="small">Touches par défaut</button></div>

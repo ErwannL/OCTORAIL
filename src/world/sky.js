@@ -7,7 +7,7 @@ export function buildSky(scene) {
     time: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({
-    uniforms, side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
     vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `uniform vec3 top; uniform vec3 bot; uniform vec3 sunDir; uniform vec3 sunCol; uniform float time; varying vec3 vP;
       float h(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
@@ -28,8 +28,8 @@ export function buildSky(scene) {
         #include <colorspace_fragment>
       }`,
   });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(2600, 32, 16), mat);
-  sky.frustumCulled = false;
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), mat);
+  sky.frustumCulled = false; sky.renderOrder = -100; sky.userData.noCull = true; // dessiné en premier, indépendant de camera.far
   scene.add(sky);
   return { mesh: sky, uniforms };
 }

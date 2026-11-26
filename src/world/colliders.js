@@ -1,46 +1,110 @@
 // Collisions simples (cercles et boîtes orientées) indexées par grille. Partagé par tout le monde.
-const CELL = 16;
+//  - circle / box : obstacles solides. Un obstacle est ignoré par le joueur dont les pieds sont au-dessus de `top - 0.3`
+//    (on peut sauter par-dessus les petits obstacles et marcher sur ce qui est bas).
+//  - floorBox / floorCircle : surfaces praticables (quais, socles, estrades). Le joueur MONTE dessus si la marche
+//    fait <= COLLIDERS.stepMax (0,95 m), sinon c'est un mur (voir Player.updateFoot).
+//  - dynamic : fournisseurs de corps mobiles (trains), recalculés à chaque appel de resolve.
+//  - Flag `cam` : la caméra (blocked(..., true)) ignore les colliders avec cam === false. Par défaut, tout
+//    cercle de rayon < 1,5 m a cam:false (poteaux, cactus, arbres fins, lampadaires…) pour ne pas faire sauter la caméra.
+const CELL = 16, MARGIN = 1.2; // marge : un collider déborde dans les cellules voisines pour que le joueur (r~0,4) ne le rate pas
 class Colliders {
-  constructor() { this.grid = new Map(); this.list = []; }
+  constructor() { this.grid = new Map(); this.list = []; this.dynamic = []; this.stepMax = 0.95; this._dyn = []; }
   _ins(c, minX, minZ, maxX, maxZ) {
+    minX -= MARGIN; minZ -= MARGIN; maxX += MARGIN; maxZ += MARGIN;
     for (let i = Math.floor(minX / CELL); i <= Math.floor(maxX / CELL); i++) for (let j = Math.floor(minZ / CELL); j <= Math.floor(maxZ / CELL); j++) {
       const k = i + ',' + j; if (!this.grid.has(k)) this.grid.set(k, []); this.grid.get(k).push(c);
     }
     this.list.push(c);
   }
-  circle(x, z, r, top = 99, bottom = -99) { const c = { t: 0, x, z, r, top, bottom }; this._ins(c, x - r, z - r, x + r, z + r); return c; }
+  circle(x, z, r, top = 99, bottom = -99, cam = r >= 1.5) { const c = { t: 0, x, z, r, top, bottom, cam }; this._ins(c, x - r, z - r, x + r, z + r); return c; }
   // boîte : centre, demi-tailles (hx le long de l'axe local X, hz le long de Z), angle (rotation.y)
-  box(x, z, hx, hz, ang, top = 99, bottom = -99) { const R = Math.hypot(hx, hz); const c = { t: 1, x, z, hx, hz, c: Math.cos(ang), s: Math.sin(ang), top, bottom }; this._ins(c, x - R, z - R, x + R, z + R); return c; }
+  box(x, z, hx, hz, ang, top = 99, bottom = -99, cam = true) { const R = Math.hypot(hx, hz); const c = { t: 1, x, z, hx, hz, c: Math.cos(ang), s: Math.sin(ang), top, bottom, cam }; this._ins(c, x - R, z - R, x + R, z + R); return c; }
+  // surfaces praticables (hauteur absolue `top`)
+  floorBox(x, z, hx, hz, ang, top) { const c = this.box(x, z, hx, hz, ang, top, -99, false); c.fl = true; return c; }
+  floorCircle(x, z, r, top) { const c = this.circle(x, z, r, top, -99, false); c.fl = true; return c; }
   near(x, z) { return this.grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL)) || []; }
+  _inside(c, x, z, m = 0) {
+    if (c.t === 0) return Math.hypot(x - c.x, z - c.z) < c.r + m;
+    const dx = x - c.x, dz = z - c.z; return Math.abs(dx * c.c - dz * c.s) < c.hx + m && Math.abs(dx * c.s + dz * c.c) < c.hz + m;
+  }
+  // hauteur de la surface praticable la plus haute en (x,z) (-Infinity s'il n'y en a pas)
+  floorAt(x, z) { let h = -Infinity; for (const c of this.near(x, z)) if (c.fl && c.top > h && this._inside(c, x, z)) h = c.top; return h; }
 
-  // Repousse un cercle (rayon r) à la hauteur y hors des obstacles. Modifie pos.
-  resolve(pos, r = 0.4, y = pos.y) {
-    for (let pass = 0; pass < 2; pass++) for (const c of this.near(pos.x, pos.z)) {
-      if (y > c.top - 0.3 || y + 1.7 < c.bottom) continue;
-      if (c.t === 0) {
-        const dx = pos.x - c.x, dz = pos.z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
-        if (d < m && d > 1e-4) { pos.x = c.x + dx / d * m; pos.z = c.z + dz / d * m; }
-      } else {
-        // repère local de la boîte (rotation.y three : x' = x cos + z sin ; z' = -x sin + z cos)
-        const dx = pos.x - c.x, dz = pos.z - c.z;
-        const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
-        const px = c.hx + r - Math.abs(lx), pz = c.hz + r - Math.abs(lz);
-        if (px > 0 && pz > 0) {
-          let nx = lx, nz = lz;
-          if (px < pz) nx = Math.sign(lx || 1) * (c.hx + r); else nz = Math.sign(lz || 1) * (c.hz + r);
-          pos.x = c.x + nx * c.c + nz * c.s; pos.z = c.z - nx * c.s + nz * c.c;
-        }
+  // corps mobiles (trains) : boîtes orientées recalculées à chaque appel
+  _bodies() { const out = this._dyn; out.length = 0; for (const f of this.dynamic) f(out); return out; }
+
+  _push(pos, c, r) {
+    if (c.t === 0) {
+      const dx = pos.x - c.x, dz = pos.z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
+      if (d < m) { if (d > 1e-4) { pos.x = c.x + dx / d * m; pos.z = c.z + dz / d * m; } else pos.x = c.x + m; return true; }
+    } else {
+      // repère local de la boîte (rotation.y three : x' = x cos + z sin ; z' = -x sin + z cos)
+      const dx = pos.x - c.x, dz = pos.z - c.z;
+      const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;
+      const px = c.hx + r - Math.abs(lx), pz = c.hz + r - Math.abs(lz);
+      if (px > 0 && pz > 0) {
+        let nx = lx, nz = lz;
+        if (px < pz) nx = Math.sign(lx || 1) * (c.hx + r); else nz = Math.sign(lz || 1) * (c.hz + r);
+        pos.x = c.x + nx * c.c + nz * c.s; pos.z = c.z - nx * c.s + nz * c.c; return true;
       }
     }
-    return pos;
+    return false;
   }
-  blocked(x, y, z, r = 0.25) {
+
+  // Repousse un cercle (rayon r) à la hauteur y hors des obstacles. Modifie pos. Renvoie true si encore enfoncé.
+  resolve(pos, r = 0.4, y = pos.y) {
+    const dyn = this._bodies(); let hit = false;
+    for (let pass = 0; pass < 4; pass++) {
+      hit = false;
+      for (const c of this.near(pos.x, pos.z)) {
+        if (c.fl || y > c.top - 0.3 || y + 1.7 < c.bottom) continue;
+        if (this._push(pos, c, r)) hit = true;
+      }
+      for (const c of dyn) {
+        if (y > c.top - 0.3 || Math.abs(pos.x - c.x) > c.R + r || Math.abs(pos.z - c.z) > c.R + r) continue;
+        if (this._push(pos, c, r)) hit = true;
+      }
+      if (!hit) break;
+    }
+    return hit;
+  }
+
+  // Anti-blocage : si le joueur est resté coincé (poussées contradictoires), cherche le point libre le plus proche.
+  unstick(pos, r = 0.42, y = pos.y) {
+    const free = (x, z) => { const p = { x, z }; return !this.resolveProbe(p, r, y); };
+    if (free(pos.x, pos.z)) return false;
+    for (let rad = 0.6; rad <= 7; rad += 0.6) for (let k = 0; k < 16; k++) {
+      const a = k / 16 * Math.PI * 2, x = pos.x + Math.cos(a) * rad, z = pos.z + Math.sin(a) * rad;
+      if (free(x, z)) { pos.x = x; pos.z = z; return true; }
+    }
+    return false;
+  }
+  // vrai si (p.x,p.z) chevauche encore un obstacle (sans le déplacer)
+  resolveProbe(p, r, y) {
+    for (const c of this.near(p.x, p.z)) { if (c.fl || y > c.top - 0.3 || y + 1.7 < c.bottom) continue; if (this._inside(c, p.x, p.z, r - 0.02)) return true; }
+    for (const c of this._bodies()) { if (y > c.top - 0.3) continue; if (this._inside(c, p.x, p.z, r - 0.02)) return true; }
+    return false;
+  }
+
+  // forCam : true pour la caméra (ignore les colliders cam:false et les trains)
+  blocked(x, y, z, r = 0.25, forCam = false) {
     for (const c of this.near(x, z)) {
-      if (y > c.top || y < c.bottom) continue;
-      if (c.t === 0) { if (Math.hypot(x - c.x, z - c.z) < c.r + r) return true; }
-      else { const dx = x - c.x, dz = z - c.z; const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c; if (Math.abs(lx) < c.hx + r && Math.abs(lz) < c.hz + r) return true; }
+      if (c.fl || y > c.top || y < c.bottom) continue;
+      if (forCam && c.cam === false) continue;
+      if (this._inside(c, x, z, r)) return true;
     }
     return false;
   }
 }
 export const COLLIDERS = new Colliders();
+
+// Corps de train (loco + wagons) -> boîtes dynamiques. `tr` = Train (tr.loco, tr.wagons[].mesh).
+export function trainBodies(tr, out) {
+  if (!tr || !tr.loco || !tr.loco.parent) return;
+  const add = (m) => {
+    const q = m.quaternion, fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
+    const yaw = Math.atan2(fx, fz), L = (m.userData.length || 6) / 2 - 0.15, hx = 1.45;
+    out.push({ t: 1, x: m.position.x, z: m.position.z, hx, hz: L, c: Math.cos(yaw), s: Math.sin(yaw), top: m.position.y + 1.25, bottom: -99, R: Math.hypot(hx, L) });
+  };
+  add(tr.loco); for (const w of tr.wagons) add(w.mesh);
+}

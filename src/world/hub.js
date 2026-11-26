@@ -111,6 +111,22 @@ export function buildHub(scene, interact) {
   for (let i = 0; i < 5; i++) circ(machines.hall, -4 + i * 2, 0.6, 0.62, 3.5);
   for (let i = 0; i < 16; i++) { const a = i / 16 * PI * 2 + PI / 16, x = Math.cos(a) * 38, z = -Math.sin(a) * 38; COLLIDERS.circle(x, z, 0.35); COLLIDERS.circle(x - Math.sin(a) * 2, z - Math.cos(a) * 2, 0.65, 1); }
   BIOMES.forEach((b, i) => { const a = i * PI / 4 + PI / 8; COLLIDERS.circle(Math.cos(a) * 45, -Math.sin(a) * 45, 0.25); });
+  // socle de la base du dôme (marche 0,4 m) + poteau central
+  COLLIDERS.floorCircle(0, 0, 10.6, 0.6); COLLIDERS.circle(0, 0, 0.3, 7);
+  // socle du Hall des trouvailles (deux marches : 0,45 puis 0,85)
+  { const h = machines.hall, v = W(h, 0, 0); COLLIDERS.floorBox(v.x, v.z, 6.3, 2.8, h.rotation.y, 0.45); COLLIDERS.floorBox(v.x, v.z, 6, 2.5, h.rotation.y, 0.85); }
+  // balustrade du pourtour : poteaux
+  for (let i = 0; i < 64; i++) { const a = i / 64 * PI * 2; if (Math.abs(((a / (PI / 4)) % 1) - 0) < 0.12 || Math.abs(((a / (PI / 4)) % 1) - 1) < 0.12) continue; const [x, z] = at(a, 47.4); COLLIDERS.circle(x, z, 0.24, 2); }
+  // quais des 8 voies : quai praticable (marche ~0,8 m), poteaux d'auvent, banc, horloge
+  BIOMES.forEach((b, i) => {
+    const a = i * PI / 4, tan = [-Math.sin(a), -Math.cos(a)];
+    const side = (d) => { const [x, z] = at(a, 60); return [x + tan[0] * d, z + tan[1] * d]; };
+    const [qx, qz] = side(5.6);
+    COLLIDERS.floorBox(qx, qz, 2.3, 10, a + H, 0.8);
+    for (const d of [-7, 0, 7]) COLLIDERS.circle(qx + Math.cos(a) * d, qz - Math.sin(a) * d, 0.22, 99, -99, false);
+    COLLIDERS.box(qx + tan[0] * 1.2, qz + tan[1] * 1.2, 0.3, 1.1, a, 1.9);
+    const [cx, cz] = side(9.5); COLLIDERS.circle(cx, cz, 0.2);
+  });
   return { group: g, core, coreLight: { intensity: 0 }, machines, nucleus };
 }
 

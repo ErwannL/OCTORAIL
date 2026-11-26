@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { COLLIDERS } from './colliders.js';
 
 const GAUGE = 0.75;
 
@@ -92,7 +93,7 @@ export function buildSignals(scene, net, BIOMES) {
     const p = new THREE.Vector3(n.p.x, n.y, n.p.y);
     if (n.kind === 'junction' || (n.kind === 'hub' && n.edges.length > 2)) {
       const e = net.edges[n.edges[0]];
-      const s = new THREE.Mesh(post, pmat); s.position.set(p.x + 3.5, p.y + 2, p.z + 3.5); s.castShadow = true; g.add(s);
+      const s = new THREE.Mesh(post, pmat); s.position.set(p.x + 3.5, p.y + 2, p.z + 3.5); s.castShadow = true; g.add(s); COLLIDERS.circle(p.x + 3.5, p.z + 3.5, 0.22, 99, -99, false);
       const lm = new THREE.MeshStandardMaterial({ color: '#111', emissive: '#40ff80', emissiveIntensity: 3 });
       const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), lm); lamp.position.set(p.x + 3.5, p.y + 4.2, p.z + 3.5); g.add(lamp);
       lamps.push({ node: n.id, mat: lm });
@@ -109,7 +110,7 @@ export function buildSignals(scene, net, BIOMES) {
       const tex = textSprite([b.name.toUpperCase(), 'VOIE FERMÉE', 'Monde non rallumé'], { bg: '#1a1a22', fg: b.skyBot, border: b.skyTop });
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
       sign.position.set(0, 4.2, 0.4); stop.add(sign);
-      stop.position.copy(end); stop.rotation.y = ang; g.add(stop);
+      stop.position.copy(end); stop.rotation.y = ang; g.add(stop); COLLIDERS.box(end.x, end.z, 1.7, 0.4, ang, end.y + 1.5, -99, false);
 
     }
   }

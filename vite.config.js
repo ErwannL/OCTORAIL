@@ -1,1 +1,1 @@
-export default { server: { port: 5173 }, build: { chunkSizeWarningLimit: 2000 } };
+export default { base: './', server: { port: 5173 }, build: { chunkSizeWarningLimit: 2000 } };

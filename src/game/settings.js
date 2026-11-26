@@ -2,13 +2,13 @@
 export const ACTIONS = [
   ['forward', 'Avancer / régulateur +'], ['back', 'Reculer / régulateur −'], ['left', 'Gauche / aiguillage bifurcation'], ['right', 'Droite / aiguillage tout droit'],
   ['jump', 'Sauter / frein'], ['run', 'Courir'], ['interact', 'Interagir / monter-descendre'], ['action', 'Pomper · pelleter · miner · fondre'],
-  ['whistle', 'Sifflet'], ['map', 'Plan du réseau'], ['pause', 'Menu'],
+  ['whistle', 'Sifflet'], ['map', 'Plan du réseau'], ['view', 'Vue 1re / 3e personne'], ['hints', 'Afficher / masquer les touches'], ['pause', 'Menu'],
 ];
 export const DEFAULT = {
   master: 0.8, music: 0.6, sfx: 0.9, ambience: 0.7,
   quality: 'auto', fov: 62, bloom: true, shadows: true, shake: true,
-  sens: 0.6, smooth: true, invertY: false, compass: true,
-  keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], map: ['KeyM'], pause: ['Escape', 'KeyP'] },
+  sens: 0.6, smooth: true, hints: true, fp: false, invertY: false, compass: true,
+  keys: { forward: ['KeyW', 'KeyZ'], back: ['KeyS'], left: ['KeyA', 'KeyQ'], right: ['KeyD'], jump: ['Space'], run: ['ShiftLeft'], interact: ['KeyE'], action: ['KeyF'], whistle: ['KeyH'], map: ['KeyM'], view: ['KeyV'], hints: ['KeyK'], pause: ['Escape', 'KeyP'] },
 };
 const KEY = 'octorail-settings-v2';
 export function loadSettings() {

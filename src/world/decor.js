@@ -267,7 +267,7 @@ export function buildWesternDecor(scene, terrain, net) {
   rocks.forEach((geo, gi) => {
     const n = 140, inst = new THREE.InstancedMesh(geo, rmat, n); const m4 = new THREE.Matrix4(); let c = 0;
     for (let t = 0; t < n * 8 && c < n; t++) { const r = 150 + rnd() * 1200, a = rnd() * PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r; if (sectorIndex(x, z) !== 4 || net.nearest(x, z, 9)) continue; const sc = 0.6 + rnd() * rnd() * 4; m4.compose(new THREE.Vector3(x, terrain.heightAt(x, z) + sc * 0.2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(sc, sc * (0.6 + rnd() * 0.6), sc)); inst.setMatrixAt(c++, m4); if (sc > 1.1) COLLIDERS.circle(x, z, 1.15 * sc, terrain.heightAt(x, z) + sc * 0.75); }
-    inst.count = c; inst.receiveShadow = true; inst.castShadow = gi === 0; scene.add(inst);
+    inst.count = c; inst.receiveShadow = true; inst.castShadow = gi === 0; inst.userData.solidFill = true; scene.add(inst);
   });
   // Virevoltants : pelotes d'herbes sèches (anneaux entremêlés), roulent au vent
   const tk = new Kit(), twig = mat('#a58a55', { roughness: 1, flatShading: true });

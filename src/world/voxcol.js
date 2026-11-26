@@ -25,6 +25,15 @@ export class VoxelCollision {
     iv.push(y, y); this.points++;
   }
 
+  // intervalle plein [y0, y1] dans la colonne de (x, z)
+  _addSpan(x, y0, y1, z) {
+    const k = key(Math.floor(x / CELL), Math.floor(z / CELL));
+    let iv = this.cols.get(k);
+    if (!iv) { this.cols.set(k, [y0, y1]); return; }
+    for (let i = 0; i < iv.length; i += 2) if (y1 >= iv[i] - MERGE && y0 <= iv[i + 1] + MERGE) { iv[i] = Math.min(iv[i], y0); iv[i + 1] = Math.max(iv[i + 1], y1); return; }
+    iv.push(y0, y1);
+  }
+
   // Parcourt les triangles d'une géométrie et appelle emit(x,y,z) (espace local) sur une grille de pas `spacing`.
   static walk(geo, spacing, emit) {
     const pos = geo.attributes.position, idx = geo.index;
@@ -68,13 +77,14 @@ export class VoxelCollision {
     const out = []; VoxelCollision.walk(geo, spacing, (x, y, z) => out.push(x, y, z));
     return (geo.userData._smpF = new Float32Array(out));
   }
-  _addSamples(smp, m, capY = Infinity) {
+  _addSamples(smp, m, capY = Infinity, fillFrom = null) {
     const e = m.elements;
     for (let i = 0; i < smp.length; i += 3) {
       const X = smp[i], Y = smp[i + 1], Z = smp[i + 2];
       const y = e[1] * X + e[5] * Y + e[9] * Z + e[13];
       if (y > capY) continue;
-      this._add(e[0] * X + e[4] * Y + e[8] * Z + e[12], y, e[2] * X + e[6] * Y + e[10] * Z + e[14]);
+      if (fillFrom !== null) this._addSpan(e[0] * X + e[4] * Y + e[8] * Z + e[12], fillFrom, y, e[2] * X + e[6] * Y + e[10] * Z + e[14]);
+      else this._add(e[0] * X + e[4] * Y + e[8] * Z + e[12], y, e[2] * X + e[6] * Y + e[10] * Z + e[14]);
     }
   }
 
@@ -97,12 +107,13 @@ export class VoxelCollision {
         // herbes, cailloux, fleurs, traverses : trop bas/petits pour gêner -> ignorés
         if (size.y < 0.45 || (size.y < 1.1 && Math.max(size.x, size.z) < 1.1)) return;
         const few = o.count <= 40; // objets rares (arbres du Moyeu…) : géométrie complète, couronne comprise
-        const smp = few ? VoxelCollision.samplesFull(geo, 0.25) : VoxelCollision.samples(geo, 0.3);
+        const fill = !!o.userData.solidFill;
+        const smp = (few || fill) ? VoxelCollision.samplesFull(geo, fill ? 0.4 : 0.25) : VoxelCollision.samples(geo, 0.3);
         if (!smp.length) return;
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, m); m.premultiply(o.matrixWorld);
           if (!reachable(m.elements[12], m.elements[14])) continue;
-          this._addSamples(smp, m, few ? Infinity : m.elements[13] + 3.2 * Math.cbrt(Math.abs(m.determinant()))); // nombreux : tronc/base seulement
+          this._addSamples(smp, m, (few || fill) ? Infinity : m.elements[13] + 3.2 * Math.cbrt(Math.abs(m.determinant())), fill ? m.elements[13] - 2 : null); // nombreux : tronc/base seulement ; volumes pleins remplis jusqu'au sol
         }
       } else {
         if (!geo.boundingSphere) geo.computeBoundingSphere();

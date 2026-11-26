@@ -28,6 +28,8 @@ import { Compass, PHENO_INFO } from './ui/compass.js';
 import { COLLIDERS, trainBodies } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { VOX } from './world/voxcol.js';
+import { TSUNAMI_ZONE } from './world/tsunami.js';
+import { zoneRules } from './game/zones.js';
 import { WorldCuller } from './world/cull.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -184,6 +186,24 @@ let me = { name: 'Passager', color: COLORS[0], slot: 0 };
 let player, train;
 const remotes = new Map(); // id -> { avatar, train, state, name, color }
 let started = false, cinematic = null, time = 0, lastSync = 0;
+let camZoom = 6.5, hintT = 0;
+function renderHints() {
+  const el = document.getElementById('keyhints'); if (!el) return;
+  el.classList.toggle('hidden', !SET.hints || !started || !!cinematic);
+  if (!SET.hints) return;
+  const K = a => `<kbd>${keyLabel(SET.keys[a]?.[0])}</kbd>`, R = player.rules || {};
+  const row = (k, label, blocked) => `<div class="kh${blocked ? ' off' : ''}" title="${blocked || ''}">${k}<span>${label}${blocked ? `<small>${blocked}</small>` : ''}</span></div>`;
+  let h = '';
+  if (player.mode === 'cab') {
+    const steam = train.kind === 'vapeur';
+    h += row(K('forward') + K('back'), 'Régulateur / marche arrière') + row(K('jump'), 'Frein') + row(K('action'), steam ? 'Pelleter du charbon' : 'Pomper (spam)') + row(K('left') + K('right'), 'Aiguillage') + row(K('whistle'), 'Sifflet') + row(K('interact'), 'Descendre');
+  } else {
+    h += row(K('forward') + K('left') + K('back') + K('right'), 'Se déplacer') + row(K('run'), player.sprinting ? 'Sprint ⚡' : 'Sprint (élixir ou clé à molette)', R.sprint) + row(K('jump'), 'Sauter') + row('maintenir ' + K('jump'), 'Jambes-ressorts : saut chargé', R.spring || R.jump) + row(K('interact'), 'Interagir') + row(K('action'), 'Action (miner, fondre…)');
+  }
+  h += row(K('view') + ' / molette', SET.fp ? '3e personne' : '1re personne / zoom') + row(K('map'), 'Carte') + row(K('hints'), 'Masquer ce panneau');
+  if (R.label) h = `<div class="kh-zone">${R.label}</div>` + h;
+  if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
+}
 let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
@@ -230,6 +250,10 @@ function start() {
   if (!S.introDone) intro(); else { ui.toast('Bon retour sur Halcyre.', true); ui.objective(STAGES[S.stage].text); }
   refreshFinds(); refreshResources(); placeSheriff();
   input.wantLock = true;
+  const lastMsg = {};
+  player.onBlocked = (what, msg) => { const now = performance.now(); if (now - (lastMsg[what] || 0) > 2500) { lastMsg[what] = now; ui.toast('⛔ ' + msg); audio.deny(); } };
+  player.onSprint = () => { audio.clunk(); };
+  player.onSpringJump = (c) => { audio.tone(audio.now, 180, 0.35, { type: 'sine', vol: 0.25, glide: 3 + c * 3 }); };
 }
 
 function wagonList() {
@@ -558,7 +582,7 @@ function applySettings() {
 function openPause() {
   ui.openPanel('pause'); input.wantLock = false;
   for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).value = SET[k];
-  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth']) $('s-' + k).checked = SET[k];
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth', 'hints', 'fp']) $('s-' + k).checked = SET[k];
   $('s-quality').value = SET.quality; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2);
   renderKeys();
 }
@@ -589,7 +613,7 @@ ui.setKeys(SET.keys);
     document.querySelectorAll('#pause .tab').forEach(t => t.classList.toggle('hidden', t.dataset.tab !== b.dataset.tab)); audio.ui();
   });
   for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).oninput = e => { SET[k] = +e.target.value; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2); applySettings(); if (k === 'sfx') audio.ui(); };
-  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY', 'smooth', 'hints', 'fp']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
   $('s-quality').onchange = e => { SET.quality = e.target.value; saveSettings(SET); ui.toast('Qualité appliquée au prochain lancement (page rechargée).'); setTimeout(() => location.reload(), 900); };
   $('keys-reset').onclick = () => { SET.keys = JSON.parse(JSON.stringify(DEFAULT_SET.keys)); applySettings(); renderKeys(); };
   $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; input.lock(); };
@@ -618,9 +642,18 @@ function frame() {
   if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
   if (ui.panel === 'map') drawMap();
   if (input.ah('interact') && ui.dialogOpen) { ui.advance(); input.consume('interact'); }
-  if (input.hit('Mouse0') && ui.dialogOpen && !input.mouse.locked) ui.advance();
+  if (input.hit('Mouse0') && ui.dialogOpen && input.mouse.locked) ui.advance();
   const busy = ui.dialogOpen || ui.panel || cinematic;
 
+  // molette : zoom ; tout près -> 1re personne ; V : bascule
+  if (!busy && input.wheel) {
+    if (SET.fp) { if (input.wheel > 0) { SET.fp = false; camZoom = 2.6; } }
+    else { camZoom = Math.max(2.2, Math.min(22, camZoom * (1 + input.wheel * 0.12))); if (input.wheel < 0 && camZoom <= 2.2) SET.fp = true; }
+    saveSettings(SET);
+  }
+  if (!busy && input.ah('view')) { SET.fp = !SET.fp; saveSettings(SET); ui.toast(SET.fp ? 'Vue à la 1re personne' : 'Vue à la 3e personne'); }
+  if (input.ah('hints')) { SET.hints = !SET.hints; saveSettings(SET); }
+  player.fp = SET.fp;
   if (!busy) player.look(input, SET.sens, SET.invertY, SET.smooth);
 
   // --- train local
@@ -660,6 +693,8 @@ function frame() {
   // --- joueur
   if (player.mode === 'foot') {
     if (!busy) {
+      player.rules = zoneRules({ x: player.pos.x, z: player.pos.z, temp: player.temp, inHub: Math.hypot(player.pos.x, player.pos.z) < 75,
+        inTunnel: TSUNAMI_ZONE.set && TSUNAMI_ZONE.test(player.pos.x, player.pos.z), nearTown: player.pos.distanceTo(western.pedestal) < 130 });
       const moving = player.updateFoot(dt, input, [trainDeckCollider]);
       handleFootInteract();
       if (moving > 0.5 && sectorIndex(player.pos.x, player.pos.z) === 5 && Math.random() < 0.3) smoke.emit(player.pos.clone().add(new THREE.Vector3(0, 0.1, 0)), new THREE.Vector3(0, 0.5, 0), { life: 0.8, size: 0.6, color: '#ffffff', alpha: 0.5 });
@@ -849,8 +884,16 @@ function updateCamera(dt) {
     camera.position.lerp(western.pedestal.clone().add(new THREE.Vector3(Math.cos(a) * 16, 7, Math.sin(a) * 16)), 0.05);
     camera.lookAt(western.pedestal.clone().add(new THREE.Vector3(0, 3, 0))); return;
   }
-  if (player.mode === 'foot') { target = player.pos.clone().add(new THREE.Vector3(0, 1.7, 0)); dist = 6.5; }
-  else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = 13 + Math.abs(tr.speed) * 0.25; }
+  player.avatar.visible = !SET.fp;
+  if (SET.fp) { // 1re personne : la caméra est dans le casque
+    const head = player.mode === 'foot' ? player.pos.clone().add(new THREE.Vector3(0, 1.72, 0)) : player.avatar.position.clone().add(new THREE.Vector3(0, 1.75, 0));
+    const look = new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch), Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
+    camera.position.copy(head).addScaledVector(look, 0.12); camPos.copy(camera.position); camera.lookAt(head.clone().add(look)); camLook.copy(head);
+    if (player.mode === 'cab' && SET.shake) { const sh = Math.min(0.03, Math.abs(train.speed) * 0.0012); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
+    return;
+  }
+  if (player.mode === 'foot') { target = player.pos.clone().add(new THREE.Vector3(0, 1.7, 0)); dist = camZoom; }
+  else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = (13 + Math.abs(tr.speed) * 0.25) * camZoom / 6.5; }
   const off = new THREE.Vector3(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch)).multiplyScalar(dist);
   const want = target.clone().add(off); _camT = target;
   // la caméra ne traverse que les petits objets : seuls les gros volumes (bâtiments, silo, murs) la repoussent.

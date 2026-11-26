@@ -109,7 +109,10 @@ function limb(b, rnd, p0, dir, len, r0, depth, cols, up = 0.15) {
       limb(b, rnd, at, nd, len * (0.55 + rnd() * 0.2), r0 * 0.52, depth - 1, cols, up);
     }
   }
+  return pts;
 }
+// point le long d'une branche (t de 0 à 1), pour y greffer une branche secondaire SANS la décoller du tronc
+const along = (pts, t) => { const f = t * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)); return pts[i].clone().lerp(pts[i + 1], f - i); };
 export function deadTreeGeometry(variant = 0) {
   const b = new Bits(200 + variant), rnd = mulberry(900 + variant * 71);
   const cols = ['#a89a84', '#85735e', '#5f4b3a']; // pointes blanchies -> tronc sombre
@@ -117,20 +120,20 @@ export function deadTreeGeometry(variant = 0) {
   b.add(root, cols[2], { p: [0, -0.05, 0], s: [1, 1, 1] });
   for (let i = 0; i < 3; i++) { const a = i * 2.1 + variant; b.add(ptube([V(Math.cos(a) * 0.15, 0.5, Math.sin(a) * 0.15), V(Math.cos(a) * 0.55, 0.15, Math.sin(a) * 0.55), V(Math.cos(a) * 1.0, -0.05, Math.sin(a) * 1.0)], 0.16, 0.05, 3, 4), cols[2]); }
   if (variant === 0) { // tronc fourchu, haut
-    limb(b, rnd, V(0, 0.4, 0), V(0.12, 1, 0.05), 4.6, 0.3, 0, cols);
-    limb(b, rnd, V(0.15, 3.4, 0.05), V(0.8, 1, 0.1), 3.0, 0.17, 2, cols);
-    limb(b, rnd, V(0.1, 2.8, 0), V(-0.9, 0.8, 0.3), 2.8, 0.15, 2, cols);
-    limb(b, rnd, V(0.2, 4.3, 0), V(-0.3, 1, -0.6), 2.0, 0.1, 1, cols);
+    const T = limb(b, rnd, V(0, 0.4, 0), V(0.12, 1, 0.05), 4.6, 0.3, 0, cols);
+    limb(b, rnd, along(T, 0.66), V(0.8, 1, 0.1), 3.0, 0.17, 2, cols);
+    limb(b, rnd, along(T, 0.52), V(-0.9, 0.8, 0.3), 2.8, 0.15, 2, cols);
+    limb(b, rnd, along(T, 0.9), V(-0.3, 1, -0.6), 2.0, 0.1, 1, cols);
   } else if (variant === 1) { // chicot brisé + une grosse branche pendante
-    limb(b, rnd, V(0, 0.4, 0), V(-0.1, 1, 0.1), 3.2, 0.34, 0, cols, 0.05);
-    b.add(new THREE.ConeGeometry(0.2, 0.7, 5).translate(0, 0.35, 0), cols[1], { p: [-0.18, 3.5, 0.2], r: [0.2, 0, 0.3] }); // cassure en esquilles
-    limb(b, rnd, V(-0.1, 2.3, 0.1), V(1, 0.5, 0.2), 3.2, 0.2, 2, cols, -0.05);
-    limb(b, rnd, V(-0.1, 1.5, 0), V(-1, 0.4, -0.5), 2.0, 0.13, 1, cols, -0.1);
+    const T = limb(b, rnd, V(0, 0.4, 0), V(-0.1, 1, 0.1), 3.2, 0.34, 0, cols, 0.05);
+    const top = T[T.length - 1]; b.add(new THREE.ConeGeometry(0.2, 0.7, 5).translate(0, 0.35, 0), cols[1], { p: [top.x, top.y - 0.1, top.z], r: [0.2, 0, 0.3] }); // cassure en esquilles
+    limb(b, rnd, along(T, 0.62), V(1, 0.5, 0.2), 3.2, 0.2, 2, cols, -0.05);
+    limb(b, rnd, along(T, 0.36), V(-1, 0.4, -0.5), 2.0, 0.13, 1, cols, -0.1);
   } else { // arbre penché, branche maîtresse horizontale
-    limb(b, rnd, V(0, 0.4, 0), V(0.55, 1, 0), 4.2, 0.3, 1, cols, 0.1);
-    limb(b, rnd, V(1.5, 2.6, 0), V(1, 0.45, 0.3), 3.4, 0.17, 2, cols, 0.12);
-    limb(b, rnd, V(1.0, 2.0, 0), V(-0.5, 0.8, 0.9), 2.2, 0.12, 1, cols);
-    limb(b, rnd, V(2.0, 3.6, 0), V(-0.2, 1, -0.7), 1.8, 0.1, 1, cols);
+    const T = limb(b, rnd, V(0, 0.4, 0), V(0.55, 1, 0), 4.2, 0.3, 1, cols, 0.1);
+    limb(b, rnd, along(T, 0.6), V(1, 0.45, 0.3), 3.4, 0.17, 2, cols, 0.12);
+    limb(b, rnd, along(T, 0.45), V(-0.5, 0.8, 0.9), 2.2, 0.12, 1, cols);
+    limb(b, rnd, along(T, 0.88), V(-0.2, 1, -0.7), 1.8, 0.1, 1, cols);
   }
   const geo = b.build(); geo.userData = { trunkR: 0.45 }; return geo;
 }
@@ -245,7 +248,7 @@ export function rockShapeGeometry(seed = 1, style = 'strata', colored = true) {
   const ring = new Map();
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = (y + 0.7) / 1.4, a = Math.atan2(z, x);
-    const key = Math.round(a * 100) + ':' + Math.round(y * 100);
+    const key = Math.round(x * 1000) + ':' + Math.round(y * 1000) + ':' + Math.round(z * 1000); // par position : la couture du cylindre reste fermée
     if (!ring.has(key)) ring.set(key, 0.8 + rnd() * 0.4);
     const ledge = (Math.round(t * hs) % 2) ? 0.9 : 1.04;
     const body = Math.sqrt(Math.max(0.0, 1 - Math.pow(t * 2 - 1, 4)) * 0.3 + 0.7); // ventre arrondi
@@ -265,7 +268,7 @@ export function mesaGeometry(seed = 1) {
   const rnd = mulberry(seed * 71 + 3), hs = 10, rs = 12;
   const g = new THREE.CylinderGeometry(0.8, 1.35, 10, rs, hs, false), p = g.attributes.position, ring = new Map(); const WID = 2.3;
   for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = (y + 5) / 10, a = Math.atan2(z, x), key = Math.round(a * 100) + ':' + Math.round(y * 100);
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), t = (y + 5) / 10, a = Math.atan2(z, x), key = Math.round(x * 1000) + ':' + Math.round(y * 1000) + ':' + Math.round(z * 1000);
     if (!ring.has(key)) ring.set(key, 0.85 + rnd() * 0.3);
     const step = (Math.round(t * 10) % 2) ? 0.9 : 1.0, talus = 1 + Math.max(0, 0.45 - t * 1.4);
     const f = ring.get(key) * step * talus * (1 + 0.1 * Math.sin(a * 3 + seed));

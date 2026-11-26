@@ -23,9 +23,12 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
     const a = rnd() * Math.PI * 2;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     if (!inSector.includes(sectorIndex(x, z))) continue;
-    const near = net.nearest(x, z, opts.clear ?? 9);
+    const sc0 = (opts.sMin ?? 0.7) + rnd() * ((opts.sMax ?? 1.4) - (opts.sMin ?? 0.7));
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const fp = Math.max(Math.abs(geo.boundingBox.min.x), Math.abs(geo.boundingBox.max.x), Math.abs(geo.boundingBox.min.z), Math.abs(geo.boundingBox.max.z)) * sc0;
+    const near = net.nearest(x, z, (opts.clear ?? 9) + fp + 3) || (fp > 6 && net.nearest(x, z, Math.min(200, fp * 2 + 10)));
     if (near) continue;
-    const sc = (opts.sMin ?? 0.7) + rnd() * ((opts.sMax ?? 1.4) - (opts.sMin ?? 0.7));
+    const sc = sc0;
     p.set(x, terrain.heightAt(x, z) + (opts.yOff ?? 0) * sc, z);
     q.setFromEuler(new THREE.Euler(opts.tilt ? (rnd() - 0.5) * opts.tilt : 0, rnd() * Math.PI * 2, opts.tilt ? (rnd() - 0.5) * opts.tilt : 0));
     s.set(sc, sc * (opts.yStretch ? 0.6 + rnd() * opts.yStretch : 1), sc);
@@ -33,6 +36,7 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
     if (opts.collide) COLLIDERS.circle(x, z, opts.collide * sc, p.y + (opts.collideTop ?? 6) * sc);
   }
   inst.count = n; inst.castShadow = !!opts.shadow; inst.receiveShadow = true;
+  if (opts.collide) inst.userData.solidFill = true; // volume plein (rochers, buttes, cactus) : intérieur solide jusqu'au sol
   scene.add(inst);
   return inst;
 }

@@ -42,6 +42,8 @@ export class Input {
       if (Math.abs(dx) > 120 || Math.abs(dy) > 120) { this.spikes = (this.spikes || 0) + 1; return; }
       this.mouse.dx += dx; this.mouse.dy += dy;
     });
+    this.wheel = 0;
+    addEventListener('wheel', e => { if (e.target === this.dom || this.mouse.locked) { this.wheel += Math.sign(e.deltaY) * Math.min(3, Math.abs(e.deltaY) / 40 || 1); e.preventDefault?.(); } }, { passive: false });
     addEventListener('mousedown', e => { if (e.button === 0) this.pressed.add('Mouse0'); this.keys.add('Mouse' + e.button); });
     addEventListener('mouseup', e => this.keys.delete('Mouse' + e.button));
     this.wantLock = true;
@@ -59,5 +61,6 @@ export class Input {
   consume(name) { for (const c of this.bind?.[name] || []) this.pressed.delete(c); }
   down(c) { return this.keys.has(c); }
   hit(c) { return this.pressed.has(c); }
-  endFrame() { this.pressed.clear(); this.mouse.dx = 0; this.mouse.dy = 0; }
+  endFrame() {
+    this.wheel = 0; this.pressed.clear(); this.mouse.dx = 0; this.mouse.dy = 0; }
 }

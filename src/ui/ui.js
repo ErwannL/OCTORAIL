@@ -87,12 +87,13 @@ export class UI {
   players(list) { $('players').innerHTML = list.map(p => `<span><i style="background:${p.color}"></i>${p.name}</span>`).join(''); }
 
   // Dialogues en bulles avec effet machine à écrire
-  say(lines, onDone) { this.dialogQueue.push(...lines.map(l => ({ ...l }))); if (onDone) this.dialogQueue.push({ cb: onDone }); if (!this.dialogOpen) this.advance(); }
-  advance() {
+  say(lines, onDone) { this.dialogQueue.push(...lines.map(l => ({ ...l }))); if (onDone) this.dialogQueue.push({ cb: onDone }); if (!this.dialogOpen) this.advance(true); }
+  advance(force) {
+    const now = performance.now(); if (!force && now - (this._lastAdv || 0) < 220) return; this._lastAdv = now;
     if (this.typing) { this.typing = false; return; }
     const n = this.dialogQueue.shift();
     if (!n) { this.dialogOpen = false; this.show('dialog', false); return; }
-    if (n.cb) { n.cb(); return this.advance(); }
+    if (n.cb) { n.cb(); return this.advance(true); }
     this.dialogOpen = true; this.show('dialog', true);
     $('d-who').textContent = n.who; $('d-who').style.color = n.color || 'var(--brass)';
     $('d-portrait').textContent = n.icon || '◈'; $('d-portrait').style.borderColor = n.color || 'var(--brass)';

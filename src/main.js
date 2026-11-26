@@ -11,7 +11,7 @@ import { Network } from './world/network.js';
 import { Terrain, rawHeight } from './world/terrain.js';
 import { buildTracks, buildSignals } from './world/tracks.js';
 import { buildSky } from './world/sky.js';
-import { buildWestern, buildGelure, buildClosedPreviews } from './world/props.js';
+import { buildWestern, buildGelure } from './world/props.js';
 import { buildHub } from './world/hub.js';
 import { buildTrackside, buildWesternDecor, buildGelureDecor, buildClosedWorlds } from './world/decor.js';
 import { Train, WAGON_TYPES } from './game/train.js';

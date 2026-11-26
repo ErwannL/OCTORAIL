@@ -7,6 +7,7 @@ import { FLORA_MAT, saguaroGeometry, pricklyPearGeometry, barrelCactusGeometry, 
 import { buildWesternBuilding } from './buildings.js';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { COLLIDERS } from './colliders.js';
+import { buildTsunami } from './tsunami.js';
 
 const PI = Math.PI, H = Math.PI / 2;
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
@@ -187,40 +188,9 @@ export function buildGelure(scene, terrain, net, interact) {
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [5], pineGeometry(v), FLORA_MAT, { sMin: 0.5, sMax: 1.1, shadow: false, collide: 0.5, collideTop: 5 }); // sapins gelés
   for (let v = 0; v < 2; v++) scatter(scene, terrain, net, rnd, 110, [5], snowShrubGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.6 });
 
-  // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5
+  // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5 (voir tsunami.js)
   const e = net.edges.find(x => x.a === 'K5' && x.b === 'T5');
-  const mid = e.pts[Math.floor(e.pts.length * 0.33)];
-  const a2 = e.pts[Math.floor(e.pts.length * 0.33) + 10];
-  const ang = Math.atan2(a2.x - mid.x, a2.z - mid.z);
-  const wave = new THREE.Group();
-  const shape = new THREE.Shape();
-  // profil de déferlante (coupe), extrudé le long de la largeur
-  const prof = [[-160, 0], [-120, 40], [-70, 110], [-20, 180], [30, 230], [80, 250], [120, 238], [140, 215], [128, 190], [100, 182], [75, 196], [60, 175], [70, 140], [90, 100], [110, 40], [125, 0]];
-  shape.moveTo(prof[0][0], prof[0][1]); prof.slice(1).forEach(([x, y]) => shape.lineTo(x, y));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: 700, bevelEnabled: false, steps: 24 });
-  { const pp = geo.attributes.position; for (let i = 0; i < pp.count; i++) { const z = pp.getZ(i); pp.setY(i, pp.getY(i) * (0.75 + 0.25 * Math.cos(z / 700 * Math.PI * 2 + 1)) ); pp.setX(i, pp.getX(i) + Math.sin(z / 90) * 14); } geo.computeVertexNormals(); }
-  geo.translate(0, 0, -350);
-  const waveMat = new THREE.MeshStandardMaterial({ color: '#5fb4e0', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.88, side: THREE.DoubleSide, emissive: '#1d6a9a', emissiveIntensity: 0.35, flatShading: true });
-  const w = new THREE.Mesh(geo, waveMat); wave.add(w);
-  // tunnel creusé : arche sous la vague (la voie passe dedans)
-  const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 300, 24, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: '#d8f2ff', roughness: 0.2, side: THREE.DoubleSide, emissive: '#5ab0e0', emissiveIntensity: 0.35 }));
-  tunnel.rotation.z = Math.PI / 2; tunnel.position.y = 0; wave.add(tunnel);
-  // écume figée (sphères)
-  for (let k = 0; k < 60; k++) {
-    const f = new THREE.Mesh(new THREE.IcosahedronGeometry(6 + rnd() * 10, 0), M('#ffffff', { flatShading: true, roughness: 0.5 }));
-    f.position.set(110 + rnd() * 40, 200 + rnd() * 50, -340 + rnd() * 680); wave.add(f);
-  }
-  // choses figées dans la vague : bateau, baleine-machine
-  const boat = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.CylinderGeometry(4, 1.5, 22, 6, 1), M('#6b3a1e')); hull.rotation.z = Math.PI / 2; boat.add(hull);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 18), M('#4a2a14')); mast.position.y = 9; boat.add(mast);
-  boat.position.set(-40, 120, 60); boat.rotation.set(0.6, 0.3, 0.8); wave.add(boat);
-  const whale = new THREE.Mesh(new THREE.CapsuleGeometry(8, 30, 6, 12), M('#3a4a5a', { metalness: 0.6 }));
-  whale.position.set(20, 170, -120); whale.rotation.set(0, 0, 1.1); wave.add(whale);
-  wave.position.set(mid.x, terrain.heightAt(mid.x, mid.z) - 2, mid.z);
-  wave.rotation.y = ang + Math.PI / 2;
-  wave.traverse(o => { if (o.isMesh && !o.material.transparent) o.castShadow = true; });
-  scene.add(wave);
+  const wave = buildTsunami(scene, terrain, net, e, 0.42);
 
   // Le bloc de glace du SHÉRIF-7, près du terminus
   const T = net.nodes.get('T5');
@@ -230,23 +200,4 @@ export function buildGelure(scene, terrain, net, interact) {
   const bpos = tEnd.clone().addScaledVector(side, 9); bpos.y = terrain.heightAt(bpos.x, bpos.z);
   interact.add({ id: 'iceblock', pos: bpos.clone(), r: 6, label: 'Un robot figé dans la glace…' });
   return { wave, iceBlockPos: bpos };
-}
-
-// Décor léger pour les mondes fermés (aperçu derrière la barrière)
-export function buildClosedPreviews(scene, terrain, net) {
-  const rnd = mulberry(7);
-  const looks = {
-    0: [new THREE.SphereGeometry(2, 8, 6), M('#5f8a3a', { flatShading: true })],
-    1: [new THREE.BoxGeometry(4, 30, 4), M('#1a1030', { emissive: '#ff3fd0', emissiveIntensity: 0.6 })],
-    2: [new THREE.DodecahedronGeometry(6, 0), M('#dff1ff', { flatShading: true })],
-    3: [new THREE.TorusGeometry(4, 0.8, 6, 16), M('#c9a24a', { metalness: 0.8, roughness: 0.3 })],
-    6: [new THREE.SphereGeometry(3, 10, 8), M('#ff8a2a', { emissive: '#ff5a00', emissiveIntensity: 0.4 })],
-    7: [new THREE.ConeGeometry(1.5, 6, 6), M('#7a3fa0', { emissive: '#b060ff', emissiveIntensity: 0.6 })],
-  };
-  for (const [i, [geo, mat]] of Object.entries(looks)) {
-    const k = +i;
-    scatter(scene, terrain, net, rnd, 260, [k], geo, mat, {
-      sMin: 0.6, sMax: 2, yOff: k === 2 ? 14 : (k === 1 ? 12 : 1), tilt: k === 3 ? 2 : 0, rMin: 240, rMax: 1300, shadow: false,
-    });
-  }
 }

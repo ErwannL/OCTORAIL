@@ -4,6 +4,7 @@ import { textSprite } from './tracks.js';
 import { BIOMES, sectorIndex } from './biomes.js';
 import { cactusGeometry, buildWesternBuilding } from './models.js';
 import { Kit, G, mat, MAT, glow } from './kit.js';
+import { COLLIDERS } from './colliders.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
 
@@ -127,6 +128,7 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
     q.setFromEuler(new THREE.Euler(opts.tilt ? (rnd() - 0.5) * opts.tilt : 0, rnd() * Math.PI * 2, opts.tilt ? (rnd() - 0.5) * opts.tilt : 0));
     s.set(sc, sc * (opts.yStretch ? 0.6 + rnd() * opts.yStretch : 1), sc);
     m.compose(p, q, s); inst.setMatrixAt(n++, m);
+    if (opts.collide) COLLIDERS.circle(x, z, opts.collide * sc, p.y + (opts.collideTop ?? 6) * sc);
   }
   inst.count = n; inst.castShadow = !!opts.shadow; inst.receiveShadow = true;
   scene.add(inst);
@@ -160,7 +162,7 @@ export function mergeSimple(arr) {
 
 export function buildWestern(scene, terrain, net, interact) {
   const rnd = mulberry(99);
-  scatter(scene, terrain, net, rnd, 700, [4], cactusGeometry(), M('#3f7a3a', { roughness: 0.8 }), { shadow: false, sMin: 0.6, sMax: 1.5 });
+  scatter(scene, terrain, net, rnd, 700, [4], cactusGeometry(), M('#3f7a3a', { roughness: 0.8 }), { shadow: false, sMin: 0.6, sMax: 1.5, collide: 0.55 });
   scatter(scene, terrain, net, rnd, 700, [4], new THREE.DodecahedronGeometry(1.2, 0), M('#9a5a35', { flatShading: true }), { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.5 });
   scatter(scene, terrain, net, rnd, 260, [4], new THREE.IcosahedronGeometry(0.9, 0), M('#8a7a3a', { flatShading: true }), { sMin: 0.6, sMax: 1.4, yOff: 0.4 }); // buissons secs
 
@@ -176,6 +178,7 @@ export function buildWestern(scene, terrain, net, interact) {
     const side = k % 2 ? 1 : -1, row = Math.floor(k / 2);
     const w = 7 + rnd() * 3, h = 5 + rnd() * 3, d = 8;
     const b = buildWesternBuilding(names[k], w, h, d, [woods[k % 5], woods[(k + 2) % 5], ['#3f6b5a', '#7a2a2a', '#2a4a7a'][k % 3]], textSprite);
+    b.userData.bw = w; b.userData.bd = d;
     b.position.set(side * 14, 0, -26 - row * 14); b.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     b.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     town.add(b);
@@ -205,6 +208,11 @@ export function buildWestern(scene, terrain, net, interact) {
   }
   scene.add(town);
   town.updateMatrixWorld(true);
+  for (const b of town.children) {
+    if (b.userData.bw) { const v = b.getWorldPosition(new THREE.Vector3()); const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion())); COLLIDERS.box(v.x + fw.x * 0.1, v.z + fw.z * 0.1, b.userData.bw / 2 + 0.3, b.userData.bd / 2 + 0.3, Math.atan2(fw.x, fw.z)); }
+  }
+  for (const a of autos) { const v = a.getWorldPosition(new THREE.Vector3()); COLLIDERS.circle(v.x, v.z, 1.1); }
+  { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)); COLLIDERS.circle(v.x, v.z, 2.5, terrain.heightAt(v.x, v.z) + 1.2); }
   const pedWorld = town.localToWorld(new THREE.Vector3(0, 1.2, 18));
   interact.add({ id: 'pedestal', pos: pedWorld, r: 7, label: 'Piédestal du gardien' });
   return { town, autos, pedestal: pedWorld };
@@ -213,9 +221,9 @@ export function buildWestern(scene, terrain, net, interact) {
 export function buildGelure(scene, terrain, net, interact) {
   const rnd = mulberry(55);
   const ice = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.25, emissive: '#3a8fc0', emissiveIntensity: 0.3, flatShading: true });
-  scatter(scene, terrain, net, rnd, 700, [5], new THREE.ConeGeometry(1.4, 8, 5), ice, { sMin: 0.5, sMax: 2.4, tilt: 0.6, yOff: 2 });
+  scatter(scene, terrain, net, rnd, 700, [5], new THREE.ConeGeometry(1.4, 8, 5), ice, { sMin: 0.5, sMax: 2.4, tilt: 0.6, yOff: 2, collide: 1.0 });
   scatter(scene, terrain, net, rnd, 500, [5], new THREE.DodecahedronGeometry(1.5, 0), M('#f2fbff', { flatShading: true, roughness: 0.6 }), { sMin: 0.5, sMax: 3, yStretch: 0.4 });
-  scatter(scene, terrain, net, rnd, 220, [5], firGeometry(), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: false }); // sapins gelés
+  scatter(scene, terrain, net, rnd, 220, [5], firGeometry(), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: false, collide: 0.5 }); // sapins gelés
 
   // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5
   const e = net.edges.find(x => x.a === 'K5' && x.b === 'T5');

@@ -25,6 +25,8 @@ import { UI } from './ui/ui.js';
 import { Net } from './net/net.js';
 import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
 import { Compass, PHENO_INFO } from './ui/compass.js';
+import { COLLIDERS } from './world/colliders.js';
+import { buildLife } from './world/life.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 const COLORS = ['#e0703a', '#3aa0e0', '#7ad05a', '#e05ab0', '#e0c03a', '#9a6ae0', '#3ad0c0', '#f0f0f0'];
@@ -33,7 +35,7 @@ const TRAIN_TINTS = ['#8b1e1e', '#1e4a8b', '#2a6b2a', '#7a1e6b', '#8b6b1e', '#4a
 // ------------------------------------------------------------------ Rendu
 const canvas = document.getElementById('c');
 // Qualité graphique : auto (résolution dynamique selon les FPS), réglable au titre.
-const QUALITY = { bas: { pr: 0.6, shadow: 0, bloom: false }, moyen: { pr: 0.85, shadow: 1024, bloom: true }, haut: { pr: 1.25, shadow: 2048, bloom: true } };
+const QUALITY = { bas: { pr: 0.6, shadow: 0, bloom: false }, moyen: { pr: 0.75, shadow: 1024, bloom: true }, haut: { pr: 1.25, shadow: 2048, bloom: true } };
 const SET = loadSettings();
 let qName = SET.quality || 'auto';
 const Q = QUALITY[qName === 'auto' ? 'moyen' : qName];
@@ -61,7 +63,7 @@ let perfAcc = 0, perfN = 0;
 function adaptQuality(dt) {
   if (qName !== 'auto') return;
   perfAcc += dt; perfN++;
-  if (perfAcc < 1.5) return;
+  if (perfAcc < 1.0) return;
   const fps = perfN / perfAcc; perfAcc = 0; perfN = 0;
   let pr = pixelRatio;
   if (fps < 40) pr = Math.max(0.45, pr - 0.12); else if (fps > 57) pr = Math.min(Math.min(devicePixelRatio, 1.25), pr + 0.08);
@@ -101,6 +103,7 @@ buildGrass(scene, terrain, net);
 const birds = buildBirds(scene, terrain);
 const flags = buildFlags(scene);
 buildLamps(scene);
+const life = buildLife(scene, terrain, net);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
@@ -544,7 +547,7 @@ const camPos = new THREE.Vector3(30, 20, 30), camLook = new THREE.Vector3();
 
 function frame() {
   requestAnimationFrame(frame);
-  const raw = clock.getDelta(); const dt = Math.min(0.05, raw); time += dt;
+  const raw = clock.getDelta(); const dt = Math.min(0.25, raw); time += dt; // temps réel même à bas FPS (sous-pas dans la physique)
   if (started) adaptQuality(Math.min(0.5, raw));
   if (!started) { titleCam(dt); render(); return; }
 
@@ -633,7 +636,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time); grade.uniforms.time.value = time % 10;
+  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time); life.update(dt, time, player.pos); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
 
@@ -768,8 +771,14 @@ function updateCamera(dt) {
   else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = 13 + Math.abs(tr.speed) * 0.25; }
   const off = new THREE.Vector3(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch)).multiplyScalar(dist);
   const want = target.clone().add(off);
+  // la caméra ne traverse ni le décor ni le sol : on la rapproche
+  for (let i = 1; i <= 10; i++) {
+    const t = i / 10, x = target.x + off.x * t, y = target.y + off.y * t, z = target.z + off.z * t;
+    if (COLLIDERS.blocked(x, y, z, 0.3) || y < terrain.heightAt(x, z) + 0.4) { const f = Math.max(0.12, (i - 1.3) / 10); want.copy(target).addScaledVector(off, f); break; }
+  }
   const gh = terrain.heightAt(want.x, want.z) + 0.8; if (want.y < gh) want.y = gh;
   if (camPos.distanceTo(want) > 60) { camPos.copy(want); camLook.copy(target); } // téléportation / respawn
+  if (camPos.distanceTo(target) > want.distanceTo(target) + 0.2) camPos.lerp(want, 0.6); // rapprochement immédiat si obstacle
   camPos.lerp(want, 1 - Math.exp(-dt * 12)); camLook.lerp(target, 1 - Math.exp(-dt * 18));
   camera.position.copy(camPos); camera.lookAt(camLook);
   // légère vibration en cabine à vitesse

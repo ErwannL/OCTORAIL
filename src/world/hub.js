@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { BIOMES } from './biomes.js';
 import { textSprite } from './tracks.js';
+import { COLLIDERS } from './colliders.js';
 
 const PI = Math.PI, H = PI / 2;
 const at = (a, r) => [Math.cos(a) * r, -Math.sin(a) * r];
@@ -98,6 +99,18 @@ export function buildHub(scene, interact) {
   interact.add({ id: 'water', pos: wp(machines.water, 0, 3.5), r: 5, label: 'Château d\'eau — [E] remplir le réservoir du train' });
   interact.add({ id: 'shop', pos: wp(machines.shop, 0, 3.2), r: 4.5, label: 'Comptoir — [E] améliorations' });
   interact.add({ id: 'hall', pos: wp(machines.hall, 0, 4), r: 6, label: 'Hall des trouvailles' });
+  // --- collisions du Moyeu
+  for (let p = 0; p < 8; p++) { const a = p * PI / 4 + PI / 8; const [x, z] = at(a, 6.6); COLLIDERS.circle(x, z, 1.15, 3.6); }
+  const W = (m, lx, lz) => m.localToWorld(new THREE.Vector3(lx, 0, lz));
+  const circ = (m, lx, lz, r, top = 99) => { const v = W(m, lx, lz); COLLIDERS.circle(v.x, v.z, r, top); };
+  const box = (m, lx, lz, hx, hz, top = 99) => { const v = W(m, lx, lz); COLLIDERS.box(v.x, v.z, hx, hz, m.rotation.y, top); };
+  circ(machines.coal, 0, -1, 2.8); box(machines.coal, -3.6, -1, 1.1, 1.1); circ(machines.coal, -4.4, -1, 1.1); box(machines.coal, 2.8, 3.8, 0.85, 1.15, 1.3); box(machines.coal, 0, 3.2, 0.7, 2.6, 1.6);
+  for (const [x, z] of [[-1.85, -1.85], [1.85, -1.85], [-1.85, 1.85], [1.85, 1.85]]) circ(machines.water, x, z, 0.35);
+  box(machines.shop, 0, 0.6, 3.5, 1.1, 1.4); box(machines.shop, 0, -1.6, 3.5, 0.3); circ(machines.shop, -3.4, 1.4, 0.25); circ(machines.shop, 3.4, 1.4, 0.25);
+  for (const x of [-5.5, -2.75, 0, 2.75, 5.5]) circ(machines.hall, x, -1.9, 0.5);
+  for (let i = 0; i < 5; i++) circ(machines.hall, -4 + i * 2, 0.6, 0.62, 3.5);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * PI * 2 + PI / 16, x = Math.cos(a) * 38, z = -Math.sin(a) * 38; COLLIDERS.circle(x, z, 0.35); COLLIDERS.circle(x - Math.sin(a) * 2, z - Math.cos(a) * 2, 0.65, 1); }
+  BIOMES.forEach((b, i) => { const a = i * PI / 4 + PI / 8; COLLIDERS.circle(Math.cos(a) * 45, -Math.sin(a) * 45, 0.25); });
   return { group: g, core, coreLight: { intensity: 0 }, machines, nucleus };
 }
 

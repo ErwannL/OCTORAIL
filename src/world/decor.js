@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { sectorIndex } from './biomes.js';
 import { mulberry } from '../util/noise.js';
+import { COLLIDERS } from './colliders.js';
 
 const PI = Math.PI, H = PI / 2;
 
@@ -99,6 +100,7 @@ export function buildWesternDecor(scene, terrain, net) {
     const rk = new Kit(); for (let b = 0; b < 16; b++) rk.add(G.box(0.4, 1.8, 0.04), mat('#c9b99a', { roughness: 0.8 }), { p: [Math.cos(b / 16 * PI * 2) * 1.2, Math.sin(b / 16 * PI * 2) * 1.2, 0], r: [0, 0.3, b / 16 * PI * 2 - H] }); rk.add(G.cyl(0.2, 0.2, 0.4, 10), iron, { r: [H, 0, 0] }); rk.add(G.tor(2.0, 0.04, 4, 32), iron, {});
     rotor.add(rk.build()); grp.add(rotor);
     grp.position.set(s.x, s.y, s.z); grp.rotation.y = rnd() * PI * 2; scene.add(grp);
+    COLLIDERS.circle(s.x, s.z, 1.0); { const v = grp.localToWorld(new THREE.Vector3(2.5, 0, 0)); COLLIDERS.box(v.x, v.z, 1.5, 0.6, grp.rotation.y, s.y + 0.8); }
     anim.windmills.push(rotor);
   }
   // Épave de wagon renversé + squelette de bison
@@ -113,6 +115,7 @@ export function buildWesternDecor(scene, terrain, net) {
     for (const sgn of [-1, 1]) k.add(G.tube([[4 + sgn * 0.4, 0.6, 1], [4 + sgn * 0.9, 0.9, 1.2], [4 + sgn * 1.1, 1.3, 1.0]], 0.06, 8, 5), bone);
     for (let r2 = 0; r2 < 6; r2++) k.add(G.tor(0.7, 0.05, 4, 10, PI), bone, { p: [4, 0.1, 2.0 + r2 * 0.35], r: [0, H, 0] });
     const w = k.build(); w.position.set(s.x, s.y, s.z); w.rotation.y = s.ang + 0.4; scene.add(w);
+    COLLIDERS.box(s.x, s.z, 1.6, 3.1, s.ang + 0.4);
   }
   // Clôtures de ranch par tronçons
   const fk = new Kit(), fw = mat('#7a5232', { roughness: 0.9 });
@@ -178,6 +181,7 @@ export function buildGelureDecor(scene, terrain, net) {
     k.add(G.cyl(16, 18, 3, 24), snow, { p: [0, 0.3, 0], s: [1, 1, 0.45] });
     for (let p = 0; p < 14; p++) k.add(rockGeometry(p + 50), ice, { p: [-14 + rnd() * 28, 1 + rnd() * 2, (rnd() - 0.5) * 12], s: [2 + rnd() * 3, 1.5 + rnd() * 2.5, 2 + rnd() * 2] });
     const ship = k.build(); ship.position.set(s.x, s.y - 1, s.z); ship.rotation.set(0.12, s.ang + 0.6, -0.18); scene.add(ship);
+    COLLIDERS.box(s.x, s.z, 13, 4, s.ang + 0.6 + PI / 2);
   }
   // Avant-poste de cabanes enneigées + feu de camp
   const s = spot(14, 18, 0.25);
@@ -194,6 +198,7 @@ export function buildGelureDecor(scene, terrain, net) {
     for (let l = 0; l < 5; l++) k.add(G.cyl(0.12, 0.12, 1.6, 6), wood, { p: [0, 0.4, 6], r: [0.4, l * 1.25, H] });
     k.add(G.cone(0.6, 1.4, 7), glow('#ff7a2a', 3), { p: [0, 0.9, 6] });
     out.add(k.build()); out.position.set(s.x, s.y, s.z); out.rotation.y = s.ang; scene.add(out);
+    out.updateMatrixWorld(true); for (const cx of [-9, 0, 9]) { const v = out.localToWorld(new THREE.Vector3(cx, 0, 0)); COLLIDERS.box(v.x, v.z, 3.0, 2.5, s.ang); }
   }
   // Arches de glace au-dessus de la voie
   const archK = new Kit();

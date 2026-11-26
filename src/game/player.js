@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { buildAvatarModel } from '../world/models.js';
+import { COLLIDERS } from '../world/colliders.js';
 
 
 export function buildAvatar(color) { return buildAvatarModel(color); }
@@ -24,7 +25,7 @@ export class Player {
   }
 
   updateFoot(dt, input, extraColliders) {
-    const sp = input.a('run') ? 9 : 5;
+    const sp = input.a('run') ? 14 : 7.5;
     const f = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const r = new THREE.Vector3(-f.z, 0, f.x);
     const want = new THREE.Vector3();
@@ -33,11 +34,13 @@ export class Player {
     if (input.a('right')) want.add(r);
     if (input.a('left')) want.sub(r);
     if (want.lengthSq() > 0) want.normalize().multiplyScalar(sp);
-    this.vel.x += (want.x - this.vel.x) * Math.min(1, dt * 10);
-    this.vel.z += (want.z - this.vel.z) * Math.min(1, dt * 10);
+    this.vel.x += (want.x - this.vel.x) * Math.min(1, dt * 12);
+    this.vel.z += (want.z - this.vel.z) * Math.min(1, dt * 12);
     this.vel.y -= 22 * dt;
     if (this.onGround && input.ah('jump')) { this.vel.y = 8; this.onGround = false; }
-    this.pos.addScaledVector(this.vel, dt);
+    // sous-pas : pas de traversée même à bas FPS
+    const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.3));
+    for (let i = 0; i < steps; i++) { this.pos.addScaledVector(this.vel, dt / steps); COLLIDERS.resolve(this.pos, 0.42); }
     let g = this.groundAt(this.pos.x, this.pos.z);
     for (const c of extraColliders) { const h = c(this.pos.x, this.pos.z); if (h !== null && h > g && h < this.pos.y + 1.2) g = h; }
     if (this.pos.y <= g) { this.pos.y = g; this.vel.y = 0; this.onGround = true; } else if (this.pos.y > g + 0.05) this.onGround = false;

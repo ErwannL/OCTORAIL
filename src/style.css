@@ -1,0 +1,4 @@
+#tabboard{position:absolute;left:50%;top:14%;transform:translateX(-50%);min-width:min(760px,94vw);background:rgba(14,12,10,.86);border:1px solid #c8a25a;border-radius:10px;padding:14px 18px;color:#f1e6cf;font-family:'Chakra Petch',sans-serif;backdrop-filter:blur(6px);z-index:30}
+#tabboard h3{margin:0 0 10px;font-family:Rye,serif;color:#e9c46a;letter-spacing:1px}#tabboard h3 small{font-family:'Chakra Petch';font-size:13px;color:#bba;margin-left:10px}
+#tabboard table{width:100%;border-collapse:collapse;font-size:14px}#tabboard th{text-align:left;color:#c8a25a;font-weight:600;border-bottom:1px solid #5a4a30;padding:4px 6px}
+#tabboard td{padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.06)}#tabboard td i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px}

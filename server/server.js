@@ -30,7 +30,9 @@ wss.on('connection', (ws, req) => {
   const room = rooms.get(code);
   if (room.players.size >= 8) { ws.send(JSON.stringify({ t: 'full' })); ws.close(); return; }
   const id = nextId++;
-  const me = { ws, info: null, state: null };
+  const used = new Set([...room.players.values()].map(p => p.slot));
+  let slot = 0; while (used.has(slot)) slot++;
+  const me = { ws, info: null, state: null, slot };
   room.players.set(id, me);
   const bcast = (o, except) => { const s = JSON.stringify(o); for (const [pid, p] of room.players) if (pid !== except && p.ws.readyState === 1) p.ws.send(s); };
 
@@ -38,9 +40,9 @@ wss.on('connection', (ws, req) => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (m.t === 'hello') {
       me.info = { name: String(m.name || 'Passager').slice(0, 14), color: String(m.color || '#e0703a').slice(0, 9) };
-      const others = [...room.players].filter(([pid, p]) => pid !== id && p.info).map(([pid, p]) => ({ id: pid, ...p.info, state: p.state }));
-      ws.send(JSON.stringify({ t: 'welcome', id, room: code, others, shared: room.shared, slot: room.players.size - 1 }));
-      bcast({ t: 'join', id, ...me.info }, id);
+      const others = [...room.players].filter(([pid, p]) => pid !== id && p.info).map(([pid, p]) => ({ id: pid, ...p.info, state: p.state, slot: p.slot }));
+      ws.send(JSON.stringify({ t: 'welcome', id, room: code, others, shared: room.shared, slot }));
+      bcast({ t: 'join', id, ...me.info, slot }, id);
     } else if (m.t === 'state') { me.state = m.s; bcast({ t: 'state', id, s: m.s }, id); }
     else if (m.t === 'shared') { room.shared = m.shared; bcast({ t: 'shared', shared: m.shared, from: id }, id); }
     else if (m.t === 'event') { bcast({ t: 'event', id, e: m.e }, id); }

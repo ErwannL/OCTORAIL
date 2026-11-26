@@ -243,6 +243,8 @@ let me = { name: 'Passager', color: COLORS[0], slot: 0 };
 let player, train;
 const remotes = new Map(); // id -> { avatar, train, state, name, color }
 let started = false, cinematic = null, time = 0, lastSync = 0;
+const STATIONS = [4, 5, 3, 6, 2, 7, 1, 0]; // une gare par joueur (par place)
+const stats = { dist: 0, t0: performance.now(), bumps: 0 }; let bumpCd = 0;
 let camZoom = 6.5, hintT = 0, oxyWarned = false;
 const OXY_R = 40; // bulle d'oxygène autour du train
 // Bulles visibles autour du train : chaleur (orange, intérieure) dans oxygène (bleue, extérieure)
@@ -311,13 +313,15 @@ function start() {
   started = true;
   ui.show('title', false); ui.show('hud', true);
   player = new Player(scene, terrain, me.color);
-  const startNode = me.slot % 2 ? 'H5' : 'H4';
+  const startNode = 'H' + STATIONS[me.slot % 8];
   train = new Train(net, scene, { loco: S.owned.vapeur ? 'vapeur' : 'draisine', wagons: wagonList(), tint: TRAIN_TINTS[me.slot % 8], startNode });
   if (S.owned.vapeur) { train.coal = 20; train.water = 60; }
   if (S.owned.sac) player.bagMax = 8;
   if (S.sheriff === 'carried' && S.carrier !== (netc.id ?? 'me') && S.carrier !== 'me' && !remotes.has(S.carrier)) S.carrier = netc.id ?? 'me'; // porteur disparu (rechargement)
   // spawn à côté des capsules
-  const pa = me.slot * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 11, 0.3, -Math.sin(pa) * 11); camInit = false; // hors des capsules (anneau à 6,6 m), espace dégagé
+  // chaque passager a SA capsule cryo (une par joueur) : il y apparaît puis en est expulsé
+  const pa = (me.slot % 8) * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 6.6, 0.85, -Math.sin(pa) * 6.6); camInit = false;
+  player.eject = { t: 0, a: pa }; player.yaw = Math.atan2(-Math.cos(pa), Math.sin(pa)) + Math.PI; // dos à la capsule
   player.yaw = Math.PI / 2; // regarde vers l'Ouest (quai de la draisine)
   if (!S.introDone) intro(); else { ui.toast('Bon retour sur Halcyre.', true); ui.objective(STAGES[S.stage].text); }
   refreshFinds(); refreshResources(); placeSheriff();
@@ -337,14 +341,29 @@ function wagonList() {
   return w;
 }
 
+// ------------------------------------------------------------------ Bulle du Moyeu (champ d'air respirable, visible)
+const hubBubble = (() => {
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    uniforms: { time: { value: 0 } },
+    vertexShader: `varying vec3 vN; varying vec3 vW; varying vec3 vP; void main(){ vP = position; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `uniform float time; varying vec3 vN; varying vec3 vW; varying vec3 vP;
+      void main(){ vec3 V = normalize(cameraPosition - vW); float f = pow(1. - abs(dot(V, vN)), 2.6);
+        vec2 h = vec2(atan(vP.z, vP.x) * 40., vP.y * .45); vec2 g = abs(fract(h + vec2(0., fract(floor(h.x) * .5))) - .5);
+        float hex = smoothstep(.46, .5, max(g.x, g.y)); float band = smoothstep(.9, 1., sin(vP.y * .08 - time * 1.4) * .5 + .5);
+        float a = f * .55 + hex * (.05 + f * .25) + band * .08; a *= smoothstep(-2., 6., vP.y);
+        gl_FragColor = vec4(mix(vec3(.45,.8,1.), vec3(1.,.85,.5), band), a); }` });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(95, 96, 48, 0, Math.PI * 2, 0, Math.PI * 0.62), mat);
+  m.position.y = -12; m.renderOrder = 5; m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; scene.add(m); return m;
+})();
+
 // ------------------------------------------------------------------ Multijoueur
 function addRemote(id, o) {
   if (remotes.has(id)) return;
   const slot = remotes.size + 1;
-  const avatar = buildAvatar(o.color); scene.add(avatar);
-  const tr = new Train(net, scene, { remote: true, tint: TRAIN_TINTS[(slot + me.slot) % 8], startNode: 'H4' });
+  const avatar = buildAvatar(o.color); avatar.visible = false; scene.add(avatar);
+  const ps = o.slot ?? slot; const tr = new Train(net, scene, { remote: true, tint: TRAIN_TINTS[ps % 8], startNode: 'H' + STATIONS[ps % 8] });
   const tag = makeNameTag(o.name, o.color); avatar.add(tag);
-  remotes.set(id, { avatar, train: tr, name: o.name, color: o.color, state: o.state });
+  remotes.set(id, { avatar, train: tr, name: o.name, color: o.color, state: o.state, slot: ps });
   ui.toast(`<b style="color:${o.color}">${o.name}</b> a rejoint Halcyre`);
   updatePlayersList();
 }
@@ -355,6 +374,19 @@ function makeNameTag(name, color) {
 }
 function updatePlayersList() { ui.players([{ name: me.name, color: me.color }, ...[...remotes.values()].map(r => ({ name: r.name, color: r.color }))]); }
 netc.on('join', m => addRemote(m.id, m));
+// TAB : tableau des passagers (stats en direct)
+const tabEl = document.createElement('div'); tabEl.id = 'tabboard'; tabEl.className = 'hidden'; document.getElementById('hud').appendChild(tabEl);
+function renderTab() {
+  const modeTxt = m => m === 'cab' ? '🚂 conduit' : m === 'ride' ? '🪑 passager' : '🚶 à pied';
+  const row = (name, color, slot, st, m, ping) => `<tr><td><i style="background:${color}"></i>${name}</td><td>${(slot ?? 0) + 1}</td><td>${st?.h ? 'Le Moyeu' : (st?.w || '—')}</td><td>${modeTxt(m)}</td><td>${st?.o2 ?? '—'}%</td><td>${st?.tp ?? '—'}%</td><td>${((st?.d || 0) / 1000).toFixed(2)} km</td><td>${st?.b ?? 0}</td><td>${ping}</td></tr>`;
+  const mine = { o2: Math.round(player.oxy ?? 100), tp: Math.round(player.temp), d: stats.dist, b: stats.bumps, w: BIOMES[sectorIndex(player.pos.x, player.pos.z)]?.name, h: Math.hypot(player.pos.x, player.pos.z) < 95 };
+  const mins = Math.floor((performance.now() - stats.t0) / 60000);
+  tabEl.innerHTML = `<h3>PASSAGERS DE L'OCTAVE <small>${1 + remotes.size}/8 · session ${mins} min · ${S.credits | 0} crédits</small></h3><table><tr><th>Nom</th><th>Gare</th><th>Monde</th><th>État</th><th>O₂</th><th>Chaleur</th><th>Distance</th><th>Tampons</th><th></th></tr>`
+    + row(me.name + ' (toi)', me.color, me.slot, mine, player.mode, '')
+    + [...remotes.values()].map(r => row(r.name, r.color, r.slot, r.state?.st, r.state?.m, r.state ? '' : '⏳')).join('') + '</table>';
+}
+addEventListener('keydown', e => { if (e.code === 'Tab' && started) { e.preventDefault(); if (tabEl.classList.contains('hidden')) { tabEl.classList.remove('hidden'); renderTab(); tabEl._iv = setInterval(renderTab, 300); } } });
+addEventListener('keyup', e => { if (e.code === 'Tab') { tabEl.classList.add('hidden'); clearInterval(tabEl._iv); } });
 netc.on('leave', m => { const r = remotes.get(m.id); if (!r) return; scene.remove(r.avatar); r.train.dispose(); remotes.delete(m.id); ui.toast(`${r.name} est parti`); updatePlayersList(); });
 netc.on('state', m => { const r = remotes.get(m.id); if (r) r.state = m.s; });
 netc.on('shared', m => {
@@ -825,11 +857,19 @@ function frame() {
   // --- joueur
   if (player.mode === 'foot') {
     if (!busy) {
+      if (player.eject) {
+        const E = player.eject; E.t += dt; const k = Math.min(1, E.t / 1.6), r = 6.6 + k * 4.2;
+        player.pos.set(Math.cos(E.a) * r, 0.85 + Math.sin(k * Math.PI) * 1.4 - k * 0.6, -Math.sin(E.a) * r); player.avatar.position.copy(player.pos); player.avatar.rotation.y = E.a + Math.PI / 2;
+        if (E.t < 0.05) { audio.noiseBurst(audio.now, 1.2, 1200, 0.5, 0.5, 'highpass'); for (let q = 0; q < 40; q++) steam.emit(new THREE.Vector3(Math.cos(E.a) * 6.6, 1.5, -Math.sin(E.a) * 6.6), new THREE.Vector3(Math.cos(E.a) * (2 + Math.random() * 4), Math.random() * 3, -Math.sin(E.a) * (2 + Math.random() * 4)), { life: 1.8, size: 1.6, color: '#dff6ff', alpha: 0.7 }); }
+        if (k >= 1) { player.eject = null; player.pos.y = player.groundAt(player.pos.x, player.pos.z); }
+      } else {
       player.rules = zoneRules({ x: player.pos.x, z: player.pos.z, temp: player.temp, inHub: Math.hypot(player.pos.x, player.pos.z) < 75,
         inTunnel: TSUNAMI_ZONE.set && TSUNAMI_ZONE.test(player.pos.x, player.pos.z), nearTown: player.pos.distanceTo(western.pedestal) < 130 });
+      player.others = [...remotes.values()].filter(r => r.state && r.state.m === 'foot').map(r => r.avatar.position);
       const moving = player.updateFoot(dt, input, [trainDeckCollider]);
       handleFootInteract();
       if (moving > 0.5 && sectorIndex(player.pos.x, player.pos.z) === 5 && Math.random() < 0.3) smoke.emit(player.pos.clone().add(new THREE.Vector3(0, 0.1, 0)), new THREE.Vector3(0, 0.5, 0), { life: 0.8, size: 0.6, color: '#ffffff', alpha: 0.5 });
+      }
     } else ui.prompt(null);
   } else {
     ui.prompt(null);
@@ -892,7 +932,7 @@ function frame() {
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
   westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); grade.uniforms.time.value = time % 10;
-  hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
+  hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08); hubBubble.material.uniforms.time.value = time % 1000;
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 
   // --- distants
@@ -909,9 +949,25 @@ function frame() {
       smoke.emit(chim, new THREE.Vector3(0, 5, 0), { life: 3, size: 2, color: '#5a5550', alpha: 0.6 });
     }
   }
+  stats.dist += Math.abs(train.speed) * dt * (player.mode === 'cab' ? 1 : 0) + (player.mode === 'foot' && !player.eject ? Math.min(12, player.vel ? Math.hypot(player.vel.x, player.vel.z) : 0) * dt : 0);
+  // --- collisions train contre train : un bon coup de tampon, pas un blocage
+  bumpCd -= dt;
+  if (bumpCd <= 0 && train.head) for (const r of remotes.values()) {
+    if (!r.state || !r.train.head) continue;
+    const pts = [train.head, train.loco.position], rp = [r.train.head, r.train.loco.position];
+    let hit = null; for (const a of pts) for (const b of rp) if (a.distanceTo(b) < 7) hit = a.clone().lerp(b, 0.5);
+    if (!hit) continue;
+    bumpCd = 1.5; stats.bumps++;
+    const v = train.speed; train.speed = -Math.sign(v || 1) * Math.max(4, Math.abs(v) * 0.6);
+    audio.noiseBurst(audio.now, 0.5, 400, 0.9, 0.35, 'lowpass'); audio.clack();
+    for (let q = 0; q < 60; q++) sparks.emit(hit.clone().add(new THREE.Vector3(0, 1.5, 0)), new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12), { life: 0.7, size: 0.35, color: q % 2 ? '#ffd27a' : '#ff8a3a' });
+    for (let q = 0; q < 12; q++) steam.emit(hit.clone().add(new THREE.Vector3(0, 2, 0)), new THREE.Vector3((Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4), { life: 1.5, size: 2, color: '#ffffff', alpha: 0.5 });
+    stats.kick = 0.6;
+    ui.toast(`💥 BONK ! Tamponné par <b style="color:${r.color}">${r.name}</b>`);
+  }
   if (netc.online && time - lastSync > 0.1) {
     lastSync = time;
-    netc.send({ t: 'state', s: { p: [+player.pos.x.toFixed(2), +player.pos.y.toFixed(2), +player.pos.z.toFixed(2)], ry: +player.avatar.rotation.y.toFixed(2), m: player.mode, tr: train.serialize() } });
+    netc.send({ t: 'state', s: { p: [+player.pos.x.toFixed(2), +player.pos.y.toFixed(2), +player.pos.z.toFixed(2)], ry: +player.avatar.rotation.y.toFixed(2), m: player.mode, tr: train.serialize(), st: { o2: Math.round(player.oxy ?? 100), tp: Math.round(player.temp), d: Math.round(stats.dist), b: stats.bumps, w: BIOMES[sectorIndex(player.pos.x, player.pos.z)]?.name, h: Math.hypot(player.pos.x, player.pos.z) < 95, cr: S.credits | 0 } } });
   }
 
   // --- ambiance
@@ -1069,6 +1125,7 @@ function updateCamera(dt) {
   if (player.mode === 'foot') player.avatar.visible = armLen > 1.3;
   camera.position.copy(camPos); camera.lookAt(camLook);
   // légère vibration en cabine à vitesse
+  if (stats.kick > 0) { stats.kick -= 0.016; camera.position.x += (Math.random() - 0.5) * stats.kick; camera.position.y += (Math.random() - 0.5) * stats.kick; }
   if (player.mode === 'cab' && SET.shake) { const sh = Math.min(0.08, Math.abs(train.speed) * 0.003); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
 }
 

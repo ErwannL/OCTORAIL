@@ -43,7 +43,7 @@ export function buildBalustrade(k, mats) {
     for (let i = 0; i < 8; i++) { const lo = i * PI / 4 + th1 - 0.045, hi = i * PI / 4 + th2 + 0.045; if (a > lo && a < hi) skip = true; }
     if (skip) continue;
     const [x, z] = ptAt(a, R);
-    k.add(G.cyl(0.18, 0.22, 1.1, 8), stone, { p: [x, 0.75, z] });
+    k.add(G.cyl(0.18, 0.22, 3.1, 8), stone, { p: [x, -0.25, z] }); // ancré profond : jamais en l'air
   }
   // mains courantes en laiton (haute + basse), entre deux entrées
   for (let i = 0; i < 8; i++) {
@@ -57,7 +57,7 @@ export function buildBalustrade(k, mats) {
   const lantern = glow('#ffcf7a', 3);
   for (let i = 0; i < 8; i++) for (const d of GATE_D) {
     const th = gateAng(d), a = i * PI / 4 + th, [x, z] = ptAt(a, R);
-    k.add(G.box(0.62, 0.2, 0.62), stoneDark, { p: [x, 0.3, z], r: [0, a, 0] });
+    k.add(G.box(0.62, 2.4, 0.62), stoneDark, { p: [x, -0.8, z], r: [0, a, 0] }); // socle enterré
     k.add(G.box(0.46, 1.7, 0.46), stone, { p: [x, 1.15, z], r: [0, a, 0] });
     k.add(G.box(0.62, 0.14, 0.62), brass, { p: [x, 2.07, z], r: [0, a, 0] });
     k.add(G.cyl(0.05, 0.08, 0.3, 8), iron, { p: [x, 2.3, z] });

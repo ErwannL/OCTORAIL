@@ -38,24 +38,26 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   let LIMP = 350, LIMN = 350;
   for (const e2 of net.edges) { if (e2 === edge) continue; for (const p of e2.pts) { const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth;
     if (lx < -420 || lx > 420) continue; const d = Math.abs(lz) - 45; if (Math.abs(lz) < 25) continue; if (lz > 0) LIMP = Math.min(LIMP, d); else LIMN = Math.min(LIMN, d); } }
-  // limite latérale PAR TRONÇON (lx) : la vague s'arrête ~14 m avant toute autre voie à cet endroit, et reste large ailleurs
-  const LB0 = -460, LBS = 5, NLB = 185, limBins = [new Float32Array(NLB).fill(350), new Float32Array(NLB).fill(350)];
-  for (const e2 of net.edges) { if (e2 === edge) continue; for (const p of e2.pts) { const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth;
-    if (Math.abs(lz) < 2 * RT + 2 || Math.abs(lz) > 400) continue; const side = lz > 0 ? 0 : 1, d = Math.abs(lz) - 14;
-    for (let b = 0; b < NLB; b++) { const bx = LB0 + b * LBS, v = d + 0.6 * Math.max(0, Math.abs(bx - lx) - 10); if (v < limBins[side][b]) limBins[side][b] = v; } } }
-  const limAt = (lx, z) => { const B = limBins[z > 0 ? 0 : 1], f = (lx - LB0) / LBS, i = Math.max(0, Math.min(NLB - 2, Math.floor(f))), t = Math.min(1, Math.max(0, f - i)); return Math.max(12, B[i] + (B[i + 1] - B[i]) * t); };
   LIMP = Math.max(25, LIMP); LIMN = Math.max(25, LIMN); console.log('Tsunami : largeur limitée', LIMP.toFixed(0), LIMN.toFixed(0));
   // voie VOISINE qui passe aussi sous la vague (|lz| < 30) : elle reçoit son propre tunnel
   const tr2 = [];
-  { let best = null, bn = 0; // une seule voie : celle qui a le plus de points sous la vague
+  let tunEdge = null;
+  const tunnelled = p => { const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth; return lx > -230 && lx < 270 && Math.abs(lz) < 70; };
+  { let best = null, bn = 0, bestE = null; // une seule voie : celle qui a le plus de points sous la vague
     for (const e2 of net.edges) { if (e2 === edge) continue; const pts = [];
       for (const p of e2.pts) { const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth; if (lx > -230 && lx < 270 && Math.abs(lz) < 70) pts.push([lx, lz, p.y - oy]); }
       const span = pts.length ? Math.max(...pts.map(q => Math.abs(q[1]))) : 0; if (pts.length > 3 && span > 2 * RT && span > bn) { bn = span; best = pts; } }
-    if (best) tr2.push(...best); }
+    if (best) { tr2.push(...best); tunEdge = bestE; } }
   tr2.sort((a, b) => a[0] - b[0]);
   const track2 = lx => { const r = track2raw(lx); if (!r) return null; return Math.abs(r[1] - track(lx)[1]) > 2 * RT + 1.5 ? r : null; };
-  const track2raw = lx => { if (tr2.length < 2 || lx < tr2[0][0] || lx > tr2[tr2.length - 1][0]) return null; let lo = 0, hi = tr2.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tr2[m][0] <= lx) lo = m; else hi = m; } const a = tr2[lo], b = tr2[hi]; if (b[0] - a[0] > 25) return null; const t = (lx - a[0]) / ((b[0] - a[0]) || 1); return [lx, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; };
+  const track2raw = lx => { if (tr2.length < 2 || lx < tr2[0][0] || lx > tr2[tr2.length - 1][0]) return null; let lo = 0, hi = tr2.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (tr2[m][0] <= lx) lo = m; else hi = m; } const a = tr2[lo], b = tr2[hi]; if (b[0] - a[0] > 25) return null; const t = (lx - a[0]) / ((b[0] - a[0]) || 1); return [lx, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, (b[1] - a[1]) / ((b[0] - a[0]) || 1)]; };
   if (tr2.length) { let cov = []; for (let lx = -230; lx < 270; lx += 10) { const r = track2raw(lx); cov.push(r ? Math.round(r[1] - track(lx)[1]) : '·'); } console.log('Tsunami 2e voie écart lz:', cov.join(' ')); }
+  // limite latérale PAR TRONÇON (lx) : la vague s'arrête ~14 m avant toute autre voie à cet endroit, et reste large ailleurs
+  const LB0 = -460, LBS = 5, NLB = 185, limBins = [new Float32Array(NLB).fill(350), new Float32Array(NLB).fill(350)];
+  for (const e2 of net.edges) { if (e2 === edge) continue; for (const p of e2.pts) { if (e2 === tunEdge && tunnelled(p)) continue; const dx = p.x - mid.x, dz = p.z - mid.z, lx = dx * cth - dz * sth, lz = dx * sth + dz * cth;
+    if (Math.abs(lz) < 2 * RT + 2 || Math.abs(lz) > 400) continue; const side = lz > 0 ? 0 : 1, d = Math.abs(lz) - 14;
+    for (let b = 0; b < NLB; b++) { const bx = LB0 + b * LBS, v = d + 0.6 * Math.max(0, Math.abs(bx - lx) - 10); if (v < limBins[side][b]) limBins[side][b] = v; } } }
+  const limAt = (lx, z) => { const B = limBins[z > 0 ? 0 : 1], f = (lx - LB0) / LBS, i = Math.max(0, Math.min(NLB - 2, Math.floor(f))), t = Math.min(1, Math.max(0, f - i)); return Math.max(12, B[i] + (B[i + 1] - B[i]) * t); };
   const arch = z => { const u = Math.abs(z) / RT; return u >= 1 ? 0 : 9.6 * Math.pow(1 - Math.pow(u, 3.5), 1 / 3.5); };
 
   // hauteurs (relatives à la voie) en un point de la grille : xd = x de conception, zeta = abscisse transversale (m)
@@ -83,15 +85,15 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
     const zeta = zs[j], [h0, l0] = surf(xs[i], zeta); let h = h0, l = l0;
     const jt = (Math.abs(zeta) > 14 ? 1 : 0.2) * (rnd() - 0.5) * 3.5; if (h > 3) h += jt; if (l > 8) l += (rnd() - 0.5) * 3.5 * (Math.abs(zeta) > 14 ? 1 : 0);
     // creusement du tunnel le long de la voie
-    const a = arch(zeta); if (a > 0 && h > a + 1.5) l = Math.max(l, a); else if (a > 0 && h > -0.5) { h = -0.5; l = Math.min(l, h - 0.01); } else if (l > h) l = h; // dans le gabarit du tunnel : jamais de glace mince au-dessus des rails
+    let cut = false; const a = arch(zeta); if (a > 0 && h <= a + 1.5) cut = true; if (a > 0 && h > a + 1.5) l = Math.max(l, a); else if (a > 0 && h > -0.5) { h = -0.5; l = Math.min(l, h - 0.01); } else if (l > h) l = h; // dans le gabarit du tunnel : jamais de glace mince au-dessus des rails
     if (h < a + 1.2 && a > 0) { h = Math.max(h, GR); }
-    { const t2 = track2raw(lx); if (t2) { const z2 = t2[1] - c, dy = t2[2] - base, a2 = arch(zeta - z2);
-      if (a2 > 0) { if (h > dy + a2 + 1.5) { if (l < dy + a2) l = dy + a2; } else if (h > dy - 0.5) { h = dy - 0.5; if (l > h) l = h - 0.01; } } } }
+    { const t2 = track2raw(lx); if (t2) { const z2 = t2[1] - c, dy = t2[2] - base, sl = (t2[3] || 0) - (track(lx + 2)[1] - track(lx - 2)[1]) / 4, a2 = arch((zeta - z2) / Math.sqrt(1 + sl * sl) / 1.15); // voie en biais : tunnel élargi d'autant
+      if (a2 > 0) { if (h <= dy + a2 + 1.5) cut = true; if (h > dy + a2 + 1.5) { if (l < dy + a2) l = dy + a2; } else if (h > dy - 0.5) { cut = true; h = dy - 0.5; if (l > h) l = h - 0.01; } } } }
     const z = zeta + c * (1 - smooth(30, 130, Math.abs(zeta)));
     // noyau intérieur
     const D = 34; let hc = h - D * smooth(0, 40, h), lc = l + D * smooth(28, 70, l);
-    if (hc < lc) { hc = lc = (hc + lc) / 2; }
-    row.push({ x: lx, z, base, h: h + base, l: l + base, hc: hc + base, lc: lc + base, hr: h, lr: l });
+    if (hc < lc) { hc = lc = Math.max(lc, l); } // noyau trop fin : il disparaît au niveau de la voûte (jamais dans le gabarit)
+    row.push({ x: lx, z, base, h: h + base, l: l + base, hc: hc + base, lc: lc + base, hr: h, lr: l, cut });
   } grid.push(row); }
 
   const col = new THREE.Color(), cA = new THREE.Color(), cB = new THREE.Color();
@@ -100,6 +102,7 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
     const V = (i, j, key) => { const k = key + (i * NZ + j); if (vi.has(k)) return vi.get(k); const g = grid[i][j]; const y = g[key]; pos.push(g.x, y, g.z); colorFn(col, g, key, i, j); cols.push(col.r, col.g, col.b); const n = pos.length / 3 - 1; vi.set(k, n); return n; };
     for (let i = 0; i < NX - 1; i++) for (let j = 0; j < NZ - 1; j++) {
       const g00 = grid[i][j], g10 = grid[i + 1][j], g01 = grid[i][j + 1], g11 = grid[i + 1][j + 1];
+      const qs = [g00, g10, g01, g11], nc = qs.filter(g => g.cut).length; if (nc > 0 && nc < 4) continue; // bouche du tunnel : ouverture franche, pas de pente de glace à travers le gabarit
       // dessus : normale vers le haut (x croissant, z croissant)
       if (Math.max(g00[topKey], g10[topKey], g01[topKey], g11[topKey]) > g00.base + GR + 0.6 || true) {
         const hs = [g00, g10, g01, g11].map(g => g[topKey] - g.base); if (Math.max(...hs) > GR + 0.8) {
@@ -224,8 +227,9 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
       inv.copy(o.matrixWorld).invert(); const P = o.geometry.attributes.position; let ch = 0;
       for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
         const dx = v.x - mid.x, dz = v.z - mid.z, lz = dx * sth + dz * cth, lim = limAt(dx * cth - dz * sth, lz);
-        const nt = net.nearest(v.x, v.z, 4.5), onOther = nt && net.edges[nt.edge] !== edge && v.y < nt.y + 7;
-        if (Math.abs(lz) < lim * 0.9 && !onOther) continue; const g = (onOther ? Math.min(terrain.heightAt(v.x, v.z), nt.y - 0.8) : terrain.heightAt(v.x, v.z)) - 1.5; if (v.y > g) { v.y = g; v.applyMatrix4(inv); P.setXYZ(i, v.x, v.y, v.z); ch++; } }
+        const vlx = dx * cth - dz * sth, inMain = Math.abs(lz - track(vlx)[1]) < RT + 4, t2v = track2raw(vlx), inSecond = t2v && Math.abs(lz - t2v[1]) < RT + 4;
+        const nt = (inMain || inSecond) ? null : net.nearest(v.x, v.z, 4.5), onOther = nt && net.edges[nt.edge] !== edge && v.y < nt.y + 7; // jamais dans les couloirs des tunnels (sinon mur vertical en travers)
+        if ((Math.abs(lz) < lim * 0.9 || inMain || inSecond) && !onOther) continue; const g = (onOther ? Math.min(terrain.heightAt(v.x, v.z), nt.y - 0.8) : terrain.heightAt(v.x, v.z)) - 1.5; if (v.y > g) { v.y = g; v.applyMatrix4(inv); P.setXYZ(i, v.x, v.y, v.z); ch++; } }
       if (ch) { P.needsUpdate = true; o.geometry.computeVertexNormals(); o.geometry.computeBoundingSphere(); } });
     // petits éléments (gouttes, pics…) posés sur une autre voie : retirés
     const other = net.edges.filter(e2 => e2 !== edge);

@@ -22,6 +22,10 @@ class Colliders {
   // surfaces praticables (hauteur absolue `top`)
   floorBox(x, z, hx, hz, ang, top) { const c = this.box(x, z, hx, hz, ang, top, -99, false); c.fl = true; return c; }
   floorCircle(x, z, r, top) { const c = this.circle(x, z, r, top, -99, false); c.fl = true; return c; }
+  // volumes « caméra seulement » (couronnes d'arbres, auvents, toits, feuillages) : invisibles pour le joueur,
+  // la caméra les évite (elle ne se place jamais dedans). bottom/top = hauteurs ABSOLUES du volume.
+  camCircle(x, z, r, bottom, top) { const c = this.circle(x, z, r, top, bottom, true); c.co = true; return c; }
+  camBox(x, z, hx, hz, ang, bottom, top) { const c = this.box(x, z, hx, hz, ang, top, bottom, true); c.co = true; return c; }
   near(x, z) { return this.grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL)) || []; }
   _inside(c, x, z, m = 0) {
     if (c.t === 0) return Math.hypot(x - c.x, z - c.z) < c.r + m;
@@ -57,7 +61,7 @@ class Colliders {
     for (let pass = 0; pass < 4; pass++) {
       hit = false;
       for (const c of this.near(pos.x, pos.z)) {
-        if (c.fl || y > c.top - 0.3 || y + 1.7 < c.bottom) continue;
+        if (c.fl || c.co || y > c.top - 0.3 || y + 1.7 < c.bottom) continue;
         if (this._push(pos, c, r)) hit = true;
       }
       for (const c of dyn) {
@@ -81,7 +85,7 @@ class Colliders {
   }
   // vrai si (p.x,p.z) chevauche encore un obstacle (sans le déplacer)
   resolveProbe(p, r, y) {
-    for (const c of this.near(p.x, p.z)) { if (c.fl || y > c.top - 0.3 || y + 1.7 < c.bottom) continue; if (this._inside(c, p.x, p.z, r - 0.02)) return true; }
+    for (const c of this.near(p.x, p.z)) { if (c.fl || c.co || y > c.top - 0.3 || y + 1.7 < c.bottom) continue; if (this._inside(c, p.x, p.z, r - 0.02)) return true; }
     for (const c of this._bodies()) { if (y > c.top - 0.3) continue; if (this._inside(c, p.x, p.z, r - 0.02)) return true; }
     return false;
   }
@@ -90,6 +94,7 @@ class Colliders {
   blocked(x, y, z, r = 0.25, forCam = false) {
     for (const c of this.near(x, z)) {
       if (c.fl || y > c.top || y < c.bottom) continue;
+      if (c.co && !forCam) continue;
       if (forCam && c.cam === false) continue;
       if (this._inside(c, x, z, r)) return true;
     }

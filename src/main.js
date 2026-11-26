@@ -799,9 +799,14 @@ function sheriffTick(dt) {
 }
 
 let camInit = false; const _o2 = new THREE.Vector3();
+let _camT = null; // cible de la caméra : un volume « caméra seulement » qui la contient (joueur sous un auvent) est ignoré
 function camBlocked(x, y, z) {
   for (const c of COLLIDERS.near(x, z)) {
     if (c.cam === false || y > c.top || y < c.bottom) continue;
+    if (c.co) { // couronne / auvent / toit : n'importe quelle taille, sauf si le joueur est dedans
+      if (COLLIDERS._inside(c, x, z, 0.5) && !(_camT && _camT.y <= c.top && _camT.y >= c.bottom - 0.3 && COLLIDERS._inside(c, _camT.x, _camT.z, 0.3))) return true;
+      continue;
+    }
     if (c.t === 0) { if (c.r >= 1.6 && Math.hypot(x - c.x, z - c.z) < c.r + 0.3) return true; }
     else if (Math.max(c.hx, c.hz) >= 2) { const dx = x - c.x, dz = z - c.z, lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c; if (Math.abs(lx) < c.hx + 0.3 && Math.abs(lz) < c.hz + 0.3) return true; }
   }
@@ -822,7 +827,7 @@ function updateCamera(dt) {
   if (player.mode === 'foot') { target = player.pos.clone().add(new THREE.Vector3(0, 1.7, 0)); dist = 6.5; }
   else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = 13 + Math.abs(tr.speed) * 0.25; }
   const off = new THREE.Vector3(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch)).multiplyScalar(dist);
-  const want = target.clone().add(off);
+  const want = target.clone().add(off); _camT = target;
   // la caméra ne traverse que les petits objets : seuls les gros volumes (bâtiments, silo, murs) la repoussent.
   const NSTEP = 24;
   const freeOf = (o) => { for (let i = 1; i <= NSTEP; i++) { const t = i / NSTEP; if (camBlocked(target.x + o.x * t, target.y + o.y * t, target.z + o.z * t)) return Math.max(0, (i - 1.5) / NSTEP); } return 1; };

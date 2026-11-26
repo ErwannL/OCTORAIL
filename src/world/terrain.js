@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { makeNoise, smooth, lerp } from '../util/noise.js';
 import { biomeWeights, groundColor, HUB_RADIUS } from './biomes.js';
 import { groundDetailTexture } from './decor.js';
+import { sectorIndex } from './biomes.js';
 
 export const WORLD_R = 1500;
 const N = makeNoise(4242);
@@ -70,6 +71,17 @@ export class Terrain {
       if (r > WORLD_R - 200) c.lerp(new THREE.Color('#6d6a74'), smooth(WORLD_R - 200, WORLD_R - 60, r) * 0.7);
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
+    // Relief lisible : strates colorées dans les mesas du Western, roche nue sur les pentes, congères/lueur givrée en Gelure
+    { const g1 = SEG + 1, st = S / SEG, cc = new THREE.Color(), ROCK = new THREE.Color('#9a5a3c'), ROCK2 = new THREE.Color('#c48a5a'), ICE = new THREE.Color('#9ab4cc'), SNOW = new THREE.Color('#f2f9ff');
+      const hy = (i, j) => pos.getY(Math.min(SEG, Math.max(0, j)) * g1 + Math.min(SEG, Math.max(0, i)));
+      for (let j = 0; j <= SEG; j++) for (let i = 0; i <= SEG; i++) {
+        const k = j * g1 + i, x = pos.getX(k), z = pos.getZ(k), r = Math.hypot(x, z); if (r < HUB_RADIUS + 20 || r > WORLD_R - 120) continue;
+        const dx = (hy(i + 1, j) - hy(i - 1, j)) / (2 * st), dz = (hy(i, j + 1) - hy(i, j - 1)) / (2 * st), slope = Math.min(1, Math.hypot(dx, dz) / 1.2), h = pos.getY(k), sec = sectorIndex(x, z);
+        cc.setRGB(col[k * 3], col[k * 3 + 1], col[k * 3 + 2]);
+        if (sec === 4) { const band = Math.sin(h * 1.7 + N.perlin(x * 0.05, z * 0.05) * 2) * 0.5 + 0.5; cc.lerp(ROCK.clone().lerp(ROCK2, band), Math.min(0.8, slope * 1.3)); cc.multiplyScalar(0.94 + band * 0.1 * slope); }
+        else if (sec === 5) { const n2 = N.fbm(x * 0.012, z * 0.012, 2); cc.lerp(ICE, Math.min(0.7, slope * 1.1)); cc.lerp(SNOW, (1 - slope) * 0.25 * (0.5 + n2)); }
+        col[k * 3] = cc.r; col[k * 3 + 1] = cc.g; col[k * 3 + 2] = cc.b;
+      } }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, map: groundDetailTexture() });

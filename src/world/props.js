@@ -2,113 +2,14 @@ import * as THREE from 'three';
 import { mulberry } from '../util/noise.js';
 import { textSprite } from './tracks.js';
 import { BIOMES, sectorIndex } from './biomes.js';
-import { cactusGeometry, buildWesternBuilding } from './models.js';
+import { cactusGeometry } from './models.js';
+import { FLORA_MAT, saguaroGeometry, pricklyPearGeometry, barrelCactusGeometry, sageGeometry, snowShrubGeometry, rockShapeGeometry, mesaGeometry, iceCrystalGeometry, pineGeometry } from './flora.js';
+import { buildWesternBuilding } from './buildings.js';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { COLLIDERS } from './colliders.js';
 
+const PI = Math.PI, H = Math.PI / 2;
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
-
-// --------------------------------------------------------------- LE MOYEU
-export function buildHub(scene, interact) {
-  const g = new THREE.Group();
-  const brass = M('#b8873b', { metalness: 0.8, roughness: 0.35 });
-  const stone = M('#9a8b74', { roughness: 0.95 });
-  const dark = M('#3b2f26');
-  // dalle centrale
-  const plaza = new THREE.Mesh(new THREE.CylinderGeometry(46, 48, 1.2, 64), stone);
-  plaza.position.y = -0.4; plaza.receiveShadow = true; g.add(plaza);
-  const inlay = new THREE.Mesh(new THREE.RingGeometry(10, 44, 64, 1), M('#7d6c56'));
-  inlay.rotation.x = -Math.PI / 2; inlay.position.y = 0.22; inlay.receiveShadow = true; g.add(inlay);
-  // rose des vents : 8 rayons colorés vers chaque monde
-  BIOMES.forEach((b, i) => {
-    const a = i * Math.PI / 4;
-    const ray = new THREE.Mesh(new THREE.BoxGeometry(30, 0.05, 1.4), M(b.skyBot, { emissive: b.skyBot, emissiveIntensity: b.open ? 0.35 : 0.06 }));
-    ray.position.set(Math.cos(a) * 27, 0.26, -Math.sin(a) * 27); ray.rotation.y = a; g.add(ray);
-    // quai + panneau
-    const px = Math.cos(a) * 60, pz = -Math.sin(a) * 60;
-    const quay = new THREE.Mesh(new THREE.BoxGeometry(6, 1, 18), stone);
-    const off = new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(5.5);
-    quay.position.set(px + off.x, 0.3, pz + off.z); quay.rotation.y = a + Math.PI / 2; quay.receiveShadow = true; quay.castShadow = true; g.add(quay);
-    const tex = textSprite([b.name, b.dir.toUpperCase()], { bg: '#20160f', fg: b.open ? '#ffe9b8' : '#8a7a66', border: b.skyBot, font: 'bold 48px Georgia' });
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(5, 2.5), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
-    sign.position.set(px + off.x * 1.6, 4.5, pz + off.z * 1.6); sign.rotation.y = a + Math.PI / 2; g.add(sign);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.5), brass); pole.position.set(sign.position.x, 1.8, sign.position.z); g.add(pole);
-  });
-  // Dôme central (capsules cryo)
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.4, side: THREE.DoubleSide, depthWrite: false }));
-  dome.position.y = 0.3; g.add(dome);
-  for (let k = 0; k < 8; k++) {
-    const a = k * Math.PI / 4 + Math.PI / 8;
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(10, 0.18, 6, 24, Math.PI), brass);
-    rib.rotation.y = a; rib.position.y = 0.3; g.add(rib);
-    // capsules
-    const pod = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1, 0.5, 16), dark); pod.add(base);
-    const glass = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.6, 6, 12), new THREE.MeshStandardMaterial({ color: '#9fe3ff', transparent: true, opacity: 0.3, roughness: 0.05, emissive: '#2a8fb0', emissiveIntensity: 0.6, depthWrite: false }));
-    glass.position.y = 1.5; pod.add(glass);
-    pod.position.set(Math.cos(a) * 6.5, 0.4, -Math.sin(a) * 6.5); g.add(pod);
-  }
-  // Coeur du Moyeu : noyau lumineux
-  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), M('#ffb347', { emissive: '#ff9a2a', emissiveIntensity: 1.6, flatShading: true }));
-  core.position.y = 7.5; g.add(core);
-  const coreLight = { intensity: 0 }; // pas de lumière dynamique (perf) : émissif + bloom
-
-  // Constructeurs (machines des Bâtisseurs)
-  const machines = {};
-  const mk = (name, angle, r, build) => {
-    const m = new THREE.Group(); build(m);
-    m.position.set(Math.cos(angle) * r, 0.2, -Math.sin(angle) * r); m.rotation.y = angle - Math.PI / 2;
-    m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    g.add(m); machines[name] = m; return m;
-  };
-  // Charbonnière
-  mk('coal', Math.PI * 0.62, 30, m => {
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 3, 6, 8), dark); body.position.y = 3; m.add(body);
-    const hop = new THREE.Mesh(new THREE.ConeGeometry(3, 2.5, 8, 1, true), brass); hop.position.y = 7.2; hop.rotation.x = Math.PI; m.add(hop);
-    const pile = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 0), M('#1c1c1c', { roughness: 1, flatShading: true })); pile.position.set(0, 0.8, 3.5); pile.scale.y = 0.6; m.add(pile);
-    const glow = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.1), M('#f60', { emissive: '#ff5a00', emissiveIntensity: 4 })); glow.position.set(0, 2, 2.55); m.add(glow);
-    m.userData.pile = pile;
-  });
-  // Château d'eau
-  mk('water', Math.PI * 0.88, 30, m => {
-    for (const [x, z] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 7), dark); l.position.set(x, 3.5, z); m.add(l); }
-    const tank = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 2.8, 3.5, 16), M('#6b4a2b')); tank.position.y = 8.6; m.add(tank);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.1, 1.6, 16), brass); roof.position.y = 11.2; m.add(roof);
-  });
-  // Comptoir des améliorations
-  mk('shop', Math.PI * 0.38, 30, m => {
-    const desk = new THREE.Mesh(new THREE.BoxGeometry(6, 1.3, 2), M('#6b4a2b')); desk.position.y = 0.65; m.add(desk);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(6, 5, 0.4), M('#4a3220')); back.position.set(0, 2.5, -1.6); m.add(back);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 4), brass); roof.position.set(0, 5, -0.4); m.add(roof);
-    const tex = textSprite(['COMPTOIR', 'améliorations'], { bg: '#2b1d12', fg: '#ffd88a', border: '#c9a25a' });
-    const s = new THREE.Mesh(new THREE.PlaneGeometry(4, 2), new THREE.MeshBasicMaterial({ map: tex })); s.position.set(0, 3.4, -1.35); m.add(s);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.9), M('#111', { emissive: '#40e0ff', emissiveIntensity: 1.4 })); screen.position.set(0, 1.8, 0.6); screen.rotation.x = -0.4; m.add(screen);
-  });
-  // Hall des trouvailles (vitrines)
-  mk('hall', Math.PI * 1.15, 32, m => {
-    const base = new THREE.Mesh(new THREE.BoxGeometry(10, 0.6, 4), stone); base.position.y = 0.3; m.add(base);
-    m.userData.slots = [];
-    for (let k = 0; k < 5; k++) {
-      const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.2, 8), brass); ped.position.set(-4 + k * 2, 1.2, 0); m.add(ped);
-      const cage = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), new THREE.MeshStandardMaterial({ color: '#fff', transparent: true, opacity: 0.12, roughness: 0, depthWrite: false })); cage.position.set(-4 + k * 2, 2.5, 0); m.add(cage);
-      m.userData.slots.push(new THREE.Vector3(-4 + k * 2, 2.4, 0));
-    }
-    const tex = textSprite(['HALL DES', 'TROUVAILLES'], { bg: '#162430', fg: '#bfe9ff', border: '#5aa0c9' });
-    const s = new THREE.Mesh(new THREE.PlaneGeometry(4, 2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); s.position.set(0, 4.5, -1); m.add(s);
-  });
-
-  g.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow ??= true; o.receiveShadow = true; } });
-  scene.add(g);
-
-  const wp = (m, dx = 0, dz = 3) => m.localToWorld(new THREE.Vector3(dx, 0, dz));
-  g.updateMatrixWorld(true);
-  interact.add({ id: 'coal', pos: wp(machines.coal, 0, 4), r: 5, label: 'Charbonnière — [E] prendre du charbon' });
-  interact.add({ id: 'water', pos: wp(machines.water, 0, 3), r: 5, label: 'Château d\'eau — [E] remplir le réservoir du train' });
-  interact.add({ id: 'shop', pos: wp(machines.shop, 0, 2.2), r: 4.5, label: 'Comptoir — [E] améliorations' });
-  interact.add({ id: 'hall', pos: wp(machines.hall, 0, 3), r: 6, label: 'Hall des trouvailles' });
-  return { group: g, core, coreLight, machines };
-}
 
 // --------------------------------------------------------------- DÉCOR PAR MONDE
 export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opts = {}) {
@@ -135,13 +36,7 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
   return inst;
 }
 
-function firGeometry() {
-  const k = new Kit(), m = mat('#2f4b3a');
-  k.add(G.cyl(0.2, 0.3, 1.4, 6), m, { p: [0, 0.7, 0] });
-  for (let i = 0; i < 4; i++) k.add(G.cone(2 - i * 0.4, 2.2, 7), m, { p: [0, 1.6 + i * 1.3, 0], r: [0, i, 0] });
-  for (let i = 0; i < 4; i++) k.add(G.cone(1.6 - i * 0.35, 0.6, 7), m, { p: [0, 2.3 + i * 1.3, 0], s: [1, 0.6, 1] });
-  return k.geometry();
-}
+function firGeometry(v = 0) { return pineGeometry(v); }
 function cactusGeoOld() {
   const parts = [];
   const trunk = new THREE.CapsuleGeometry(0.45, 3.4, 4, 8); trunk.translate(0, 2.1, 0); parts.push(trunk);
@@ -162,9 +57,12 @@ export function mergeSimple(arr) {
 
 export function buildWestern(scene, terrain, net, interact) {
   const rnd = mulberry(99);
-  scatter(scene, terrain, net, rnd, 700, [4], cactusGeometry(), M('#3f7a3a', { roughness: 0.8 }), { shadow: false, sMin: 0.6, sMax: 1.5, collide: 0.55 });
-  scatter(scene, terrain, net, rnd, 700, [4], new THREE.DodecahedronGeometry(1.2, 0), M('#9a5a35', { flatShading: true }), { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.5 });
-  scatter(scene, terrain, net, rnd, 260, [4], new THREE.IcosahedronGeometry(0.9, 0), M('#8a7a3a', { flatShading: true }), { sMin: 0.6, sMax: 1.4, yOff: 0.4 }); // buissons secs
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 150, [4], saguaroGeometry(v), FLORA_MAT, { shadow: true, sMin: 0.7, sMax: 1.6, collide: 0.6 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], pricklyPearGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.4, collide: 0.7, collideTop: 1.6 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], barrelCactusGeometry(v), FLORA_MAT, { sMin: 0.6, sMax: 1.3, collide: 0.6, collideTop: 1.0 });
+  for (let v = 0; v < 4; v++) scatter(scene, terrain, net, rnd, 110, [4], rockShapeGeometry(v + 20, 'strata'), FLORA_MAT, { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.25, yOff: 0.3, collide: 0.9, collideTop: 0.7, shadow: v === 0 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], sageGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.5 }); // armoises et buissons secs
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 7, [4], mesaGeometry(v + 1), FLORA_MAT, { rMin: 200, sMin: 1.5, sMax: 3.8, yOff: 4.2, collide: 3.6, collideTop: 9, shadow: true }); // buttes stratifiées
 
   // Ville : Poussière-sur-Rail, au terminus Ouest
   const T = net.nodes.get('T4');
@@ -174,34 +72,91 @@ export function buildWestern(scene, terrain, net, interact) {
   town.position.set(end.x, terrain.heightAt(end.x, end.z), end.z); town.rotation.y = ang;
   const woods = ['#8b5a2b', '#a0683a', '#7a4a24', '#b07a48', '#6e4426'];
   const names = ['SALOON', 'BANQUE', 'SHÉRIF', 'HÔTEL', 'FORGE', 'GARE', 'ÉPICERIE', 'BARBIER'];
+  const kinds = ['saloon', 'bank', 'sheriff', 'hotel', 'forge', 'station', 'store', 'barber'];
+  const pal = [['#8b5a2b', '#6e4426', '#7a2a2a'], ['#b8a888', '#8a7a62', '#2a4a7a'], ['#a0683a', '#7a4a24', '#3f6b5a'], ['#c9b48a', '#8a6a3a', '#7a2a2a'], ['#7a4a30', '#5a3a28', '#2a4a7a'], ['#3f6b5a', '#2a4a3e', '#9c1f1f'], ['#b07a48', '#8a5a30', '#3f6b5a'], ['#6f8aa0', '#4a6478', '#9c1f1f']];
   for (let k = 0; k < 8; k++) {
     const side = k % 2 ? 1 : -1, row = Math.floor(k / 2);
     const w = 7 + rnd() * 3, h = 5 + rnd() * 3, d = 8;
-    const b = buildWesternBuilding(names[k], w, h, d, [woods[k % 5], woods[(k + 2) % 5], ['#3f6b5a', '#7a2a2a', '#2a4a7a'][k % 3]], textSprite);
+    const b = buildWesternBuilding(names[k], w, h, d, pal[k], textSprite, kinds[k]);
     b.userData.bw = w; b.userData.bd = d;
     b.position.set(side * 14, 0, -26 - row * 14); b.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     b.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     town.add(b);
   }
-  // Arche d'entrée
+  // Mobilier de rue (fusionné) : lampadaires, abreuvoirs, chariot, puits, tonneaux, caisses, boules de paille
+  const sk = new Kit();
+  const dk = MAT.woodDark(), pl = mat('#7a4c2a', { roughness: 0.9 }), irn = MAT.iron(), brs = MAT.brass();
+  for (let i = 0; i < 6; i++) for (const sd of [-1, 1]) { const x = sd * 5.2, z = -30 - i * 11;
+    sk.add(G.cyl(0.07, 0.1, 3.6, 6), irn, { p: [x, 1.8, z] }); sk.add(G.box(0.5, 0.05, 0.05), irn, { p: [x - sd * 0.25, 3.5, z] });
+    sk.add(G.box(0.26, 0.4, 0.26), irn, { p: [x - sd * 0.5, 3.3, z] }); sk.add(G.box(0.17, 0.28, 0.17), glow('#ffcf7a', 3), { p: [x - sd * 0.5, 3.3, z] }); sk.add(G.cone(0.22, 0.2, 4), irn, { p: [x - sd * 0.5, 3.6, z], r: [0, PI / 4, 0] }); }
+  // chariot bâché
+  const wagon = (x, z, ry) => { const c = Math.cos(ry), s = Math.sin(ry); const P = (lx, ly, lz) => [x + lx * c + lz * s, ly, z - lx * s + lz * c];
+    sk.add(G.box(1.6, 0.2, 3.2), dk, { p: P(0, 0.9, 0), r: [0, ry, 0] });
+    for (const sx of [-1, 1]) { sk.add(G.box(0.1, 0.7, 3.2), pl, { p: P(sx * 0.8, 1.3, 0), r: [0, ry, 0] }); for (const lz of [-1.1, 1.1]) { sk.add(G.tor(0.62, 0.06, 5, 16), irn, { p: P(sx * 0.95, 0.65, lz), r: [0, ry + H, 0] }); for (let i = 0; i < 4; i++) sk.add(G.box(0.05, 1.2, 0.05), dk, { p: P(sx * 0.95, 0.65, lz), r: [i * PI / 4, ry + H, 0] }); sk.add(G.cyl(0.08, 0.08, 1.9, 6), irn, { p: P(0, 0.65, lz), r: [0, ry, H] }); } }
+    sk.add(G.cyl(0.9, 0.9, 3.0, 10, true), mat('#e4d6b0', { roughness: 0.95, side: THREE.DoubleSide }), { p: P(0, 1.7, -0.1), r: [H, 0, ry], s: [1, 1, 0.8] });
+    sk.add(G.box(0.1, 0.1, 2.4), dk, { p: P(0, 0.75, 2.8), r: [0, ry, 0] }); };
+  wagon(-7.8, -70, 0.5);
+  // puits
+  { const x = 2.0, z = -22; sk.add(G.cyl(1.0, 1.05, 0.9, 14), mat('#a8977c', { roughness: 0.95 }), { p: [x, 0.45, z] }); sk.add(G.cyl(0.85, 0.85, 0.05, 14), mat('#1d3a4a', { roughness: 0.2 }), { p: [x, 0.88, z] });
+    for (const sx of [-1, 1]) sk.add(G.box(0.12, 2.0, 0.12), dk, { p: [x + sx * 0.95, 1.9, z] }); sk.add(G.box(2.2, 0.12, 0.12), dk, { p: [x, 2.9, z] }); sk.add(G.cone(1.4, 0.9, 4), mat('#5a3a20'), { p: [x, 3.4, z], r: [0, PI / 4, 0], s: [1.2, 1, 0.8] }); sk.add(G.cyl(0.05, 0.05, 0.9, 5), irn, { p: [x, 2.5, z] }); }
+  // balles de foin, tonneaux, caisses en grappes
+  for (let i = 0; i < 10; i++) { const z = -28 - i * 7.5, sd = i % 2 ? 1 : -1, x = sd * (6 + (i % 3) * 0.4);
+    if (i % 3 === 0) sk.add(G.cyl(0.55, 0.55, 0.9, 12), mat('#c8aa5a', { roughness: 1 }), { p: [x, 0.45, z], r: [H, 0, i] });
+    else if (i % 3 === 1) { sk.add(G.lathe([[0.32, 0], [0.4, 0.4], [0.32, 0.85], [0, 0.85]], 12), mat('#6b4426'), { p: [x, 0, z] }); sk.add(G.tor(0.37, 0.025, 4, 12), irn, { p: [x, 0.5, z], r: [H, 0, 0] }); }
+    else { sk.add(G.box(0.7, 0.7, 0.7), mat('#a07a48', { roughness: 0.9 }), { p: [x, 0.35, z], r: [0, i, 0] }); sk.add(G.box(0.5, 0.5, 0.5), mat('#8a6a3a', { roughness: 0.9 }), { p: [x + 0.2, 0.95, z], r: [0, i * 2, 0] }); } }
+  // cactus en pot / buissons secs à l'entrée, rails de fin, panneaux d'avis
+  for (const sd of [-1, 1]) { sk.add(G.box(0.12, 2.2, 0.12), dk, { p: [sd * 3.5, 1.1, -12] }); sk.add(G.box(1.0, 0.7, 0.06), mat('#efe2c4'), { p: [sd * 3.5, 1.8, -11.95] }); }
+  town.add(sk.build());
+  // Arche d'entrée monumentale
   const archT = textSprite(['POUSSIÈRE-SUR-RAIL', 'pop. 4 cactus · 0 shérif'], { w: 1024, h: 256, bg: '#3a2412', fg: '#f3d9a0', border: '#d9a35a', font: 'bold 80px Georgia' });
-  for (const x of [-5, 5]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 9, 0.6), M('#5a3a1e')); post.position.set(x, 4.5, -100); post.castShadow = true; town.add(post); }
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5), new THREE.MeshBasicMaterial({ map: archT, side: THREE.DoubleSide })); board.position.set(0, 8.2, -100); town.add(board);
+  const ak = new Kit(), AZ = -100;
+  for (const x of [-5.6, 5.6]) { ak.add(G.rbox(1.3, 0.8, 1.3, 0.08), mat('#8a7a62', { roughness: 1 }), { p: [x, 0.4, AZ] }); ak.add(G.box(0.7, 9, 0.7), dk, { p: [x, 4.8, AZ] }); ak.add(G.box(0.95, 0.4, 0.95), brs, { p: [x, 9.4, AZ] }); ak.add(G.cone(0.5, 0.9, 4), brs, { p: [x, 10.1, AZ], r: [0, PI / 4, 0] });
+    for (const sg of [-1, 1]) ak.add(G.box(0.18, 0.18, 2.6), dk, { p: [x, 7.4, AZ + sg * 0.0], r: [0, 0, 0] }); ak.add(G.box(0.18, 3.2, 0.18), dk, { p: [x * 0.82, 7.4, AZ + 1.0], r: [0, 0, x > 0 ? 0.6 : -0.6] }); }
+  ak.add(G.box(12.4, 0.5, 0.6), dk, { p: [0, 9.2, AZ] }); ak.add(G.box(12.4, 0.18, 0.7), brs, { p: [0, 9.55, AZ] });
+  ak.add(G.box(11.0, 3.0, 0.3), dk, { p: [0, 7.6, AZ - 0.05] });
+  for (const x of [-4, 4]) { ak.add(G.cyl(0.025, 0.025, 0.9, 4), irn, { p: [x, 8.7, AZ + 0.4] }); ak.add(G.box(0.4, 0.5, 0.4), irn, { p: [x, 8.0, AZ + 0.5] }); ak.add(G.box(0.26, 0.34, 0.26), glow('#ffcf7a', 3), { p: [x, 8.0, AZ + 0.5] }); }
+  // crâne de bovin au sommet
+  ak.add(G.sph(0.3, 8, 6), mat('#efe6d0'), { p: [0, 10.1, AZ], s: [1, 0.8, 0.6] }); for (const sd of [-1, 1]) ak.add(G.tube([[sd * 0.2, 10.1, AZ], [sd * 0.8, 10.2, AZ], [sd * 1.3, 10.7, AZ]], 0.07, 8, 5), mat('#efe6d0'));
+  town.add(ak.build());
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5), new THREE.MeshBasicMaterial({ map: archT, side: THREE.DoubleSide })); board.position.set(0, 7.6, AZ + 0.12); town.add(board);
   town.userData.archTex = board;
-  // Piédestal du Shérif (où le ramener)
-  const ped = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 1.2, 8), M('#c9a25a', { metalness: 0.7, roughness: 0.3 }));
-  ped.position.set(0, 0.6, 18); town.add(ped);
+  // Piédestal du Shérif (où le ramener) : gradins + colonnade
+  const pk = new Kit(), PZ = 18, gold = mat('#c9a25a', { metalness: 0.7, roughness: 0.3 }), mrb = mat('#cfc6b4', { roughness: 0.8 });
+  pk.add(G.cyl(4.4, 4.8, 0.3, 24), mat('#8a7a62', { roughness: 1 }), { p: [0, 0.15, PZ] });
+  pk.add(G.cyl(3.4, 3.8, 0.4, 24), mrb, { p: [0, 0.5, PZ] });
+  pk.add(G.cyl(2.2, 2.6, 1.2, 8), gold, { p: [0, 0.6, PZ] });
+  pk.add(G.tor(2.35, 0.1, 5, 24), gold, { p: [0, 1.2, PZ], r: [H, 0, 0] });
+  for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + PI / 6, x = Math.cos(a) * 3.5, z = PZ + Math.sin(a) * 3.5; pk.add(G.cyl(0.18, 0.22, 3.2, 10), mrb, { p: [x, 2.0, z] }); pk.add(G.box(0.55, 0.2, 0.55), mrb, { p: [x, 3.7, z] }); pk.add(G.sph(0.2, 8, 6), glow('#ffe9a0', 2), { p: [x, 3.95, z] }); }
+  pk.add(G.tor(3.5, 0.08, 5, 36), brs, { p: [0, 3.55, PZ], r: [H, 0, 0] });
+  for (const sx of [-1, 1]) for (const sz of [0, 1]) pk.add(G.box(0.1, 0.5, 0.1), gold, { p: [sx * 1.0, 1.5, PZ + (sz ? 1.0 : -1.0)] });
+  town.add(pk.build());
   const pTex = textSprite(['ICI SE TENAIT', 'SHÉRIF-7', 'gardien de Poussière'], { bg: '#3a2412', fg: '#f3d9a0', border: '#d9a35a' });
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.7), new THREE.MeshBasicMaterial({ map: pTex })); plaque.position.set(0, 2.2, 15.3); plaque.rotation.y = Math.PI; town.add(plaque);
-  // Cactus-automates pianistes
-  const autos = [];
+  // Cactus-automates pianistes : cactus à bras articulés, laiton, yeux, piano droit avec clavier et tabouret
+  const autoGeo = (() => { const k = new Kit(), cg = mat('#4f8a3a', { roughness: 0.8 }), rv = mat('#2a1a10', { roughness: 0.6 });
+    const ribbed = (r, hh, seg = 5) => { const gg = new THREE.CylinderGeometry(r, r * 1.05, hh, seg * 2, 2); const p = gg.attributes.position; for (let i = 0; i < p.count; i++) { const an = Math.atan2(p.getZ(i), p.getX(i)); const f = 1 + 0.08 * Math.cos(an * seg); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); } gg.computeVertexNormals(); return gg; };
+    k.add(ribbed(0.5, 3.0), cg, { p: [0, 1.7, 0] }); k.add(G.sph(0.52, 10, 4, 0, PI * 2, 0, H), cg, { p: [0, 3.2, 0] });
+    // bras vers le clavier (+z)
+    for (const sx of [-1, 1]) { k.add(G.tube([[sx * 0.4, 2.2, 0.1], [sx * 0.8, 2.3, 0.4], [sx * 0.7, 1.7, 1.0], [sx * 0.55, 1.5, 1.3]], 0.17, 8, 6), cg); k.add(G.sph(0.2, 8, 6), brs, { p: [sx * 0.55, 1.5, 1.3] }); k.add(G.cyl(0.24, 0.24, 0.12, 10), brs, { p: [sx * 0.8, 2.3, 0.4], r: [0, 0, H] }); }
+    // plaque de laiton + rivets + engrenage dorsal + antenne
+    k.add(G.rbox(0.8, 0.7, 0.1, 0.04), brs, { p: [0, 2.3, 0.52] }); for (const dx of [-0.3, 0.3]) for (const dy of [-0.25, 0.25]) k.add(G.sph(0.04, 5, 4), irn, { p: [dx, 2.3 + dy, 0.58] });
+    k.add(G.tor(0.35, 0.05, 5, 12), brs, { p: [0, 2.4, -0.55] }); for (let i = 0; i < 4; i++) k.add(G.box(0.05, 0.7, 0.05), brs, { p: [0, 2.4, -0.55], r: [0, 0, i * PI / 4] });
+    k.add(G.cyl(0.02, 0.02, 0.7, 4), irn, { p: [0.2, 3.9, 0] }); k.add(G.sph(0.06, 6, 5), glow('#ff4a3a', 2), { p: [0.2, 4.25, 0] });
+    // pot en terre
+    k.add(G.cyl(0.8, 0.6, 0.6, 12), mat('#9a5a35', { roughness: 0.9 }), { p: [0, 0.3, 0] }); k.add(G.tor(0.78, 0.07, 5, 14), mat('#9a5a35'), { p: [0, 0.62, 0], r: [H, 0, 0] });
+    // piano droit
+    k.add(G.rbox(2.4, 1.5, 0.8, 0.05), rv, { p: [0, 0.8, 1.9] }); k.add(G.box(2.5, 0.08, 0.95), mat('#3a2412'), { p: [0, 1.58, 1.9] });
+    k.add(G.box(2.2, 0.06, 0.4), mat('#f4f0e6'), { p: [0, 1.15, 1.35] }); for (let i = 0; i < 11; i++) k.add(G.box(0.06, 0.07, 0.24), rv, { p: [-0.95 + i * 0.19, 1.2, 1.28] });
+    k.add(G.box(1.5, 0.7, 0.04), mat('#efe2c4'), { p: [0, 1.55, 2.05], r: [-0.3, 0, 0] });
+    for (const dx of [-1.0, 1.0]) k.add(G.cyl(0.05, 0.05, 1.5, 5), brs, { p: [dx, 0.8, 1.5]});
+    k.add(G.cyl(0.4, 0.4, 0.1, 10), mat('#7a2a2a'), { p: [0, 0.6, 0.65] }); k.add(G.cyl(0.05, 0.05, 0.5, 5), irn, { p: [0, 0.35, 0.65] });
+    // note flottante
+    return k.build(); })();
+  const eyeM = glow('#ffe060', 3), autos = [];
   for (let k = 0; k < 4; k++) {
     const a = new THREE.Group();
-    const c = new THREE.Mesh(cactusGeometry(), M('#4f8a3a', { roughness: 0.8 })); a.add(c);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), M('#000', { emissive: '#ffe060', emissiveIntensity: 3 })); eye.position.set(0.18, 3.2, 0.4); a.add(eye);
-    const eye2 = eye.clone(); eye2.position.x = -0.18; a.add(eye2);
-    const piano = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 0.8), M('#2a1a10')); piano.position.set(0, 0.6, 1.4); a.add(piano);
-    const keys = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.05, 0.3), M('#f4f0e6')); keys.position.set(0, 1.22, 1.15); a.add(keys);
+    a.add(autoGeo.clone());
+    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), eyeM); e.position.set(sx * 0.2, 2.9, 0.48); a.add(e); const r = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.025, 5, 12), MAT.brass()); r.position.set(sx * 0.2, 2.9, 0.48); a.add(r); }
     a.position.set((k % 2 ? 9 : -9), 0, -40 - k * 9); a.rotation.y = k % 2 ? -0.6 : 0.6;
     a.traverse(o => { if (o.isMesh) o.castShadow = true; });
     town.add(a); autos.push(a);
@@ -212,7 +167,13 @@ export function buildWestern(scene, terrain, net, interact) {
     if (b.userData.bw) { const v = b.getWorldPosition(new THREE.Vector3()); const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion())); COLLIDERS.box(v.x + fw.x * 0.1, v.z + fw.z * 0.1, b.userData.bw / 2 + 0.3, b.userData.bd / 2 + 0.3, Math.atan2(fw.x, fw.z)); }
   }
   for (const a of autos) { const v = a.getWorldPosition(new THREE.Vector3()); COLLIDERS.circle(v.x, v.z, 1.1); }
-  { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)); COLLIDERS.floorCircle(v.x, v.z, 2.5, terrain.heightAt(v.x, v.z) + 1.2); }
+  { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)), y0 = terrain.heightAt(v.x, v.z);
+    COLLIDERS.floorCircle(v.x, v.z, 4.7, y0 + 0.3); COLLIDERS.floorCircle(v.x, v.z, 3.7, y0 + 0.75); COLLIDERS.floorCircle(v.x, v.z, 2.5, y0 + 1.2);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + PI / 6; const c = town.localToWorld(new THREE.Vector3(Math.cos(a) * 3.5, 0, 18 + Math.sin(a) * 3.5)); COLLIDERS.circle(c.x, c.z, 0.3); } }
+  for (const a of autos) { const v = a.localToWorld(new THREE.Vector3(0, 0, 1.9)); COLLIDERS.circle(v.x, v.z, 0.95); }
+  { const v = town.localToWorld(new THREE.Vector3(2.0, 0, -22)); COLLIDERS.circle(v.x, v.z, 1.1, terrain.heightAt(v.x, v.z) + 1.0); }
+  { const v = town.localToWorld(new THREE.Vector3(-7.8, 0, -70)); COLLIDERS.circle(v.x, v.z, 1.4, terrain.heightAt(v.x, v.z) + 1.9); }
+  for (const x of [-5.6, 5.6]) { const v = town.localToWorld(new THREE.Vector3(x, 0, -100)); COLLIDERS.circle(v.x, v.z, 0.5); }
   const pedWorld = town.localToWorld(new THREE.Vector3(0, 1.2, 18));
   interact.add({ id: 'pedestal', pos: pedWorld, r: 7, label: 'Piédestal du gardien' });
   return { town, autos, pedestal: pedWorld };
@@ -221,9 +182,10 @@ export function buildWestern(scene, terrain, net, interact) {
 export function buildGelure(scene, terrain, net, interact) {
   const rnd = mulberry(55);
   const ice = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.25, emissive: '#3a8fc0', emissiveIntensity: 0.3, flatShading: true });
-  scatter(scene, terrain, net, rnd, 700, [5], new THREE.ConeGeometry(1.4, 8, 5), ice, { sMin: 0.5, sMax: 2.4, tilt: 0.6, yOff: 2, collide: 1.0 });
-  scatter(scene, terrain, net, rnd, 500, [5], new THREE.DodecahedronGeometry(1.5, 0), M('#f2fbff', { flatShading: true, roughness: 0.6 }), { sMin: 0.5, sMax: 3, yStretch: 0.4, collide: 1.3, collideTop: 0.55 });
-  scatter(scene, terrain, net, rnd, 220, [5], firGeometry(), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: false, collide: 0.5 }); // sapins gelés
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 150, [5], iceCrystalGeometry(v + 1), ice, { sMin: 0.5, sMax: 2.2, tilt: 0.2, yOff: -0.3, collide: 1.0, collideTop: 5 });
+  for (let v = 0; v < 4; v++) scatter(scene, terrain, net, rnd, 110, [5], rockShapeGeometry(v + 40, 'snow'), FLORA_MAT, { sMin: 0.6, sMax: 3, yStretch: 0.4, yOff: 0.3, collide: 1.2, collideTop: 0.8, shadow: v === 0 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [5], pineGeometry(v), FLORA_MAT, { sMin: 0.5, sMax: 1.1, shadow: false, collide: 0.5, collideTop: 5 }); // sapins gelés
+  for (let v = 0; v < 2; v++) scatter(scene, terrain, net, rnd, 110, [5], snowShrubGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.6 });
 
   // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5
   const e = net.edges.find(x => x.a === 'K5' && x.b === 'T5');

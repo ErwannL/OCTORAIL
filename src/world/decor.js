@@ -3,6 +3,7 @@ import { Kit, G, mat, MAT, glow } from './kit.js';
 import { sectorIndex } from './biomes.js';
 import { mulberry } from '../util/noise.js';
 import { COLLIDERS } from './colliders.js';
+import { rockShapeGeometry } from './flora.js';
 
 const PI = Math.PI, H = PI / 2;
 
@@ -68,16 +69,7 @@ export function buildTrackside(scene, net, terrain) {
 }
 
 // Rocher irrégulier (déformé) réutilisable
-export function rockGeometry(seed = 1, detail = 1) {
-  const geo = new THREE.IcosahedronGeometry(1, detail); const r = mulberry(seed); const p = geo.attributes.position;
-  const offs = new Map();
-  for (let i = 0; i < p.count; i++) {
-    const key = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
-    if (!offs.has(key)) offs.set(key, 0.75 + r() * 0.5);
-    const f = offs.get(key); p.setXYZ(i, p.getX(i) * f * 1.3, p.getY(i) * f * 0.8, p.getZ(i) * f);
-  }
-  geo.computeVertexNormals(); return geo;
-}
+export function rockGeometry(seed = 1, detail = 1) { return rockShapeGeometry(seed, 'strata', false); } // rocher stratifié (flora.js)
 
 // ------------------------------------------------------------------ Western : moulin, épave, barrières, virevoltants
 export function buildWesternDecor(scene, terrain, net) {

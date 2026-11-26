@@ -26,6 +26,33 @@ class Colliders {
   // la caméra les évite (elle ne se place jamais dedans). bottom/top = hauteurs ABSOLUES du volume.
   camCircle(x, z, r, bottom, top) { const c = this.circle(x, z, r, top, bottom, true); c.co = true; return c; }
   camBox(x, z, hx, hz, ang, bottom, top) { const c = this.box(x, z, hx, hz, ang, top, bottom, true); c.co = true; return c; }
+  // Collision automatique d'un objet 3D : balaie ses sommets entre y0 et y1 au-dessus du sol (fn ground(x,z)), regroupe en cellules
+  // et pose un petit cercle (cam:false) sur chaque colonne verticale solide (poteaux, tonneaux, bancs, rambardes…) pas déjà couverte.
+  autoSolid(obj, ground, { y0 = 0.4, y1 = 2.2, cell = 0.5, minVerts = 5, minSpan = 0.7, max = 200 } = {}) {
+    obj.updateMatrixWorld(true);
+    const cells = new Map(), v = { x: 0, y: 0, z: 0 }, e = [];
+    obj.traverse(o => {
+      if (!o.isMesh || o.isInstancedMesh) return;
+      const pos = o.geometry.attributes.position, m = o.matrixWorld.elements;
+      for (let i = 0; i < pos.count; i++) {
+        const X = pos.getX(i), Y = pos.getY(i), Z = pos.getZ(i);
+        v.x = m[0] * X + m[4] * Y + m[8] * Z + m[12]; v.y = m[1] * X + m[5] * Y + m[9] * Z + m[13]; v.z = m[2] * X + m[6] * Y + m[10] * Z + m[14];
+        const h = v.y - Math.max(ground(v.x, v.z), this.floorAt(v.x, v.z)); if (h < y0 || h > y1) continue;
+        const k = Math.floor(v.x / cell) + ',' + Math.floor(v.z / cell); let c = cells.get(k);
+        if (!c) cells.set(k, c = { n: 0, lo: 9, hi: -9, x: 0, z: 0 });
+        c.n++; c.x += v.x; c.z += v.z; if (h < c.lo) c.lo = h; if (h > c.hi) c.hi = h;
+      }
+    });
+    let n = 0;
+    for (const c of cells.values()) {
+      if (c.n < minVerts || c.hi - c.lo < minSpan) continue;
+      const x = c.x / c.n, z = c.z / c.n; let cov = false;
+      for (const k of this.near(x, z)) if (!k.fl && !k.co && this._inside(k, x, z, 0.1)) { cov = true; break; }
+      if (cov || n >= max) continue;
+      this.circle(x, z, cell * 0.65, 99, -99, false); n++;
+    }
+    return n;
+  }
   near(x, z) { return this.grid.get(Math.floor(x / CELL) + ',' + Math.floor(z / CELL)) || []; }
   _inside(c, x, z, m = 0) {
     if (c.t === 0) return Math.hypot(x - c.x, z - c.z) < c.r + m;

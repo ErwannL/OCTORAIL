@@ -188,7 +188,7 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   // collisions : corps de la vague en tronçons de part et d'autre du couloir du tunnel
   { const seg = 14, x0 = -108, x1 = 33, step = (x1 - x0) / seg;
     for (let s = 0; s < seg; s++) { const lx = x0 + (s + 0.5) * step, c = cAt(lx), hx = step / 2 + 0.3;
-      for (const side of [-1, 1]) { const zA = c + side * (RT - 0.9), zB = side * 330, zc = (zA + zB) / 2, hz = Math.abs(zB - zA) / 2; const v = wave.localToWorld(new THREE.Vector3(lx, 0, zc)); COLLIDERS.box(v.x, v.z, hx, hz, th, 999, -99, false); } } }
+      for (const side of [-1, 1]) { const zA = c + side * (RT - 0.9), zB = side * 330, zc = (zA + zB) / 2, hz = Math.abs(zB - zA) / 2; const v = wave.localToWorld(new THREE.Vector3(lx, 0, zc)); COLLIDERS.box(v.x, v.z, hx, hz, th, 999, -99, true); } } }
   return wave;
 
   function taper() { // queue : pédoncule effilé

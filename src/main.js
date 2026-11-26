@@ -142,6 +142,8 @@ const sheriff = buildSheriff();
 const iceBlock = buildIceBlock();
 const sheriffSpot = new THREE.Group(); sheriffSpot.position.copy(gelure.iceBlockPos); scene.add(sheriffSpot);
 sheriffSpot.add(iceBlock);
+// le bloc de glace est solide tant qu'il est visible (Shérif non libéré)
+COLLIDERS.dynamic.push(out => { if (iceBlock.visible && iceBlock.parent) { const q = gelure.iceBlockPos; out.push({ t: 0, x: q.x, z: q.z, r: 2.4, R: 2.4, top: q.y + 7, bottom: -99 }); } });
 scene.add(sheriff);
 
 // ------------------------------------------------------------------ Systèmes
@@ -849,6 +851,8 @@ function updateCamera(dt) {
       }
     }
   }
+  if (!Number.isFinite(want.x + want.y + want.z)) want.copy(target).add(_o2.set(0, 3, 6)); // garde-fou NaN : jamais de caméra empoisonnée
+  if (!Number.isFinite(camPos.x + camPos.y + camPos.z)) camInit = false;
   const gh = terrain.heightAt(want.x, want.z) + 0.8; if (want.y < gh) want.y = gh;
   if (camPos.distanceTo(want) > 60 || !camInit) { camPos.copy(want); camLook.copy(target); camInit = true; } // téléportation / respawn / 1re image
   else {

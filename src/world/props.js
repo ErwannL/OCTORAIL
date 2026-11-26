@@ -170,6 +170,8 @@ export function buildWestern(scene, terrain, net, interact) {
   for (const b of town.children) {
     if (b.userData.bw) { const v = b.getWorldPosition(new THREE.Vector3()); const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(b.getWorldQuaternion(new THREE.Quaternion())); COLLIDERS.box(v.x + fw.x * 0.1, v.z + fw.z * 0.1, b.userData.bw / 2 + 0.3, b.userData.bd / 2 + 0.3, Math.atan2(fw.x, fw.z)); }
   }
+  // porches, poteaux, rambardes, tonneaux des façades : colonnes solides hors de l'emprise des bâtiments
+  for (const b of town.children) if (b.userData.bw) COLLIDERS.autoSolid(b, (x, z) => terrain.heightAt(x, z));
   for (const a of autos) { const v = a.getWorldPosition(new THREE.Vector3()); COLLIDERS.circle(v.x, v.z, 1.1); }
   { const v = town.localToWorld(new THREE.Vector3(0, 0, 18)), y0 = terrain.heightAt(v.x, v.z);
     COLLIDERS.floorCircle(v.x, v.z, 4.7, y0 + 0.3); COLLIDERS.floorCircle(v.x, v.z, 3.7, y0 + 0.75); COLLIDERS.floorCircle(v.x, v.z, 2.5, y0 + 1.2);

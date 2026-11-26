@@ -142,7 +142,7 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 .toast { text-align: center; }
 #prompt { top: 60%; font-size: 16px; padding: 9px 16px; white-space: normal; text-align: center; max-width: min(520px, calc(100vw - 32px)); animation: none; box-shadow: 0 2px 10px #0008; }
 #prompt kbd { font-size: 13px; padding: 1px 7px; margin: 0 2px; }
-#lockhint { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); width: max-content; max-width: max(280px, min(520px, calc(100vw - 620px))); background: var(--panel); border: 1px solid var(--brass); padding: 6px 14px; border-radius: 16px; font-size: 13px; text-align: center; max-width: calc(100vw - 32px); z-index: 4; }
+#lockhint { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); width: max-content; max-width: max(260px, min(520px, calc(100vw - 660px))); background: var(--panel); border: 1px solid var(--brass); padding: 6px 14px; border-radius: 16px; font-size: 13px; text-align: center; z-index: 4; }
 #helpbtn { position: absolute; left: 16px; bottom: 76px; font-size: 11px; opacity: .55; letter-spacing: 1px; }
 #help { position: absolute; left: 16px; bottom: 100px; width: min(360px, calc(100vw - 32px)); background: rgba(22,16,11,0.92); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13px; z-index: 4; }
 #help h3 { margin: 0 0 8px; font-family: 'Rye'; font-size: 16px; color: #ffe3a8; font-weight: 400; } #help h3 small { font-family: 'Chakra Petch'; opacity: .6; font-size: 11px; }

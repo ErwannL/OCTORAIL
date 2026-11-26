@@ -320,14 +320,15 @@ export function buildSheriffModel() {
 
 // ------------------------------------------------------------------ Décor
 export function cactusGeometry() {
+  // version allégée (~300 triangles au lieu de ~1400) : le cactus est instancié des centaines de fois
   const k = new Kit(), green = mat('#3f7a3a', { roughness: 0.8 });
-  const ribbed = (r, h, seg = 10) => { const geo = new THREE.CylinderGeometry(r, r * 1.05, h, seg * 2, 4); const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const f = 1 + 0.09 * Math.cos(a * seg); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); } geo.computeVertexNormals(); return geo; };
+  const ribbed = (r, h, seg = 5) => { const geo = new THREE.CylinderGeometry(r, r * 1.05, h, seg * 2, 2); const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)); const f = 1 + 0.09 * Math.cos(a * seg); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); } geo.computeVertexNormals(); return geo; };
   k.add(ribbed(0.45, 3.6), green, { p: [0, 1.8, 0] });
-  k.add(G.sph(0.47, 16, 8, 0, PI * 2, 0, H), green, { p: [0, 3.6, 0] });
-  k.add(G.tube([[0.35, 1.7, 0], [0.95, 1.75, 0], [1.05, 2.3, 0], [1.05, 2.9, 0]], 0.28, 16, 10), green);
-  k.add(G.sph(0.28, 12, 8, 0, PI * 2, 0, H), green, { p: [1.05, 2.9, 0] });
-  k.add(G.tube([[-0.35, 2.2, 0], [-0.85, 2.25, 0.1], [-0.92, 2.7, 0.1], [-0.92, 3.1, 0.1]], 0.24, 16, 10), green);
-  k.add(G.sph(0.24, 12, 8, 0, PI * 2, 0, H), green, { p: [-0.92, 3.1, 0.1] });
+  k.add(G.sph(0.47, 10, 3, 0, PI * 2, 0, H), green, { p: [0, 3.6, 0] });
+  k.add(G.tube([[0.35, 1.7, 0], [0.95, 1.75, 0], [1.05, 2.3, 0], [1.05, 2.9, 0]], 0.28, 6, 6), green);
+  k.add(G.sph(0.28, 7, 3, 0, PI * 2, 0, H), green, { p: [1.05, 2.9, 0] });
+  k.add(G.tube([[-0.35, 2.2, 0], [-0.85, 2.25, 0.1], [-0.92, 2.7, 0.1], [-0.92, 3.1, 0.1]], 0.24, 6, 6), green);
+  k.add(G.sph(0.24, 7, 3, 0, PI * 2, 0, H), green, { p: [-0.92, 3.1, 0.1] });
   return k.geometry();
 }
 

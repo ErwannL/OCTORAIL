@@ -553,7 +553,7 @@ function renderKeys() {
 function updateLockHint() {
   let t = '';
   if (!ui.panel && !ui.dialogOpen && !cinematic && input.wantLock && !input.mouse.locked && $('endcard').classList.contains('hidden')) {
-    t = input.lockFailed ? 'Capture de la souris indisponible ici : maintiens le clic gauche ou droit et glisse pour tourner' : 'Clique sur l\'écran pour capturer la souris (ou maintiens le clic droit pour tourner)';
+    t = input.lockFailed ? 'Capture de la souris indisponible ici : maintiens le clic gauche ou droit et glisse pour tourner' : 'Clique pour capturer la souris · ou maintiens le clic droit pour tourner';
   }
   ui.lockHint(t);
 }
@@ -883,7 +883,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
+window.__oct = { culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

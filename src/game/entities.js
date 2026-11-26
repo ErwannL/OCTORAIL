@@ -1,37 +1,14 @@
 import * as THREE from 'three';
+import { buildSheriffModel } from '../world/models.js';
 import { mulberry } from '../util/noise.js';
 import { sectorIndex } from '../world/biomes.js';
 
 const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, ...o });
 
-// SHÉRIF-7 : robot-cowboy en laiton sur monocycle (design original)
-export function buildSheriff() {
-  const g = new THREE.Group();
-  const brass = M('#c9973f', { metalness: 0.85, roughness: 0.3 }), dark = M('#2a1d12', { metalness: 0.4 }), red = M('#8a1f1f');
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 8, 24), dark); wheel.position.y = 0.6; g.add(wheel);
-  const hubw = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.3, 10), brass); hubw.rotation.x = Math.PI / 2; hubw.position.y = 0.6; g.add(hubw);
-  const fork = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.1), brass); fork.position.set(0, 1.1, 0); g.add(fork);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 1.1, 10), brass); body.position.y = 1.9; g.add(body);
-  const belt = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.06, 6, 16), dark); belt.rotation.x = Math.PI / 2; belt.position.y = 1.5; g.add(belt);
-  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), M('#ffd24a', { metalness: 1, roughness: 0.2, emissive: '#7a5a00', emissiveIntensity: 0.5 })); star.position.set(0.22, 2.05, 0.45); star.scale.z = 0.3; g.add(star);
-  const scarf = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.35, 4), red); scarf.position.set(0, 2.35, 0.32); scarf.rotation.x = Math.PI; g.add(scarf);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.6), brass); head.position.y = 2.75; g.add(head);
-  const eye = M('#111', { emissive: '#ffcc33', emissiveIntensity: 3 });
-  for (const x of [-0.16, 0.16]) { const e = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 12), eye); e.rotation.x = Math.PI / 2; e.position.set(x, 2.8, 0.31); g.add(e); }
-  const moust = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 4, 12, Math.PI), dark); moust.position.set(0, 2.6, 0.31); moust.rotation.z = Math.PI; g.add(moust);
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.05, 20), M('#5a3a1e')); brim.position.y = 3.07; g.add(brim);
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 0.45, 16), M('#5a3a1e')); crown.position.y = 3.3; g.add(crown);
-  g.userData.hat = [brim, crown];
-  const arms = [];
-  for (const x of [-0.62, 0.62]) { const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 8), brass); a.position.set(x, 1.9, 0); a.rotation.z = x > 0 ? 0.3 : -0.3; g.add(a); arms.push(a); }
-  const ant = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), M('#f33', { emissive: '#f00', emissiveIntensity: 3 })); ant.position.set(0.25, 3.15, -0.2); g.add(ant);
-  g.userData.arms = arms; g.userData.wheel = wheel; g.userData.eyeMat = eye;
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return g;
-}
+export function buildSheriff() { return buildSheriffModel(); }
 
 export function buildIceBlock() {
-  const mat = new THREE.MeshPhysicalMaterial({ color: '#bfe8ff', roughness: 0.05, transmission: 0.55, transparent: true, opacity: 0.55, thickness: 1.5, flatShading: true, emissive: '#3a8fc0', emissiveIntensity: 0.2 });
+  const mat = new THREE.MeshStandardMaterial({ color: '#bfe8ff', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.5, flatShading: true, emissive: '#3a8fc0', emissiveIntensity: 0.25, depthWrite: false });
   const geo = new THREE.IcosahedronGeometry(2.6, 1);
   const p = geo.attributes.position; for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) * (0.9 + Math.random() * 0.25), p.getY(i) * 1.35 * (0.9 + Math.random() * 0.2), p.getZ(i) * (0.9 + Math.random() * 0.25));
   geo.computeVertexNormals();
@@ -110,7 +87,7 @@ export function buildFinds(scene, terrain, net) {
       const g = new THREE.Group();
       const item = new THREE.Mesh(new THREE.TorusKnotGeometry(0.3, 0.1, 40, 6), M(f.color, { metalness: 0.8, roughness: 0.2, emissive: f.color, emissiveIntensity: 0.3 }));
       g.add(item);
-      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 40, 8, 1, true), new THREE.MeshBasicMaterial({ color: '#fff3c4', transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending }));
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 40, 6, 1, true), new THREE.MeshBasicMaterial({ color: '#fff3c4', transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending }));
       beam.position.y = 20; g.add(beam);
       g.position.set(x, terrain.heightAt(x, z) + 1, z); scene.add(g);
       out.push({ ...f, g, item, beam, taken: false });

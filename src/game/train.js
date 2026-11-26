@@ -1,6 +1,6 @@
 import * as THREE from 'three';
+import { buildSteamLoco, buildDraisine, buildWagonModel } from '../world/models.js';
 
-const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, ...o });
 
 export const LOCOS = {
   draisine: { name: 'Draisine à bras', maxSpeed: 9, accel: 2.2, needsFuel: false },
@@ -14,85 +14,12 @@ export const WAGON_TYPES = {
   isotherme:{ name: 'Wagon-isotherme', color: '#cfe8f5', price: 70 },
 };
 
-function wheel(r = 0.55) {
-  const w = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.18, 16), M('#222', { metalness: 0.8, roughness: 0.4 }));
-  w.rotation.z = Math.PI / 2;
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.35, 0.2, 8), M('#c9a25a', { metalness: 0.9, roughness: 0.3 }));
-  hub.rotation.z = Math.PI / 2;
-  const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.21, r * 1.7, 0.1), M('#555', { metalness: 0.8 }));
-  const g = new THREE.Group(); g.add(w, hub, spoke); return g;
-}
-
 export function buildLoco(kind, tint = '#8b1e1e') {
-  const g = new THREE.Group(); const wheels = [];
-  if (kind === 'draisine') {
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.25, 3.2), M('#6b4a2b')); deck.position.y = 0.9; g.add(deck);
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 0.3), M('#333')); post.position.y = 1.6; g.add(post);
-    const lever = new THREE.Mesh(new THREE.BoxGeometry(2, 0.12, 0.12), M('#c9a25a', { metalness: 0.8 })); lever.position.y = 2.25; g.add(lever);
-    g.userData.lever = lever;
-    for (const z of [-1, 1]) for (const x of [-0.75, 0.75]) { const w = wheel(0.45); w.position.set(x, 0.45, z); g.add(w); wheels.push(w); }
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), M('#fff', { emissive: '#ffd27a', emissiveIntensity: 4 })); lamp.position.set(0, 1.1, 1.65); g.add(lamp);
-    g.userData.cab = new THREE.Vector3(0, 1.05, -0.6);
-    g.userData.length = 3.6;
-  } else {
-    const body = M(tint, { metalness: 0.3, roughness: 0.45 });
-    const black = M('#1d1d1d', { metalness: 0.5 }), brass = M('#d4a54a', { metalness: 0.9, roughness: 0.25 });
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.4, 8), black); frame.position.y = 1.0; g.add(frame);
-    const boiler = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 5, 20), body); boiler.rotation.x = Math.PI / 2; boiler.position.set(0, 2.2, 1.2); g.add(boiler);
-    for (const z of [-0.8, 0.6, 2.0, 3.4]) { const band = new THREE.Mesh(new THREE.TorusGeometry(1.07, 0.06, 6, 20), brass); band.position.set(0, 2.2, z); g.add(band); }
-    const smoke = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 1.6, 12), black); smoke.position.set(0, 3.7, 3.0); g.add(smoke);
-    const smokeTop = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.35, 0.4, 12), black); smokeTop.position.set(0, 4.6, 3.0); g.add(smokeTop);
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), brass); dome.position.set(0, 3.2, 1.0); g.add(dome);
-    const face = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.08, 0.15, 20), black); face.rotation.x = Math.PI / 2; face.position.set(0, 2.2, 3.72); g.add(face);
-    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.25, 0.4, 12), M('#fff', { emissive: '#ffe0a0', emissiveIntensity: 5 })); lamp.rotation.x = Math.PI / 2; lamp.position.set(0, 3.1, 3.85); g.add(lamp);
-    const cow = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.2, 4, 1), M('#7a1515')); cow.rotation.set(-Math.PI / 2 + 0.5, Math.PI / 4, 0); cow.position.set(0, 0.8, 4.4); cow.scale.set(1, 1, 0.5); g.add(cow);
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.4, 2.4), body); cab.position.set(0, 2.6, -2.4); g.add(cab);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 2.9), black); roof.position.set(0, 3.9, -2.4); g.add(roof);
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.5), M('#000', { emissive: '#ff5a00', emissiveIntensity: 3 })); glow.position.set(0, 1.9, -1.19); glow.rotation.y = Math.PI; g.add(glow);
-    g.userData.firebox = glow;
-    for (const z of [2.5, 0.8, -0.9]) for (const x of [-1.0, 1.0]) { const w = wheel(z > 2 ? 0.5 : 0.75); w.position.set(x, z > 2 ? 0.5 : 0.75, z); g.add(w); wheels.push(w); }
-    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 1.8), brass); rod.position.set(1.12, 0.75, -0.05); g.add(rod);
-    const rod2 = rod.clone(); rod2.position.x = -1.12; g.add(rod2);
-    g.userData.rods = [rod, rod2];
-    g.userData.chimney = new THREE.Vector3(0, 4.9, 3.0);
-    g.userData.cab = new THREE.Vector3(0, 1.45, -2.4);
-    g.userData.length = 8.6;
-    const hl = new THREE.SpotLight('#ffe2b0', 120, 90, 0.45, 0.5, 1.2);
-    hl.position.set(0, 3.1, 4); hl.target.position.set(0, 0, 30); g.add(hl, hl.target);
-  }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  g.userData.wheels = wheels;
+  const g = kind === 'draisine' ? buildDraisine() : buildSteamLoco(tint);
+  if (g.userData.rods) g.userData.rods.forEach(r => r.userData.base = r.position.clone());
   return g;
 }
-
-export function buildWagon(type) {
-  const def = WAGON_TYPES[type];
-  const g = new THREE.Group(); const wheels = [];
-  const black = M('#1d1d1d', { metalness: 0.5 });
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.35, 6), black); frame.position.y = 0.95; g.add(frame);
-  if (type === 'charbon') {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.3, 5.6), M('#3a2a20')); box.position.y = 1.8; g.add(box);
-    const pile = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1, 5.2), M('#151515', { roughness: 1 })); pile.position.y = 2.0; g.add(pile);
-    g.userData.pile = pile;
-    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 2.2, 12), M('#4a5a6a', { metalness: 0.6 })); tank.rotation.z = Math.PI / 2; tank.position.set(0, 2.9, -2); g.add(tank);
-  } else if (type === 'vitrine') {
-    const base = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 5.6), M(def.color, { metalness: 0.8, roughness: 0.3 })); base.position.y = 1.35; g.add(base);
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.6, 4), new THREE.MeshPhysicalMaterial({ color: '#dff', transparent: true, opacity: 0.18, roughness: 0 })); glass.position.y = 2.9; g.add(glass);
-    const frameT = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.15, 4.2), M(def.color, { metalness: 0.8 })); frameT.position.y = 4.25; g.add(frameT);
-    g.userData.slot = new THREE.Vector3(0, 1.6, 0);
-  } else if (type === 'dortoir') {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.6, 5.8), M(def.color)); box.position.y = 2.4; g.add(box);
-    for (const z of [-1.8, 0, 1.8]) for (const x of [-1.26, 1.26]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), M('#000', { emissive: '#ffcf7a', emissiveIntensity: 1.5 })); w.position.set(x, 2.6, z); w.rotation.y = x > 0 ? Math.PI / 2 : -Math.PI / 2; g.add(w); }
-  } else {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.4, 5.8), M(def.color)); box.position.y = 2.3; g.add(box);
-    const roof = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 5.9, 12, 1, false, 0, Math.PI), M('#3a3a3a')); roof.rotation.set(Math.PI / 2, 0, Math.PI / 2); roof.position.y = 3.2; roof.scale.set(1, 1, 0.35); g.add(roof);
-  }
-  for (const z of [-2, 2]) for (const x of [-1, 1]) { const w = wheel(0.5); w.position.set(x, 0.5, z); g.add(w); wheels.push(w); }
-  const coupler = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 1.2), black); coupler.position.set(0, 0.9, 3.4); g.add(coupler);
-  g.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
-  g.userData.wheels = wheels; g.userData.length = 6.8;
-  return g;
-}
+export function buildWagon(type) { return buildWagonModel(type); }
 
 // Un train qui roule sur le graphe. La tête suit (edge, s, dir) ; les wagons suivent un historique de positions.
 export class Train {
@@ -209,9 +136,9 @@ export class Train {
     const spin = this.speed * dt / 0.6;
     for (const m of [this.loco, ...this.wagons.map(w => w.mesh)]) for (const wh of m.userData.wheels) wh.rotation.x += spin;
     this.wheelPhase = (this.wheelPhase || 0) + spin;
-    if (this.loco.userData.rods) this.loco.userData.rods.forEach((r, i) => { r.position.y = 0.75 + Math.sin(this.wheelPhase + i * Math.PI / 2) * 0.3; r.position.z = -0.05 + Math.cos(this.wheelPhase + i * Math.PI / 2) * 0.3; });
-    if (this.loco.userData.lever) this.loco.userData.lever.rotation.x = Math.sin(this.wheelPhase * 0.5) * 0.5;
-    if (this.loco.userData.firebox) this.loco.userData.firebox.material.emissiveIntensity = 1 + this.pressure / 25 + Math.random() * 0.4;
+    if (this.loco.userData.rods) this.loco.userData.rods.forEach((r, i) => { const ph = this.wheelPhase + (i < 2 ? 0 : Math.PI / 2) * (i % 2 ? 1 : 1) + (i >= 2 ? Math.PI / 2 : 0); const b = r.userData.base; r.position.y = b.y + Math.sin(ph) * 0.28; r.position.z = b.z + Math.cos(ph) * 0.28 * (i % 2 ? 0.5 : 1); });
+    if (this.loco.userData.lever) this.loco.userData.lever.rotation.x = Math.sin(this.wheelPhase * 0.5) * 0.35;
+    if (this.loco.userData.firebox) this.loco.userData.firebox.scale.setScalar(0.6 + this.pressure / 120 + Math.random() * 0.1);
     // tas de charbon visible
     const tender = this.wagons.find(w => w.type === 'charbon');
     if (tender) tender.mesh.userData.pile.scale.y = Math.max(0.05, this.coal / this.maxCoal);

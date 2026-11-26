@@ -30,16 +30,19 @@ export class Particles {
   }
   emit(x, v, { life = 2, size = 1, color = '#fff', alpha = 1 } = {}) {
     const p = this.p[this.i]; this.i = (this.i + 1) % this.max;
-    p.x.copy(x); p.v.copy(v); p.life = p.max = life; p.s = size; p.c.set(color); p.a = alpha;
+    this.dirty = true; p.x.copy(x); p.v.copy(v); p.life = p.max = life; p.s = size; p.c.set(color); p.a = alpha;
   }
   update(dt) {
+    if (!this.dirty && !this.p.some(q => q.life > 0)) return;
+    this.dirty = false;
     for (let k = 0; k < this.max; k++) {
       const p = this.p[k];
       if (p.life > 0) {
         p.life -= dt; p.v.y += this.gravity * dt; p.v.multiplyScalar(1 - this.drag * dt); p.x.addScaledVector(p.v, dt);
         const f = Math.max(0, p.life / p.max);
-        this.pos.set([p.x.x, p.x.y, p.x.z], k * 3);
-        this.col.set([p.c.r, p.c.g, p.c.b, p.a * Math.min(1, f * 2) * Math.min(1, (1 - f) * 8)], k * 4);
+        const i3 = k * 3, i4 = k * 4;
+        this.pos[i3] = p.x.x; this.pos[i3 + 1] = p.x.y; this.pos[i3 + 2] = p.x.z;
+        this.col[i4] = p.c.r; this.col[i4 + 1] = p.c.g; this.col[i4 + 2] = p.c.b; this.col[i4 + 3] = p.a * Math.min(1, f * 2) * Math.min(1, (1 - f) * 8);
         this.size[k] = p.s * (1 + (1 - f) * this.grow);
       } else { this.size[k] = 0; this.col[k * 4 + 3] = 0; }
     }
@@ -60,6 +63,8 @@ export class Weather {
   }
   update(dt, cam, kind, amount) {
     this.t += dt;
+    this.points.visible = this.mat.opacity > 0.02 || amount > 0;
+    if (!this.points.visible) { this.mat.opacity += (amount - this.mat.opacity) * Math.min(1, dt * 1.5); return; }
     const fall = kind === 'snow' ? 3 : 0.5, sway = kind === 'snow' ? 1.5 : 6;
     this.mat.color.set(kind === 'snow' ? '#ffffff' : '#e8b070');
     this.mat.size = kind === 'snow' ? 0.35 : 0.18;

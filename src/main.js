@@ -26,25 +26,45 @@ const TRAIN_TINTS = ['#8b1e1e', '#1e4a8b', '#2a6b2a', '#7a1e6b', '#8b6b1e', '#4a
 
 // ------------------------------------------------------------------ Rendu
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+// Qualité graphique : auto (résolution dynamique selon les FPS), réglable au titre.
+const QUALITY = { bas: { pr: 0.6, shadow: 0, bloom: false }, moyen: { pr: 0.85, shadow: 1024, bloom: true }, haut: { pr: 1.25, shadow: 2048, bloom: true } };
+let qName = 'auto'; try { qName = localStorage.getItem('octorail-quality') || 'auto'; } catch {}
+const Q = QUALITY[qName === 'auto' ? 'moyen' : qName];
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
+let pixelRatio = Math.min(devicePixelRatio, Q.pr);
+renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = Q.shadow > 0; renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2('#e8b98a', 0.002);
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 6000);
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.3, 2800);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.45, 0.5, 0.9);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.4, 0.45, 0.9);
+bloom.enabled = Q.bloom;
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); });
+const resize = () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth * pixelRatio / 2, innerHeight * pixelRatio / 2); };
+addEventListener('resize', resize);
+// résolution dynamique : vise ~50 FPS
+let perfAcc = 0, perfN = 0;
+function adaptQuality(dt) {
+  if (qName !== 'auto') return;
+  perfAcc += dt; perfN++;
+  if (perfAcc < 1.5) return;
+  const fps = perfN / perfAcc; perfAcc = 0; perfN = 0;
+  let pr = pixelRatio;
+  if (fps < 40) pr = Math.max(0.45, pr - 0.12); else if (fps > 57) pr = Math.min(Math.min(devicePixelRatio, 1.25), pr + 0.08);
+  if (fps < 24 && bloom.enabled) bloom.enabled = false;
+  if (fps < 20 && renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
+  if (Math.abs(pr - pixelRatio) > 0.01) { pixelRatio = pr; resize(); }
+}
 
 const hemi = new THREE.HemisphereLight('#bfd8ff', '#6b4a2a', 0.9); scene.add(hemi);
 const sun = new THREE.DirectionalLight('#fff0d0', 2.6);
-sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 400 });
+sun.castShadow = Q.shadow > 0; sun.shadow.mapSize.set(Q.shadow || 512, Q.shadow || 512);
+Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 400 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.6;
 scene.add(sun, sun.target);
 const SUN_DIR = new THREE.Vector3(0.45, 0.75, 0.35).normalize();
@@ -119,6 +139,8 @@ let meltProgress = 0, coldFaint = false, questGuard = false;
   };
   document.getElementById('play-solo').onclick = () => go(null);
   document.getElementById('play-mp').onclick = () => go(document.getElementById('room').value.trim() || 'OCTAVE');
+  const qs = document.getElementById('quality'); qs.value = qName;
+  qs.onchange = () => { try { localStorage.setItem('octorail-quality', qs.value); } catch {} location.reload(); };
   document.getElementById('reset').onclick = () => { clearState(); S = loadState(); ui.toast('Sauvegarde effacée'); };
   document.getElementById('end-continue').onclick = () => { ui.show('endcard', false); input.wantLock = true; };
 })();
@@ -133,7 +155,7 @@ function start() {
   // spawn à côté des capsules
   const pa = me.slot * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 4.6, 0.3, -Math.sin(pa) * 4.6);
   player.yaw = Math.PI / 2; // regarde vers l'Ouest (quai de la draisine)
-  if (!S.introDone) intro(); else ui.toast('Bon retour sur Halcyre.', true);
+  if (!S.introDone) intro(); else { ui.toast('Bon retour sur Halcyre.', true); ui.objective(STAGES[S.stage].text); }
   refreshFinds(); refreshResources(); placeSheriff();
   input.wantLock = true;
 }
@@ -447,7 +469,8 @@ const camPos = new THREE.Vector3(30, 20, 30), camLook = new THREE.Vector3();
 
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, clock.getDelta()); time += dt;
+  const raw = clock.getDelta(); const dt = Math.min(0.05, raw); time += dt;
+  if (started) adaptQuality(Math.min(0.5, raw));
   if (!started) { titleCam(dt); render(); return; }
 
   if (input.hit('Escape')) { ui.closePanels(); }
@@ -533,7 +556,7 @@ function frame() {
   sheriffTick(dt);
   western.autos.forEach((a, i) => { a.rotation.z = Math.sin(time * 4 + i) * (S.sheriff === 'home' ? 0.12 : 0.03); a.position.y = S.sheriff === 'home' ? Math.abs(Math.sin(time * 6 + i)) * 0.3 : 0; });
   hub.core.rotation.y += dt * 0.6; hub.core.rotation.x += dt * 0.3;
-  hub.coreLight.intensity = 35 + Math.sin(time * 2) * 10;
+  hub.core.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
 
   // --- distants
@@ -629,7 +652,7 @@ function sheriffTick(dt) {
       const k = Math.min(1, c.t / 1.6);
       sheriff.position.lerpVectors(c.from, western.pedestal, k); sheriff.position.y += Math.sin(k * Math.PI) * 8;
       sheriff.rotation.y += dt * (k < 1 ? 12 : 3);
-      u.hat[0].position.y = 3.07 + (k > 0.3 && k < 1 ? Math.sin((k - 0.3) / 0.7 * Math.PI) * 3 : 0); u.hat[1].position.y = u.hat[0].position.y + 0.23;
+      u.hat[0].position.y = 3.12 + (k > 0.3 && k < 1 ? Math.sin((k - 0.3) / 0.7 * Math.PI) * 3 : 0); u.hat[0].rotation.y += dt * (k < 1 ? 15 : 0);
       if (k >= 1 && Math.random() < 0.5) {
         const p = western.pedestal.clone().add(new THREE.Vector3((Math.random() - 0.5) * 30, 15 + Math.random() * 15, (Math.random() - 0.5) * 30));
         const col = ['#ffcc33', '#ff5a4a', '#4ab0ff', '#7ad05a'][Math.floor(Math.random() * 4)];
@@ -679,7 +702,7 @@ function titleCam(dt) {
 function render() { composer.render(); }
 
 // accès debug / tests automatisés
-window.__oct = { scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
+window.__oct = { renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

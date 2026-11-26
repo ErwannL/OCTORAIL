@@ -1,23 +1,8 @@
 import * as THREE from 'three';
+import { buildAvatarModel } from '../world/models.js';
 
-const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7, ...o });
 
-export function buildAvatar(color = '#e0703a') {
-  const g = new THREE.Group();
-  const suit = M(color), dark = M('#2a2a30'), visor = M('#111', { emissive: '#5fe0ff', emissiveIntensity: 1.2, metalness: 0.5, roughness: 0.2 });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.7, 4, 10), suit); body.position.y = 0.95; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 16, 12), M('#e8e2d6')); head.position.y = 1.75; g.add(head);
-  const vis = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 8, -0.9, 1.8, 1.0, 0.9), visor); vis.position.set(0, 1.75, 0.08); g.add(vis);
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.28), dark); pack.position.set(0, 1.05, -0.36); g.add(pack);
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), M('#fff', { emissive: '#ffd080', emissiveIntensity: 4 })); lamp.position.set(0, 1.42, -0.52); g.add(lamp);
-  const legs = [];
-  for (const x of [-0.17, 0.17]) { const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.45, 4, 8), dark); l.position.set(x, 0.35, 0); g.add(l); legs.push(l); }
-  const arms = [];
-  for (const x of [-0.5, 0.5]) { const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.5, 4, 8), suit); a.position.set(x, 1.05, 0); g.add(a); arms.push(a); }
-  g.userData = { legs, arms, body };
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return g;
-}
+export function buildAvatar(color) { return buildAvatarModel(color); }
 
 export class Player {
   constructor(scene, terrain, color) {
@@ -68,7 +53,7 @@ export class Player {
 
   animate(moving) {
     const u = this.avatar.userData, k = Math.min(1, moving / 5);
-    u.legs[0].rotation.x = Math.sin(this.walkPhase * 3) * 0.7 * k; u.legs[1].rotation.x = -u.legs[0].rotation.x;
+    u.legs[0].rotation.x = Math.sin(this.walkPhase * 3) * 0.6 * k; u.legs[1].rotation.x = -u.legs[0].rotation.x;
     u.arms[0].rotation.x = -u.legs[0].rotation.x * 0.8; u.arms[1].rotation.x = u.legs[0].rotation.x * 0.8;
     u.body.position.y = 0.95 + Math.abs(Math.sin(this.walkPhase * 3)) * 0.06 * k;
   }

@@ -109,7 +109,6 @@ export function buildSignals(scene, net, BIOMES) {
       const tex = textSprite([b.name.toUpperCase(), 'VOIE FERMÉE', 'Monde non rallumé'], { bg: '#1a1a22', fg: b.skyBot, border: b.skyTop });
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
       sign.position.set(0, 4.2, 0.4); stop.add(sign);
-      const glow = new THREE.PointLight(b.skyBot, 30, 25); glow.position.set(0, 4, 2); stop.add(glow);
       stop.position.copy(end); stop.rotation.y = ang; g.add(stop);
       // brume colorée du monde fermé au-delà
       const fogWall = new THREE.Mesh(new THREE.PlaneGeometry(90, 50), new THREE.MeshBasicMaterial({ color: b.fog, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));

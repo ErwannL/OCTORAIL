@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mulberry } from '../util/noise.js';
 import { textSprite } from './tracks.js';
 import { BIOMES, sectorIndex } from './biomes.js';
+import { cactusGeometry, buildWesternBuilding } from './models.js';
+import { Kit, G, mat, MAT, glow } from './kit.js';
 
 const M = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
 
@@ -33,7 +35,7 @@ export function buildHub(scene, interact) {
   });
   // Dôme central (capsules cryo)
   const dome = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-    new THREE.MeshPhysicalMaterial({ color: '#cfe8ff', transmission: 0.6, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0, side: THREE.DoubleSide, depthWrite: false }));
+    new THREE.MeshStandardMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.4, side: THREE.DoubleSide, depthWrite: false }));
   dome.position.y = 0.3; g.add(dome);
   for (let k = 0; k < 8; k++) {
     const a = k * Math.PI / 4 + Math.PI / 8;
@@ -42,14 +44,14 @@ export function buildHub(scene, interact) {
     // capsules
     const pod = new THREE.Group();
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1, 0.5, 16), dark); pod.add(base);
-    const glass = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.6, 6, 12), new THREE.MeshPhysicalMaterial({ color: '#9fe3ff', transparent: true, opacity: 0.35, roughness: 0.05, emissive: '#2a8fb0', emissiveIntensity: 0.6 }));
+    const glass = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, 1.6, 6, 12), new THREE.MeshStandardMaterial({ color: '#9fe3ff', transparent: true, opacity: 0.3, roughness: 0.05, emissive: '#2a8fb0', emissiveIntensity: 0.6, depthWrite: false }));
     glass.position.y = 1.5; pod.add(glass);
     pod.position.set(Math.cos(a) * 6.5, 0.4, -Math.sin(a) * 6.5); g.add(pod);
   }
   // Coeur du Moyeu : noyau lumineux
   const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), M('#ffb347', { emissive: '#ff9a2a', emissiveIntensity: 1.6, flatShading: true }));
   core.position.y = 7.5; g.add(core);
-  const coreLight = new THREE.PointLight('#ffb060', 40, 30); coreLight.position.y = 7; g.add(coreLight);
+  const coreLight = { intensity: 0 }; // pas de lumière dynamique (perf) : émissif + bloom
 
   // Constructeurs (machines des Bâtisseurs)
   const machines = {};
@@ -88,7 +90,7 @@ export function buildHub(scene, interact) {
     m.userData.slots = [];
     for (let k = 0; k < 5; k++) {
       const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 1.2, 8), brass); ped.position.set(-4 + k * 2, 1.2, 0); m.add(ped);
-      const cage = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), new THREE.MeshPhysicalMaterial({ color: '#fff', transparent: true, opacity: 0.15, roughness: 0 })); cage.position.set(-4 + k * 2, 2.5, 0); m.add(cage);
+      const cage = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), new THREE.MeshStandardMaterial({ color: '#fff', transparent: true, opacity: 0.12, roughness: 0, depthWrite: false })); cage.position.set(-4 + k * 2, 2.5, 0); m.add(cage);
       m.userData.slots.push(new THREE.Vector3(-4 + k * 2, 2.4, 0));
     }
     const tex = textSprite(['HALL DES', 'TROUVAILLES'], { bg: '#162430', fg: '#bfe9ff', border: '#5aa0c9' });
@@ -131,7 +133,14 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
   return inst;
 }
 
-function cactusGeo() {
+function firGeometry() {
+  const k = new Kit(), m = mat('#2f4b3a');
+  k.add(G.cyl(0.2, 0.3, 1.4, 6), m, { p: [0, 0.7, 0] });
+  for (let i = 0; i < 4; i++) k.add(G.cone(2 - i * 0.4, 2.2, 7), m, { p: [0, 1.6 + i * 1.3, 0], r: [0, i, 0] });
+  for (let i = 0; i < 4; i++) k.add(G.cone(1.6 - i * 0.35, 0.6, 7), m, { p: [0, 2.3 + i * 1.3, 0], s: [1, 0.6, 1] });
+  return k.geometry();
+}
+function cactusGeoOld() {
   const parts = [];
   const trunk = new THREE.CapsuleGeometry(0.45, 3.4, 4, 8); trunk.translate(0, 2.1, 0); parts.push(trunk);
   const arm1 = new THREE.CapsuleGeometry(0.3, 1.2, 4, 8); arm1.translate(0.9, 2.6, 0); parts.push(arm1);
@@ -151,7 +160,7 @@ export function mergeSimple(arr) {
 
 export function buildWestern(scene, terrain, net, interact) {
   const rnd = mulberry(99);
-  scatter(scene, terrain, net, rnd, 900, [4], cactusGeo(), M('#3f7a3a', { flatShading: true }), { shadow: true, sMin: 0.6, sMax: 1.5 });
+  scatter(scene, terrain, net, rnd, 700, [4], cactusGeometry(), M('#3f7a3a', { roughness: 0.8 }), { shadow: false, sMin: 0.6, sMax: 1.5 });
   scatter(scene, terrain, net, rnd, 700, [4], new THREE.DodecahedronGeometry(1.2, 0), M('#9a5a35', { flatShading: true }), { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.5 });
   scatter(scene, terrain, net, rnd, 260, [4], new THREE.IcosahedronGeometry(0.9, 0), M('#8a7a3a', { flatShading: true }), { sMin: 0.6, sMax: 1.4, yOff: 0.4 }); // buissons secs
 
@@ -165,15 +174,8 @@ export function buildWestern(scene, terrain, net, interact) {
   const names = ['SALOON', 'BANQUE', 'SHÉRIF', 'HÔTEL', 'FORGE', 'GARE', 'ÉPICERIE', 'BARBIER'];
   for (let k = 0; k < 8; k++) {
     const side = k % 2 ? 1 : -1, row = Math.floor(k / 2);
-    const b = new THREE.Group();
     const w = 7 + rnd() * 3, h = 5 + rnd() * 3, d = 8;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(woods[k % 5])); body.position.y = h / 2; b.add(body);
-    const front = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, h + 2.2, 0.4), M(woods[(k + 2) % 5])); front.position.set(0, (h + 2.2) / 2, d / 2); b.add(front);
-    const porch = new THREE.Mesh(new THREE.BoxGeometry(w, 0.2, 2.5), M('#5a3a1e')); porch.position.set(0, 3.2, d / 2 + 1.2); b.add(porch);
-    for (const px of [-w / 2 + 0.3, w / 2 - 0.3]) { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 0.2), M('#4a2e16')); pl.position.set(px, 1.6, d / 2 + 2.3); b.add(pl); }
-    const tex = textSprite(names[k], { w: 512, h: 128, bg: '#3a2412', fg: '#f3d9a0', border: '#d9a35a', font: 'bold 70px Georgia' });
-    const sg = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.8, w * 0.2), new THREE.MeshBasicMaterial({ map: tex })); sg.position.set(0, h + 1.2, d / 2 + 0.25); b.add(sg);
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.5, 1.4), M('#ffd27a', { emissive: '#ffb347', emissiveIntensity: 0.8 })); win.position.set(0, h * 0.55, d / 2 + 0.22); b.add(win);
+    const b = buildWesternBuilding(names[k], w, h, d, [woods[k % 5], woods[(k + 2) % 5], ['#3f6b5a', '#7a2a2a', '#2a4a7a'][k % 3]], textSprite);
     b.position.set(side * 14, 0, -26 - row * 14); b.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
     b.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     town.add(b);
@@ -192,7 +194,7 @@ export function buildWestern(scene, terrain, net, interact) {
   const autos = [];
   for (let k = 0; k < 4; k++) {
     const a = new THREE.Group();
-    const c = new THREE.Mesh(cactusGeo(), M('#4f8a3a', { flatShading: true })); a.add(c);
+    const c = new THREE.Mesh(cactusGeometry(), M('#4f8a3a', { roughness: 0.8 })); a.add(c);
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), M('#000', { emissive: '#ffe060', emissiveIntensity: 3 })); eye.position.set(0.18, 3.2, 0.4); a.add(eye);
     const eye2 = eye.clone(); eye2.position.x = -0.18; a.add(eye2);
     const piano = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 0.8), M('#2a1a10')); piano.position.set(0, 0.6, 1.4); a.add(piano);
@@ -210,15 +212,15 @@ export function buildWestern(scene, terrain, net, interact) {
 
 export function buildGelure(scene, terrain, net, interact) {
   const rnd = mulberry(55);
-  const ice = new THREE.MeshPhysicalMaterial({ color: '#bfe8ff', roughness: 0.08, metalness: 0, transmission: 0.5, transparent: true, opacity: 0.8, thickness: 2, emissive: '#3a8fc0', emissiveIntensity: 0.15, flatShading: true });
+  const ice = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.25, emissive: '#3a8fc0', emissiveIntensity: 0.3, flatShading: true });
   scatter(scene, terrain, net, rnd, 700, [5], new THREE.ConeGeometry(1.4, 8, 5), ice, { sMin: 0.5, sMax: 2.4, tilt: 0.6, yOff: 2 });
   scatter(scene, terrain, net, rnd, 500, [5], new THREE.DodecahedronGeometry(1.5, 0), M('#f2fbff', { flatShading: true, roughness: 0.6 }), { sMin: 0.5, sMax: 3, yStretch: 0.4 });
-  scatter(scene, terrain, net, rnd, 220, [5], new THREE.ConeGeometry(1.8, 7, 6), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: true, yOff: 3 }); // sapins gelés
+  scatter(scene, terrain, net, rnd, 220, [5], firGeometry(), M('#2f4b3a', { flatShading: true }), { sMin: 0.6, sMax: 1.5, shadow: false }); // sapins gelés
 
   // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5
   const e = net.edges.find(x => x.a === 'K5' && x.b === 'T5');
-  const mid = e.pts[Math.floor(e.pts.length * 0.45)];
-  const a2 = e.pts[Math.floor(e.pts.length * 0.45) + 10];
+  const mid = e.pts[Math.floor(e.pts.length * 0.33)];
+  const a2 = e.pts[Math.floor(e.pts.length * 0.33) + 10];
   const ang = Math.atan2(a2.x - mid.x, a2.z - mid.z);
   const wave = new THREE.Group();
   const shape = new THREE.Shape();
@@ -231,7 +233,7 @@ export function buildGelure(scene, terrain, net, interact) {
   const waveMat = new THREE.MeshStandardMaterial({ color: '#5fb4e0', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.88, side: THREE.DoubleSide, emissive: '#1d6a9a', emissiveIntensity: 0.35, flatShading: true });
   const w = new THREE.Mesh(geo, waveMat); wave.add(w);
   // tunnel creusé : arche sous la vague (la voie passe dedans)
-  const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 300, 24, 1, true, 0, Math.PI), new THREE.MeshPhysicalMaterial({ color: '#d8f2ff', roughness: 0.2, side: THREE.DoubleSide, emissive: '#5ab0e0', emissiveIntensity: 0.35 }));
+  const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 300, 24, 1, true, 0, Math.PI), new THREE.MeshStandardMaterial({ color: '#d8f2ff', roughness: 0.2, side: THREE.DoubleSide, emissive: '#5ab0e0', emissiveIntensity: 0.35 }));
   tunnel.rotation.z = Math.PI / 2; tunnel.position.y = 0; wave.add(tunnel);
   // écume figée (sphères)
   for (let k = 0; k < 60; k++) {

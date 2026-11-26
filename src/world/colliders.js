@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 // Collisions simples (cercles et boîtes orientées) indexées par grille. Partagé par tout le monde.
 //  - circle / box : obstacles solides. Un obstacle est ignoré par le joueur dont les pieds sont au-dessus de `top - 0.3`
 //    (on peut sauter par-dessus les petits obstacles et marcher sur ce qui est bas).
@@ -136,7 +137,34 @@ export function trainBodies(tr, out) {
   const add = (m) => {
     const q = m.quaternion, fx = 2 * (q.x * q.z + q.w * q.y), fz = 1 - 2 * (q.x * q.x + q.y * q.y);
     const yaw = Math.atan2(fx, fz), L = (m.userData.length || 6) / 2 - 0.15, hx = 1.45;
-    out.push({ t: 1, x: m.position.x, z: m.position.z, hx, hz: L, c: Math.cos(yaw), s: Math.sin(yaw), top: m.position.y + 1.25, bottom: -99, R: Math.hypot(hx, L) });
+    out.push({ m, t: 1, x: m.position.x, z: m.position.z, hx, hz: L, c: Math.cos(yaw), s: Math.sin(yaw), top: m.position.y + 1.25, bottom: -99, R: Math.hypot(hx, L) });
   };
   add(tr.loco); for (const w of tr.wagons) add(w.mesh);
+}
+
+// Carte des hauteurs réelle d'un véhicule (repère local), calculée une fois par rayons verticaux sur sa géométrie.
+const _rc = new THREE.Raycaster(), _o = new THREE.Vector3(), _d = new THREE.Vector3(0, -1, 0);
+const HCELL = 0.2;
+function heightMap(m) {
+  if (m.userData._hm) return m.userData._hm;
+  m.updateMatrixWorld(true);
+  const L = (m.userData.length || 6) / 2 + 0.6, W = 1.8, nx = Math.ceil(2 * W / HCELL) + 1, nz = Math.ceil(2 * L / HCELL) + 1;
+  const h = new Float32Array(nx * nz), targets = [];
+  m.traverse(o => { if ((o.isMesh || o.isSkinnedMesh) && o.visible && !o.userData.noCollide && !(o.material && o.material.transparent && o.material.opacity < 0.3)) targets.push(o); });
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    _o.set(-W + i * HCELL, 12, -L + j * HCELL); m.localToWorld(_o);
+    _rc.set(_o, _d); _rc.far = 14;
+    const hit = _rc.intersectObjects(targets, false)[0];
+    h[i * nz + j] = hit ? Math.max(0, m.worldToLocal(hit.point.clone()).y) : 0;
+  }
+  return (m.userData._hm = { h, nx, nz, W, L });
+}
+// hauteur (locale, au-dessus de l'origine du véhicule) du point monde (x,z), en prenant le max dans un rayon r
+export function vehicleTop(m, x, z, r = 0) {
+  const H = heightMap(m), l = m.worldToLocal(new THREE.Vector3(x, m.position.y, z));
+  const i0 = Math.floor((l.x - r + H.W) / HCELL), i1 = Math.ceil((l.x + r + H.W) / HCELL), j0 = Math.floor((l.z - r + H.L) / HCELL), j1 = Math.ceil((l.z + r + H.L) / HCELL);
+  let top = -1;
+  for (let i = Math.max(0, i0); i <= Math.min(H.nx - 1, i1); i++) for (let j = Math.max(0, j0); j <= Math.min(H.nz - 1, j1); j++) { const v = H.h[i * H.nz + j]; if (v > top) top = v; }
+  return top > 0.05 ? top : null;
 }

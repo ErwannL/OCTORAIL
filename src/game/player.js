@@ -1,3 +1,4 @@
+import { vehicleTop } from '../world/colliders.js';
 import * as THREE from 'three';
 import { buildAvatarModel } from '../world/models.js';
 import { COLLIDERS } from '../world/colliders.js';
@@ -138,6 +139,7 @@ export class Player {
   trainHit(x, z, feet) {
     const bodies = COLLIDERS._bodies();
     for (const c of bodies) {
+      if (c.m) { if (Math.hypot(x - c.x, z - c.z) > c.R + 1) continue; const top = vehicleTop(c.m, x, z, RAD); if (top !== null && c.m.position.y + top > feet + STEP) return true; continue; }
       if (feet > c.top - 0.3) continue;
       if (c.t === 0) { if (Math.hypot(x - c.x, z - c.z) < c.r + RAD) return true; continue; }
       const dx = x - c.x, dz = z - c.z, lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c;

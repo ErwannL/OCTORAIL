@@ -319,3 +319,41 @@ export function buildSignals(scene, net, BIOMES) {
   };
   return { group: g, lamps, update };
 }
+
+// ---------------------------------------------------------------- ouvrages d'art
+// Partout où la voie passe au-dessus du terrain plus bas que son talus de ballast (2,2 m), on bâtit un viaduc :
+// piles de pierre jusqu'au sol (fondation enterrée) + chaperon ; aux terminus, un talus en pente douce et un butoir.
+export function buildTrestles(scene, net, terrain) {
+  const k = new Kit(), stone = mat('#7d7366', { roughness: 0.95, flatShading: true }), cap = mat('#5f574d', { roughness: 0.9, flatShading: true }),
+    earth = mat('#5a5048', { roughness: 1, flatShading: true }), steel = mat('#3a3633', { metalness: 0.6, roughness: 0.5 }), red = mat('#b2332a', { roughness: 0.6 });
+  let piers = 0;
+  const lowest = (x, z, ang) => { let m = 1e9; for (const s of [-3, 0, 3]) for (const f of [-1.2, 1.2]) m = Math.min(m, terrain.heightAt(x + Math.cos(ang) * s + Math.sin(ang) * f, z - Math.sin(ang) * s + Math.cos(ang) * f)); return m; };
+  for (const e of net.edges) {
+    const n = e.pts.length, every = Math.max(1, Math.round(9 / e.step));
+    for (let i = 2; i < n - 2; i += every) {
+      const p = e.pts[i], t = e.tan[i], ang = Math.atan2(t.x, t.z), g = lowest(p.x, p.z, ang), bot = p.y - 2.1, gap = bot - g;
+      if (gap < 0.25) continue;
+      const h = gap + 1.5, yc = g - 1.5 + h / 2;
+      k.add(G.box(6.4, h, 1.9), stone, { p: [p.x, yc, p.z], r: [0, ang, 0] });
+      k.add(G.box(6.9, 0.35, 2.3), cap, { p: [p.x, bot + 0.05, p.z], r: [0, ang, 0] });
+      if (gap > 3) k.add(G.box(7.2, 0.5, 2.6), cap, { p: [p.x, g + 0.2, p.z], r: [0, ang, 0] }); // empattement
+      piers++;
+    }
+  }
+  // terminus : talus de fin de voie (rampe) + butoir
+  for (const nd of net.nodes ? (net.nodes instanceof Map ? [...net.nodes.values()] : Object.values(net.nodes)) : []) {
+    if (nd.kind !== 'terminus') continue;
+    const e = net.edges.find(x => x.a === nd.id || x.b === nd.id || x.a === nd.name || x.b === nd.name); if (!e) continue;
+    const atB = e.b === (nd.id ?? nd.name), end = atB ? e.pts[e.pts.length - 1] : e.pts[0], prev = atB ? e.pts[e.pts.length - 4] : e.pts[3];
+    const ang = Math.atan2(end.x - prev.x, end.z - prev.z), fx = Math.sin(ang), fz = Math.cos(ang);
+    for (let s = 0; s < 6; s++) { const d = 0.8 + s * 1.2, w = 6.8 - s * 0.5, hgt = 2.4 - s * 0.38, gx = end.x + fx * d, gz = end.z + fz * d;
+      k.add(G.box(w, hgt + 1.5, 1.3), earth, { p: [gx, end.y - 2.2 + hgt / 2 - 0.75 + 0.2, gz], r: [0, ang, 0] }); }
+    const bx = end.x - fx * 0.4, bz = end.z - fz * 0.4;
+    for (const sx of [-1.3, 1.3]) k.add(G.box(0.3, 1.5, 0.35), steel, { p: [bx + Math.cos(ang) * sx, end.y + 0.75, bz - Math.sin(ang) * sx], r: [0, ang, 0] });
+    k.add(G.box(3, 0.45, 0.4), red, { p: [bx, end.y + 1.25, bz], r: [0, ang, 0] });
+    COLLIDERS.box(bx, bz, 1.6, 0.3, ang, end.y + 1.5, -99, false);
+  }
+  const m = k.build(); m.userData.solidFill = false; scene.add(m);
+  console.log('Viaducs : piles', piers);
+  return m;
+}

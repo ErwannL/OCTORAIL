@@ -9,7 +9,7 @@ import { EnvLighting, GradeShader, buildGrass, buildBirds, buildFlags, buildLamp
 import { BIOMES, ambianceAt, sectorIndex } from './world/biomes.js';
 import { Network } from './world/network.js';
 import { Terrain, rawHeight } from './world/terrain.js';
-import { buildTracks, buildSignals } from './world/tracks.js';
+import { buildTracks, buildSignals, buildTrestles } from './world/tracks.js';
 import { buildSky } from './world/sky.js';
 import { buildWestern, buildGelure } from './world/props.js';
 import { buildHub } from './world/hub.js';
@@ -25,7 +25,7 @@ import { UI } from './ui/ui.js';
 import { Net } from './net/net.js';
 import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
 import { Compass, PHENO_INFO } from './ui/compass.js';
-import { COLLIDERS, trainBodies } from './world/colliders.js';
+import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
 import { Footprints } from './game/footprints.js';
@@ -130,7 +130,7 @@ const hub = buildHub(scene, interact);
 const western = buildWestern(scene, terrain, net, interact);
 const gelure = buildGelure(scene, terrain, net, interact);
 buildClosedWorlds(scene, terrain, net);
-buildTrackside(scene, net, terrain);
+buildTrackside(scene, net, terrain); buildTrestles(scene, net, terrain);
 const westDecor = buildWesternDecor(scene, terrain, net);
 const gelDecor = buildGelureDecor(scene, terrain, net);
 buildGrass(scene, terrain, net, Q.grass);
@@ -250,17 +250,28 @@ const stats = { dist: 0, t0: performance.now(), bumps: 0 }; let bumpCd = 0;
 let camZoom = 6.5, hintT = 0, oxyWarned = false;
 const OXY_R = 40; // bulle d'oxygène autour du train
 // Bulles visibles autour du train : chaleur (orange, intérieure) dans oxygène (bleue, extérieure)
+function shieldMat(c1, c2, hx, hy, k = 1) {
+  return new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    uniforms: { time: { value: 0 }, k: { value: k } },
+    vertexShader: `varying vec3 vN; varying vec3 vW; varying vec3 vP; void main(){ vP = position; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `uniform float time; uniform float k; varying vec3 vN; varying vec3 vW; varying vec3 vP;
+      void main(){ vec3 V = normalize(cameraPosition - vW); float f = pow(1. - abs(dot(V, vN)), 2.6);
+        vec2 h = vec2(atan(vP.z, vP.x) * ${hx.toFixed(2)}, vP.y * ${hy.toFixed(2)}); vec2 g = abs(fract(h + vec2(0., fract(floor(h.x) * .5))) - .5);
+        float hex = smoothstep(.46, .5, max(g.x, g.y)); float band = smoothstep(.9, 1., sin(vP.y / length(vP) * 12. - time * 1.4) * .5 + .5);
+        float a = f * .55 + hex * (.05 + f * .25) + band * .08; a *= smoothstep(-.3, .1, vP.y / length(vP));
+        gl_FragColor = vec4(mix(${c1}, ${c2}, band), a * k); }` });
+}
 const bubbles = (() => {
-  const mk = (c, o) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending })); m.userData.noCollide = true; m.userData.noCull = true; m.renderOrder = 3; scene.add(m); return m; };
-  const heat = mk('#ff8a3a', 0.07), oxy = mk('#5fd0ff', 0.05);
+  const mk = (mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat); m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; m.renderOrder = 3; scene.add(m); return m; };
+  const heat = mk(shieldMat('vec3(1.,.45,.15)', 'vec3(1.,.8,.4)', 24., 6., .8)), oxy = mk(shieldMat('vec3(.35,.85,1.)', 'vec3(.7,1.,.9)', 32., 8., 1.));
   return { update(tr, pl, hr, or, t) {
     const c = new THREE.Vector3(); let n = 0; for (const m of [tr.loco, ...tr.wagons.map(w => w.mesh)]) { c.add(m.position); n++; } c.divideScalar(n);
-    const show = pl.mode === 'foot' && Math.hypot(pl.pos.x, pl.pos.z) > 95 && pl.pos.distanceTo(c) < or + 25;
+    const show = pl.mode === 'foot' && pl.pos.distanceTo(c) < or + 60;
     heat.visible = oxy.visible = show; if (!show) return;
     const half = tr.totalLength / 2;
     heat.position.copy(tr.loco.position); heat.scale.set(hr, hr * 0.55, hr);
     oxy.position.copy(c); oxy.scale.set(or + half * 0.3, (or + half * 0.3) * 0.5, or + half * 0.3);
-    heat.material.opacity = 0.05 + Math.sin(t * 2) * 0.015; oxy.material.opacity = 0.035 + Math.sin(t * 1.3) * 0.01;
+    heat.material.uniforms.time.value = oxy.material.uniforms.time.value = t % 1000;
   } };
 })();
 function renderHints() {
@@ -323,7 +334,7 @@ function start() {
   // spawn à côté des capsules
   // chaque passager a SA capsule cryo (une par joueur) : il y apparaît puis en est expulsé
   const pa = (me.slot % 8) * Math.PI / 4 + Math.PI / 8; player.pos.set(Math.cos(pa) * 6.6, 0.85, -Math.sin(pa) * 6.6); camInit = false;
-  player.eject = { t: 0, a: pa }; player.yaw = Math.atan2(-Math.cos(pa), Math.sin(pa)) + Math.PI; // dos à la capsule
+  player.eject = { t: 0, a: pa }; setTimeout(() => { for (const m of [train.loco, ...train.wagons.map(w => w.mesh)]) vehicleTop(m, m.position.x, m.position.z); }, 300); player.yaw = Math.atan2(-Math.cos(pa), Math.sin(pa)) + Math.PI; // dos à la capsule
   player.yaw = Math.PI / 2; // regarde vers l'Ouest (quai de la draisine)
   if (!S.introDone) intro(); else { ui.toast('Bon retour sur Halcyre.', true); ui.objective(STAGES[S.stage].text); }
   refreshFinds(); refreshResources(); placeSheriff();
@@ -345,15 +356,7 @@ function wagonList() {
 
 // ------------------------------------------------------------------ Bulle du Moyeu (champ d'air respirable, visible)
 const hubBubble = (() => {
-  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-    uniforms: { time: { value: 0 } },
-    vertexShader: `varying vec3 vN; varying vec3 vW; varying vec3 vP; void main(){ vP = position; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `uniform float time; varying vec3 vN; varying vec3 vW; varying vec3 vP;
-      void main(){ vec3 V = normalize(cameraPosition - vW); float f = pow(1. - abs(dot(V, vN)), 2.6);
-        vec2 h = vec2(atan(vP.z, vP.x) * 40., vP.y * .45); vec2 g = abs(fract(h + vec2(0., fract(floor(h.x) * .5))) - .5);
-        float hex = smoothstep(.46, .5, max(g.x, g.y)); float band = smoothstep(.9, 1., sin(vP.y * .08 - time * 1.4) * .5 + .5);
-        float a = f * .55 + hex * (.05 + f * .25) + band * .08; a *= smoothstep(-2., 6., vP.y);
-        gl_FragColor = vec4(mix(vec3(.45,.8,1.), vec3(1.,.85,.5), band), a); }` });
+  const mat = shieldMat('vec3(.45,.8,1.)', 'vec3(1.,.85,.5)', 40., .45);
   const m = new THREE.Mesh(new THREE.SphereGeometry(95, 96, 48, 0, Math.PI * 2, 0, Math.PI * 0.62), mat);
   m.position.y = -12; m.renderOrder = 5; m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; scene.add(m); return m;
 })();
@@ -377,7 +380,7 @@ function makeNameTag(name, color) {
 function updatePlayersList() { ui.players([{ name: me.name, color: me.color }, ...[...remotes.values()].map(r => ({ name: r.name, color: r.color }))]); }
 netc.on('join', m => addRemote(m.id, m));
 // TAB : tableau des passagers (stats en direct)
-const tabEl = document.createElement('div'); tabEl.id = 'tabboard'; tabEl.className = 'hidden'; document.getElementById('hud').appendChild(tabEl);
+const tabEl = document.createElement('div'); tabEl.id = 'tabboard'; tabEl.className = 'panel hidden'; document.getElementById('hud').appendChild(tabEl);
 function renderTab() {
   const modeTxt = m => m === 'cab' ? '🚂 conduit' : m === 'ride' ? '🪑 passager' : '🚶 à pied';
   const row = (name, color, slot, st, m, ping) => `<tr><td><i style="background:${color}"></i>${name}</td><td>${(slot ?? 0) + 1}</td><td>${st?.h ? 'Le Moyeu' : (st?.w || '—')}</td><td>${modeTxt(m)}</td><td>${st?.o2 ?? '—'}%</td><td>${st?.tp ?? '—'}%</td><td>${((st?.d || 0) / 1000).toFixed(2)} km</td><td>${st?.b ?? 0}</td><td>${ping}</td></tr>`;
@@ -385,10 +388,19 @@ function renderTab() {
   const mins = Math.floor((performance.now() - stats.t0) / 60000);
   tabEl.innerHTML = `<h3>PASSAGERS DE L'OCTAVE <small>${1 + remotes.size}/8 · session ${mins} min · ${S.credits | 0} crédits</small></h3><table><tr><th>Nom</th><th>Gare</th><th>Monde</th><th>État</th><th>O₂</th><th>Chaleur</th><th>Distance</th><th>Tampons</th><th></th></tr>`
     + row(me.name + ' (toi)', me.color, me.slot, mine, player.mode, '')
-    + [...remotes.values()].map(r => row(r.name, r.color, r.slot, r.state?.st, r.state?.m, r.state ? '' : '⏳')).join('') + '</table>';
+    + [...remotes.values()].map(r => row(r.name, r.color, r.slot, r.state?.st, r.state?.m, r.state ? '' : '⏳')).join('') + '</table><button class="close">Fermer [Tab / Échap]</button>';
 }
-addEventListener('keydown', e => { if (e.code === 'Tab' && started) { e.preventDefault(); if (tabEl.classList.contains('hidden')) { tabEl.classList.remove('hidden'); renderTab(); tabEl._iv = setInterval(renderTab, 300); } } });
-addEventListener('keyup', e => { if (e.code === 'Tab') { tabEl.classList.add('hidden'); clearInterval(tabEl._iv); } });
+// TAB ouvre/ferme une vraie fenêtre (comme le menu Échap) ; Échap ou TAB la referme
+function tabOpen(on) {
+  tabEl.classList.toggle('hidden', !on); clearInterval(tabEl._iv);
+  if (on) { renderTab(); tabEl._iv = setInterval(renderTab, 300); if (document.pointerLockElement) document.exitPointerLock(); audio.ui?.(); }
+}
+addEventListener('keydown', e => {
+  if (!started) return;
+  if (e.code === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); tabOpen(tabEl.classList.contains('hidden')); }
+  else if (e.code === 'Escape' && !tabEl.classList.contains('hidden')) { e.preventDefault(); e.stopImmediatePropagation(); tabOpen(false); }
+}, true);
+tabEl.addEventListener('click', e => { if (e.target.classList.contains('close')) tabOpen(false); });
 netc.on('leave', m => { const r = remotes.get(m.id); if (!r) return; scene.remove(r.avatar); r.train.dispose(); remotes.delete(m.id); ui.toast(`${r.name} est parti`); updatePlayersList(); });
 netc.on('state', m => { const r = remotes.get(m.id); if (r) r.state = m.s; });
 netc.on('shared', m => {
@@ -805,7 +817,7 @@ function frame() {
   if (ui.panel === 'map') drawMap();
   if (input.ah('interact') && ui.dialogOpen) { ui.advance(); input.consume('interact'); }
   if (input.hit('Mouse0') && ui.dialogOpen && input.mouse.locked) ui.advance();
-  const busy = ui.dialogOpen || ui.panel || cinematic;
+  const busy = ui.dialogOpen || ui.panel || cinematic || !tabEl.classList.contains('hidden');
 
   // molette : zoom ; tout près -> 1re personne ; V : bascule
   if (!busy && input.wheel) {
@@ -1009,8 +1021,8 @@ function frame() {
 function trainDeckCollider(x, z) {
   // on peut monter sur les wagons
   for (const m of [train.loco, ...train.wagons.map(w => w.mesh)]) {
-    const l = m.worldToLocal(new THREE.Vector3(x, m.position.y, z));
-    if (Math.abs(l.x) < 1.3 && Math.abs(l.z) < (m.userData.length || 6) / 2) return m.position.y + 1.25;
+    if (Math.hypot(x - m.position.x, z - m.position.z) > (m.userData.length || 6)) continue;
+    const top = vehicleTop(m, x, z, 0); if (top !== null) return m.position.y + top; // vraie surface (plancher, toit, chaudière)
   }
   return null;
 }

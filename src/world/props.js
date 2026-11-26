@@ -58,11 +58,11 @@ export function mergeSimple(arr) {
 
 export function buildWestern(scene, terrain, net, interact) {
   const rnd = mulberry(99);
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 150, [4], saguaroGeometry(v), FLORA_MAT, { shadow: true, sMin: 0.7, sMax: 1.6, collide: 0.6 });
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], pricklyPearGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.4, collide: 0.7, collideTop: 1.6 });
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], barrelCactusGeometry(v), FLORA_MAT, { sMin: 0.6, sMax: 1.3, collide: 0.6, collideTop: 1.0 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 90, [4], saguaroGeometry(v), FLORA_MAT, { shadow: true, sMin: 0.7, sMax: 1.6, collide: 0.6 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], pricklyPearGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.4, collide: 0.7, collideTop: 1.6 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], barrelCactusGeometry(v), FLORA_MAT, { sMin: 0.6, sMax: 1.3, collide: 0.6, collideTop: 1.0 });
   for (let v = 0; v < 4; v++) scatter(scene, terrain, net, rnd, 110, [4], rockShapeGeometry(v + 20, 'strata'), FLORA_MAT, { sMin: 0.4, sMax: 2.6, yStretch: 0.6, tilt: 0.25, yOff: 0.3, collide: 0.9, collideTop: 0.7, shadow: v === 0 });
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [4], sageGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.5 }); // armoises et buissons secs
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 45, [4], sageGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.5 }); // armoises et buissons secs
   for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 7, [4], mesaGeometry(v + 1), FLORA_MAT, { rMin: 200, sMin: 1.5, sMax: 3.8, yOff: 4.2, collide: 3.6, collideTop: 9, shadow: true }); // buttes stratifiées
 
   // Ville : Poussière-sur-Rail, au terminus Ouest
@@ -130,9 +130,12 @@ export function buildWestern(scene, terrain, net, interact) {
   for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + PI / 6, x = Math.cos(a) * 3.5, z = PZ + Math.sin(a) * 3.5; pk.add(G.cyl(0.18, 0.22, 3.2, 10), mrb, { p: [x, 2.0, z] }); pk.add(G.box(0.55, 0.2, 0.55), mrb, { p: [x, 3.7, z] }); pk.add(G.sph(0.2, 8, 6), glow('#ffe9a0', 2), { p: [x, 3.95, z] }); }
   pk.add(G.tor(3.5, 0.08, 5, 36), brs, { p: [0, 3.55, PZ], r: [H, 0, 0] });
   for (const sx of [-1, 1]) for (const sz of [0, 1]) pk.add(G.box(0.1, 0.5, 0.1), gold, { p: [sx * 1.0, 1.5, PZ + (sz ? 1.0 : -1.0)] });
-  town.add(pk.build());
+  pk.add(G.cyl(4.7, 6.5, 8, 24), mat('#8a7a62', { roughness: 1 }), { p: [0, -3.9, PZ] }); // fondation : le terrain monte derrière le terminus
+  town.updateMatrixWorld(true);
+  const pedY = terrain.heightAt(...(() => { const v = town.localToWorld(new THREE.Vector3(0, 0, PZ)); return [v.x, v.z]; })()) - town.position.y;
+  const pedG = pk.build(); pedG.position.y = Math.max(0, pedY); town.add(pedG);
   const pTex = textSprite(['ICI SE TENAIT', 'SHÉRIF-7', 'gardien de Poussière'], { bg: '#3a2412', fg: '#f3d9a0', border: '#d9a35a' });
-  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.7), new THREE.MeshBasicMaterial({ map: pTex })); plaque.position.set(0, 2.2, 15.3); plaque.rotation.y = Math.PI; town.add(plaque);
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.7), new THREE.MeshBasicMaterial({ map: pTex })); plaque.position.set(0, 2.2 + Math.max(0, pedY), 15.3); plaque.rotation.y = Math.PI; town.add(plaque);
   // Cactus-automates pianistes : cactus à bras articulés, laiton, yeux, piano droit avec clavier et tabouret
   const autoGeo = (() => { const k = new Kit(), cg = mat('#4f8a3a', { roughness: 0.8 }), rv = mat('#2a1a10', { roughness: 0.6 });
     const ribbed = (r, hh, seg = 5) => { const gg = new THREE.CylinderGeometry(r, r * 1.05, hh, seg * 2, 2); const p = gg.attributes.position; for (let i = 0; i < p.count; i++) { const an = Math.atan2(p.getZ(i), p.getX(i)); const f = 1 + 0.08 * Math.cos(an * seg); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); } gg.computeVertexNormals(); return gg; };
@@ -175,7 +178,7 @@ export function buildWestern(scene, terrain, net, interact) {
   { const v = town.localToWorld(new THREE.Vector3(2.0, 0, -22)); COLLIDERS.circle(v.x, v.z, 1.1, terrain.heightAt(v.x, v.z) + 1.0); }
   { const v = town.localToWorld(new THREE.Vector3(-7.8, 0, -70)); COLLIDERS.circle(v.x, v.z, 1.4, terrain.heightAt(v.x, v.z) + 1.9); }
   for (const x of [-5.6, 5.6]) { const v = town.localToWorld(new THREE.Vector3(x, 0, -100)); COLLIDERS.circle(v.x, v.z, 0.5); }
-  const pedWorld = town.localToWorld(new THREE.Vector3(0, 1.2, 18));
+  const pedWorld = town.localToWorld(new THREE.Vector3(0, 1.2 + Math.max(0, pedY), 18));
   interact.add({ id: 'pedestal', pos: pedWorld, r: 7, label: 'Piédestal du gardien' });
   return { town, autos, pedestal: pedWorld };
 }
@@ -183,9 +186,9 @@ export function buildWestern(scene, terrain, net, interact) {
 export function buildGelure(scene, terrain, net, interact) {
   const rnd = mulberry(55);
   const ice = new THREE.MeshStandardMaterial({ color: '#a9dcf5', roughness: 0.15, metalness: 0.25, emissive: '#3a8fc0', emissiveIntensity: 0.3, flatShading: true });
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 150, [5], iceCrystalGeometry(v + 1), ice, { sMin: 0.5, sMax: 2.2, tilt: 0.2, yOff: -0.3, collide: 1.0, collideTop: 5 });
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 90, [5], iceCrystalGeometry(v + 1), ice, { sMin: 0.5, sMax: 2.2, tilt: 0.2, yOff: -0.3, collide: 1.0, collideTop: 5 });
   for (let v = 0; v < 4; v++) scatter(scene, terrain, net, rnd, 110, [5], rockShapeGeometry(v + 40, 'snow'), FLORA_MAT, { sMin: 0.6, sMax: 3, yStretch: 0.4, yOff: 0.3, collide: 1.2, collideTop: 0.8, shadow: v === 0 });
-  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 70, [5], pineGeometry(v), FLORA_MAT, { sMin: 0.5, sMax: 1.1, shadow: false, collide: 0.5, collideTop: 5 }); // sapins gelés
+  for (let v = 0; v < 3; v++) scatter(scene, terrain, net, rnd, 55, [5], pineGeometry(v), FLORA_MAT, { sMin: 0.5, sMax: 1.1, shadow: false, collide: 0.5, collideTop: 5 }); // sapins gelés
   for (let v = 0; v < 2; v++) scatter(scene, terrain, net, rnd, 110, [5], snowShrubGeometry(v), FLORA_MAT, { sMin: 0.7, sMax: 1.6 });
 
   // LE TSUNAMI GELÉ : vague géante enjambant la voie K5 -> T5 (voir tsunami.js)

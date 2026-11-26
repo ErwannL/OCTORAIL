@@ -146,8 +146,8 @@ export function joshuaGeometry(variant = 0) {
   for (let i = 0; i < 4; i++) b.add(new THREE.CylinderGeometry(0.34 - i * 0.03, 0.36 - i * 0.03, 0.12, 7), bark2, { p: [0.1 * (i % 2), 0.6 + i * 0.6, 0.03] });
   const arms = [[[0.05, 2.7, 0], [0.8, 3.3, 0.2], [1.3, 4.1, 0.1]], [[0.0, 2.5, 0], [-0.9, 3.2, -0.3], [-1.2, 4.0, -0.5]], [[0.05, 2.8, 0], [0.2, 3.6, 0.8], [0.1, 4.5, 1.2]]].slice(0, [3, 2, 3][variant]);
   if (variant === 1) arms.push([[0.0, 2.9, 0], [0.3, 3.9, -0.2], [0.55, 5.0, -0.1]]);
-  arms.forEach((a, i) => { const pts = a.map(p => V(...p)); b.add(ptube(pts, 0.2, 0.13, 4, 6), bark, { jit: 0.1 }); ros(pts[2].clone().add(V(0, 0.15, 0)), 26, 1.7); if (i === 0 && variant !== 2) { const q = pts[1].clone().add(V(0.5, 0.7, 0.2)); b.add(ptube([pts[1], q], 0.1, 0.07, 2, 5), bark); ros(q.add(V(0, 0.1, 0)), 20, 1.3); } });
-  ros(V(0.05, 2.95, 0), 20, 1.3);
+  arms.forEach((a, i) => { const pts = a.map(p => V(...p)); b.add(ptube(pts, 0.2, 0.13, 4, 6), bark, { jit: 0.1 }); ros(pts[2].clone().add(V(0, 0.15, 0)), 17, 1.7); if (i === 0 && variant !== 2) { const q = pts[1].clone().add(V(0.5, 0.7, 0.2)); b.add(ptube([pts[1], q], 0.1, 0.07, 2, 5), bark); ros(q.add(V(0, 0.1, 0)), 13, 1.3); } });
+  ros(V(0.05, 2.95, 0), 13, 1.3);
   const geo = b.build(); geo.userData = { trunkR: 0.4 }; return geo;
 }
 
@@ -176,19 +176,19 @@ export function saguaroGeometry(variant = 0) {
 }
 export function pricklyPearGeometry(variant = 0) {
   const b = new Bits(500 + variant), rnd = mulberry(2100 + variant * 11);
-  const pad = (p, rz, ry, sc, c) => { b.add(blob(0.55, 1, rnd() * 99, 0.08, 1, 1.25, 0.2), c, { p, r: [0, ry, rz], s: [sc, sc, sc * 1.6], jit: 0.08, grad: 0.3 }); b.add(blob(0.07, 0, 1, 0.1), '#c0306a', { p: [p[0] + Math.sin(rz) * -0.5 * sc, p[1] + 0.55 * sc, p[2] + 0.12] }); };
+  const pad = (p, rz, ry, sc, c) => { b.add(blob(0.55, rnd() < 0 ? 1 : 0, rnd() * 99, 0.08, 1, 1.25, 0.2), c, { p, r: [0, ry, rz], s: [sc, sc, sc * 1.6], jit: 0.08, grad: 0.3 }); b.add(blob(0.07, 0, 1, 0.1), '#c0306a', { p: [p[0] + Math.sin(rz) * -0.5 * sc, p[1] + 0.55 * sc, p[2] + 0.12] }); };
   const c1 = '#5a8f4a', c2 = '#6aa05a', c3 = '#4f8040';
   pad([0, 0.55, 0], 0.05, 0, 1.0, c1);
   pad([-0.35, 1.25, 0.05], 0.5, 0.2, 0.85, c2); pad([0.38, 1.25, -0.05], -0.45, -0.2, 0.9, c3);
   if (variant > 0) pad([0.85, 0.75, 0.1], -1.1, 0.4, 0.75, c2);
   if (variant === 2) pad([-0.8, 0.7, -0.1], 1.1, -0.3, 0.7, c3);
-  pad([-0.65, 1.95, 0.1], 0.3, 0.1, 0.65, c2); pad([0.7, 1.95, -0.05], -0.35, 0.3, 0.6, c1);
+  if (variant > 0) { pad([-0.65, 1.95, 0.1], 0.3, 0.1, 0.65, c2); pad([0.7, 1.95, -0.05], -0.35, 0.3, 0.6, c1); }
   const geo = b.build(); geo.userData = { trunkR: 0.8 }; return geo;
 }
 export function barrelCactusGeometry(variant = 0) {
   const b = new Bits(600 + variant), rnd = mulberry(2300 + variant);
-  const g = new THREE.SphereGeometry(0.6, 20, 7), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)), f = 1 + 0.1 * Math.cos(a * 10); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); }
+  const g = new THREE.SphereGeometry(0.6, 14, 5), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const a = Math.atan2(p.getZ(i), p.getX(i)), f = 1 + 0.1 * Math.cos(a * 7); p.setX(i, p.getX(i) * f); p.setZ(i, p.getZ(i) * f); }
   b.add(g, ['#5f9a4a', '#6aa050', '#4f8a40'][variant], { p: [0, 0.55, 0], s: [1, 0.95 + variant * 0.25, 1], jit: 0.1, grad: 0.4 });
   for (let i = 0; i < 7; i++) { const a = i / 7 * PI * 2; b.add(blob(0.09, 0, i, 0.2, 1, 0.6, 1), ['#ffcf3a', '#ff8a3a', '#ffe070'][variant], { p: [Math.cos(a) * 0.2, 1.1 + variant * 0.25, Math.sin(a) * 0.2] }); }
   b.add(blob(0.12, 0, 9, 0.2), '#ffe9a0', { p: [0, 1.15 + variant * 0.25, 0] });
@@ -200,7 +200,7 @@ export function sageGeometry(variant = 0) {
   const b = new Bits(700 + variant), rnd = mulberry(2500 + variant * 19);
   if (variant < 2) { // armoise : agrégat de touffes gris-vert
     const pal = variant ? ['#7a8a66', '#8e9a74', '#6a7a58'] : ['#8a9470', '#a0a67a', '#76845f', '#9aa070'];
-    for (let i = 0; i < 6; i++) { const a = rnd() * 6.28, d = rnd() * 0.55; b.add(blob(0.38 + rnd() * 0.25, 1, i + variant * 7, 0.3, 1.1, 0.8, 1.1), pickC(rnd, pal), { p: [Math.cos(a) * d, 0.3 + rnd() * 0.25, Math.sin(a) * d], grad: 0.5, jit: 0.1 }); }
+    for (let i = 0; i < 4; i++) { const a = rnd() * 6.28, d = rnd() * 0.55; b.add(blob(0.45 + rnd() * 0.3, 1, i + variant * 7, 0.3, 1.1, 0.8, 1.1), pickC(rnd, pal), { p: [Math.cos(a) * d, 0.3 + rnd() * 0.25, Math.sin(a) * d], grad: 0.5, jit: 0.1 }); }
     for (let i = 0; i < 5; i++) { const a = rnd() * 6.28, d = rnd() * 0.5; b.add(spike(0.025, 0.7, 3), '#b8a070', { p: [Math.cos(a) * d, 0.35, Math.sin(a) * d], r: [(rnd() - 0.5) * 0.6, 0, (rnd() - 0.5) * 0.6] }); }
   } else { // buisson épineux sec : branchettes enchevêtrées
     for (let i = 0; i < 22; i++) { const az = rnd() * 6.28, lean = 0.2 + rnd() * 1.0; b.add(spike(0.03, 0.8 + rnd() * 0.7, 3), pickC(rnd, ['#8a6a3a', '#a08050', '#6a4e2c']), { p: [0, 0.05, 0], q: dirQ(V(Math.sin(lean) * Math.cos(az), Math.cos(lean), Math.sin(lean) * Math.sin(az))), jit: 0.1 }); }
@@ -312,8 +312,8 @@ export function pineGeometry(variant = 0) {
     b.add(spike(0.18, 1.6, 5), '#264338', { p: [0, 12.8, 0] }); crownR = 1.8; top = 14;
   } else { // pin sylvestre : haut tronc roux, couronnes en plateaux
     b.add(ptube([[0, 0, 0], [0.3, 3, 0.1], [-0.1, 6, 0.2], [0.2, 8, 0]].map(p => V(...p)), 0.34, 0.16, 5, 7), '#7a4a32', { jit: 0.1, grad: 0.3 });
-    const tops = [[0.25, 8.2, 0, 2.4], [-1.4, 6.8, 0.8, 1.9], [1.5, 6.2, -0.7, 1.8], [0.2, 9.4, 0.3, 1.5], [-0.3, 5.6, -1.3, 1.5]];
-    tops.forEach(([x, y, z, r], k) => { b.add(blob(r, 1, k + 3, 0.28, 1.3, 0.42, 1.3), pickC(rnd, greens), { p: [x, y, z], grad: 0.4 }); b.add(blob(r * 0.85, 1, k + 9, 0.25, 1.25, 0.28, 1.25), snow, { p: [x, y + r * 0.22, z], jit: 0.03 }); });
+    const tops = [[0.25, 8.2, 0, 2.4], [-1.4, 6.8, 0.8, 1.9], [1.5, 6.2, -0.7, 1.8], [0.2, 9.4, 0.3, 1.5]];
+    tops.forEach(([x, y, z, r], k) => { b.add(blob(r, 1, k + 3, 0.28, 1.3, 0.42, 1.3), pickC(rnd, greens), { p: [x, y, z], grad: 0.4 }); b.add(blob(r * 0.85, 0, k + 9, 0.25, 1.25, 0.28, 1.25), snow, { p: [x, y + r * 0.22, z], jit: 0.03 }); });
     for (const [x, y, z] of [[1.0, 5.2, 0], [-0.4, 6.0, 0.6]]) b.add(ptube([V(0.1, y - 0.8, 0), V(x, y, z)], 0.09, 0.05, 2, 4), '#7a4a32');
     crownR = 3; top = 10.4;
   }
@@ -322,15 +322,15 @@ export function pineGeometry(variant = 0) {
 export function birchGeometry(variant = 0) {
   const b = new Bits(1100 + variant), rnd = mulberry(3500 + variant * 29);
   const tr = [[0, 0, 0], [0.1 * (variant - 1), 2.2, 0.1], [-0.12, 4.4, -0.05], [0.1 * variant, 6.2, 0.05]].map(p => V(...p));
-  b.add(ptube(tr, 0.2, 0.08, 6, 6), '#ece8de', { jit: 0.05, grad: 0.1 });
-  for (let i = 0; i < 9; i++) { const y = 0.4 + i * 0.62, at = tr[Math.min(3, Math.floor(y / 2.1))]; b.add(new THREE.BoxGeometry(0.1 + rnd() * 0.12, 0.05, 0.06), '#2a2a2e', { p: [at.x + (rnd() - 0.5) * 0.06, y, at.z + 0.17 - y * 0.012], r: [0, rnd() * 6, 0] }); }
-  const frost = ['#dff3ff', '#bfe3f5', '#f4fbff', '#cfeaf7'], nb = 6 + variant;
+  b.add(ptube(tr, 0.2, 0.08, 5, 5), '#ece8de', { jit: 0.05, grad: 0.1 });
+  for (let i = 0; i < 6; i++) { const y = 0.5 + i * 0.9, at = tr[Math.min(3, Math.floor(y / 2.1))]; b.add(new THREE.BoxGeometry(0.1 + rnd() * 0.12, 0.05, 0.06), '#2a2a2e', { p: [at.x + (rnd() - 0.5) * 0.06, y, at.z + 0.17 - y * 0.012], r: [0, rnd() * 6, 0] }); }
+  const frost = ['#dff3ff', '#bfe3f5', '#f4fbff', '#cfeaf7'], nb = 5 + (variant > 0 ? 1 : 0);
   for (let i = 0; i < nb; i++) {
     const a = i * 2.4 + rnd(), y = 3.0 + i * 0.55 + rnd() * 0.3, from = V(tr[Math.min(3, Math.floor(y / 2.1))].x, y, 0), len = 1.4 + rnd() * 1.0;
     const end = from.clone().add(V(Math.cos(a) * len, 0.9 + rnd() * 0.9, Math.sin(a) * len));
     b.add(ptube([from, lerpV(from, end, 0.5).add(V(0, 0.15, 0)), end], 0.06, 0.02, 3, 4), '#d8d2c4');
-    for (let k = 0; k < 4; k++) b.add(blob(0.6 + rnd() * 0.4, 0, i * 5 + k, 0.3, 1.2, 0.6, 1.2), pickC(rnd, frost), { p: [end.x + (rnd() - 0.5) * 0.9, end.y + (rnd() - 0.5) * 0.5, end.z + (rnd() - 0.5) * 0.9], grad: 0.3, jit: 0.04 });
-    for (let k = 0; k < 2; k++) b.add(spike(0.03, 0.4 + rnd() * 0.4, 3), '#cfefff', { p: [end.x + (rnd() - 0.5) * 0.6, end.y - 0.3, end.z + (rnd() - 0.5) * 0.6], r: [PI, 0, 0] }); // stalactites de givre
+    for (let k = 0; k < 2; k++) b.add(blob(0.75 + rnd() * 0.45, 0, i * 5 + k, 0.3, 1.2, 0.6, 1.2), pickC(rnd, frost), { p: [end.x + (rnd() - 0.5) * 0.9, end.y + (rnd() - 0.5) * 0.5, end.z + (rnd() - 0.5) * 0.9], grad: 0.3, jit: 0.04 });
+    for (let k = 0; k < 1; k++) b.add(spike(0.03, 0.4 + rnd() * 0.4, 3), '#cfefff', { p: [end.x + (rnd() - 0.5) * 0.6, end.y - 0.3, end.z + (rnd() - 0.5) * 0.6], r: [PI, 0, 0] }); // stalactites de givre
   }
   b.add(blob(0.8, 1, 4, 0.3, 1.2, 0.7, 1.2), '#dff3ff', { p: [tr[3].x, 6.6, tr[3].z], grad: 0.3, jit: 0.04 });
   const geo = b.build(); geo.userData = { trunkR: 0.3, crownR: 2.4, crownBottom: 3.4, top: 7.4 }; return geo;

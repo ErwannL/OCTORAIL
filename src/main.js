@@ -437,7 +437,7 @@ function handleFootInteract() {
   if (crystal !== null && holdF) mineCrystal(crystal);
   if (it?.id === 'iceblock' && S.sheriff === 'ice') {
     if (holdF && S.owned.chalumeau) {
-      meltProgress = Math.min(1, meltProgress + 1 / 60 / 6);
+      meltProgress = Math.min(1, meltProgress + fdt / 6);
       ui.progress(meltProgress, 'Fonte de la glace…'); audio.setMelt(1);
       const p = gelure.iceBlockPos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 1 + Math.random() * 4, (Math.random() - 0.5) * 3));
       steam.emit(p, new THREE.Vector3((Math.random() - 0.5), 2 + Math.random() * 2, (Math.random() - 0.5)), { life: 2, size: 2, color: '#ffffff', alpha: 0.5 });
@@ -448,11 +448,11 @@ function handleFootInteract() {
   } else audio.setMelt(0);
 }
 
-let mineAcc = 0;
+let mineAcc = 0, fdt = 1 / 60; // fdt : durée de l'image courante (fonte/minage indépendants des FPS)
 function mineCrystal(i) {
   const c = crystals.list[i];
   if (player.bag.length >= player.bagMax && !(S.owned.stockage && trainNear(player.pos, 30))) { if (time - (mineCrystal.warn || -9) > 2) { mineCrystal.warn = time; ui.toast('Sac plein ! Revends au Comptoir du Moyeu.'); audio.deny(); } return; }
-  mineAcc += 1 / 60; c.hp -= 1 / 60 / 1.5;
+  mineAcc += fdt; c.hp -= fdt / 1.5;
   c.m.scale.set(0.8 * (0.5 + c.hp / 2), 1.8 * (0.5 + c.hp / 2), 0.8 * (0.5 + c.hp / 2));
   if (Math.random() < 0.5) sparks.emit(c.m.position, new THREE.Vector3((Math.random() - 0.5) * 6, Math.random() * 6, (Math.random() - 0.5) * 6), { life: 0.6, size: 0.4, color: '#8fe0ff' });
   ui.progress(1 - c.hp, 'Glace-mémoire…');
@@ -583,7 +583,7 @@ const camPos = new THREE.Vector3(30, 20, 30), camLook = new THREE.Vector3();
 
 function frame() {
   requestAnimationFrame(frame);
-  const raw = clock.getDelta(); const dt = Math.min(0.25, raw); time += dt; // temps réel même à bas FPS (sous-pas dans la physique)
+  const raw = clock.getDelta(); const dt = Math.min(0.25, raw); fdt = dt; time += dt; // temps réel même à bas FPS (sous-pas dans la physique)
   if (started) adaptQuality(Math.min(0.5, raw));
   if (!started) { titleCam(dt); render(); return; }
 
@@ -759,6 +759,7 @@ function questTick() {
   }
   if (S.sheriff === 'carried') {
     const ct = sheriffCarrierTrain();
+    if (ct === train && ct.head && ct.head.distanceTo(western.pedestal) < 75 && Math.abs(ct.speed) >= 6 && time - (questTick.slow || -99) > 8) { questTick.slow = time; ui.toast('Ralentis pour déposer SHÉRIF-7 au piédestal (moins de 6 m/s).'); }
     if (ct && ct.head && ct.head.distanceTo(western.pedestal) < 75 && Math.abs(ct.speed) < 6 && ct === train) {
       S.sheriff = 'home'; S.carrier = null; setStage('done'); pushShared(); deliveryCinematic();
     }
@@ -883,7 +884,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
+window.__oct = { interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

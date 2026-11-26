@@ -107,6 +107,7 @@ export class Train {
       this.dir = Math.sign(remaining) >= 0 ? newEdgeDirection : -newEdgeDirection;
       this.edge = choice.edge; this.s = enterAtA ? 0 : ne.len;
       this.events.push(exits.length > 1 ? 'switch' : 'node');
+      if (exits.length > 1) this.pref = 0; // l'aiguillage se remet tout droit une fois franchi (sinon on bifurque à tous les nœuds suivants)
       void travelForward;
     }
   }

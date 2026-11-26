@@ -61,7 +61,7 @@ export class UI {
   }
 
   openPanel(id) { this.closePanels(); this.show(id, true); this.panel = id; document.exitPointerLock?.(); }
-  closePanels() { for (const id of ['shop', 'map']) this.show(id, false); this.panel = null; }
+  closePanels() { for (const id of ['shop', 'map', 'pause']) this.show(id, false); this.panel = null; }
 
   letterbox(on) { $('letterbox').classList.toggle('on', on); }
   fade(on, white = false) { const f = $('fade'); f.classList.toggle('white', white); f.style.opacity = on ? 1 : 0; }

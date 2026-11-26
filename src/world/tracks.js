@@ -110,9 +110,7 @@ export function buildSignals(scene, net, BIOMES) {
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
       sign.position.set(0, 4.2, 0.4); stop.add(sign);
       stop.position.copy(end); stop.rotation.y = ang; g.add(stop);
-      // brume colorée du monde fermé au-delà
-      const fogWall = new THREE.Mesh(new THREE.PlaneGeometry(90, 50), new THREE.MeshBasicMaterial({ color: b.fog, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
-      fogWall.position.copy(end).add(new THREE.Vector3(Math.sin(ang) * 30, 22, Math.cos(ang) * 30)); fogWall.rotation.y = ang; g.add(fogWall);
+
     }
   }
   scene.add(g);

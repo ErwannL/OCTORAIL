@@ -9,7 +9,9 @@ import { Network } from './world/network.js';
 import { Terrain, rawHeight } from './world/terrain.js';
 import { buildTracks, buildSignals } from './world/tracks.js';
 import { buildSky } from './world/sky.js';
-import { buildHub, buildWestern, buildGelure, buildClosedPreviews } from './world/props.js';
+import { buildWestern, buildGelure, buildClosedPreviews } from './world/props.js';
+import { buildHub } from './world/hub.js';
+import { buildTrackside, buildWesternDecor, buildGelureDecor, buildClosedWorlds } from './world/decor.js';
 import { Train, WAGON_TYPES } from './game/train.js';
 import { Player, buildAvatar } from './game/player.js';
 import { Input } from './game/input.js';
@@ -19,6 +21,8 @@ import { SHOP, STAGES, loadState, saveState, clearState } from './game/state.js'
 import { AudioEngine } from './audio/audio.js';
 import { UI } from './ui/ui.js';
 import { Net } from './net/net.js';
+import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
+import { Compass, PHENO_INFO } from './ui/compass.js';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 const COLORS = ['#e0703a', '#3aa0e0', '#7ad05a', '#e05ab0', '#e0c03a', '#9a6ae0', '#3ad0c0', '#f0f0f0'];
@@ -28,21 +32,22 @@ const TRAIN_TINTS = ['#8b1e1e', '#1e4a8b', '#2a6b2a', '#7a1e6b', '#8b6b1e', '#4a
 const canvas = document.getElementById('c');
 // Qualité graphique : auto (résolution dynamique selon les FPS), réglable au titre.
 const QUALITY = { bas: { pr: 0.6, shadow: 0, bloom: false }, moyen: { pr: 0.85, shadow: 1024, bloom: true }, haut: { pr: 1.25, shadow: 2048, bloom: true } };
-let qName = 'auto'; try { qName = localStorage.getItem('octorail-quality') || 'auto'; } catch {}
+const SET = loadSettings();
+let qName = SET.quality || 'auto';
 const Q = QUALITY[qName === 'auto' ? 'moyen' : qName];
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
 let pixelRatio = Math.min(devicePixelRatio, Q.pr);
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = Q.shadow > 0; renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.enabled = Q.shadow > 0 && SET.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2('#e8b98a', 0.002);
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.3, 2800);
+const camera = new THREE.PerspectiveCamera(SET.fov, innerWidth / innerHeight, 0.3, 2800);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.4, 0.45, 0.9);
-bloom.enabled = Q.bloom;
+bloom.enabled = Q.bloom && SET.bloom;
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 const resize = () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(pixelRatio); composer.setSize(innerWidth, innerHeight); bloom.setSize(innerWidth * pixelRatio / 2, innerHeight * pixelRatio / 2); };
@@ -84,7 +89,10 @@ const interact = { add: o => interactables.push(o) };
 const hub = buildHub(scene, interact);
 const western = buildWestern(scene, terrain, net, interact);
 const gelure = buildGelure(scene, terrain, net, interact);
-buildClosedPreviews(scene, terrain, net);
+buildClosedWorlds(scene, terrain, net);
+buildTrackside(scene, net, terrain);
+const westDecor = buildWesternDecor(scene, terrain, net);
+const gelDecor = buildGelureDecor(scene, terrain, net);
 const nuggets = new Nuggets(scene, terrain, net, 46);
 const crystals = new Crystals(scene, terrain, net, 26);
 const finds = buildFinds(scene, terrain, net);
@@ -106,6 +114,10 @@ scene.add(sheriff);
 const audio = new AudioEngine();
 const ui = new UI(audio);
 const input = new Input(canvas);
+input.setBindings(SET.keys);
+audio.setVolumes(SET);
+const compass = new Compass(document.getElementById('compass'));
+let pheno = null; // phénomène météo/magnétique en cours
 const netc = new Net();
 let S = loadState();
 if (DEBUG) S.credits = Math.max(S.credits, 2000);
@@ -114,7 +126,7 @@ let me = { name: 'Passager', color: COLORS[0], slot: 0 };
 let player, train;
 const remotes = new Map(); // id -> { avatar, train, state, name, color }
 let started = false, cinematic = null, time = 0, lastSync = 0;
-let meltProgress = 0, coldFaint = false, questGuard = false;
+let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
 (function titleScreen() {
@@ -140,7 +152,7 @@ let meltProgress = 0, coldFaint = false, questGuard = false;
   document.getElementById('play-solo').onclick = () => go(null);
   document.getElementById('play-mp').onclick = () => go(document.getElementById('room').value.trim() || 'OCTAVE');
   const qs = document.getElementById('quality'); qs.value = qName;
-  qs.onchange = () => { try { localStorage.setItem('octorail-quality', qs.value); } catch {} location.reload(); };
+  qs.onchange = () => { SET.quality = qs.value; saveSettings(SET); location.reload(); };
   document.getElementById('reset').onclick = () => { clearState(); S = loadState(); ui.toast('Sauvegarde effacée'); };
   document.getElementById('end-continue').onclick = () => { ui.show('endcard', false); input.wantLock = true; };
 })();
@@ -376,7 +388,7 @@ function handleFootInteract() {
   for (const r of remotes.values()) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5 && dCab >= 5) label = `[E] Monter dans le train de ${r.name}`;
   ui.prompt(label);
 
-  if (input.hit('KeyE')) {
+  if (input.ah('interact')) {
     if (dCab < 5) { player.mode = 'cab'; audio.clunk(); return; }
     for (const [id, r] of remotes) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5) { player.mode = 'ride'; player.rideId = id; audio.clunk(); return; }
     if (pick?.kind === 'nugget') return collectNugget(pick.i);
@@ -384,7 +396,7 @@ function handleFootInteract() {
     if (it) return useInteract(it);
   }
   // miner / fondre (maintenu)
-  const holdF = input.down('KeyF');
+  const holdF = input.a('action');
   if (crystal !== null && holdF) mineCrystal(crystal);
   if (it?.id === 'iceblock' && S.sheriff === 'ice') {
     if (holdF && S.owned.chalumeau) {
@@ -461,6 +473,61 @@ function freeSheriff() {
   });
 }
 
+// ------------------------------------------------------------------ Objectif pour la boussole
+function objectivePos() {
+  const st = STAGES[S.stage]?.id;
+  if (st === 'gold') return net.nodes.get('J4').p && { x: net.nodes.get('J4').p.x, z: net.nodes.get('J4').p.y };
+  if (st === 'buy' || st === 'gear') return hub.machines.shop.position;
+  if (st === 'fuel') return western.pedestal;
+  if (st === 'find' || st === 'melt') return gelure.iceBlockPos;
+  if (st === 'carry') return western.pedestal;
+  return null;
+}
+
+// ------------------------------------------------------------------ Menu pause / réglages
+const $ = id => document.getElementById(id);
+function applySettings() {
+  saveSettings(SET); audio.setVolumes(SET); input.setBindings(SET.keys);
+  camera.fov = SET.fov; camera.updateProjectionMatrix();
+  bloom.enabled = SET.bloom && (qName === 'auto' ? true : QUALITY[qName].bloom);
+  const sh = SET.shadows && (qName === 'auto' || QUALITY[qName].shadow > 0);
+  if (renderer.shadowMap.enabled !== sh) { renderer.shadowMap.enabled = sh; sun.castShadow = sh; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
+}
+function openPause() {
+  ui.openPanel('pause'); input.wantLock = false;
+  for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).value = SET[k];
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY']) $('s-' + k).checked = SET[k];
+  $('s-quality').value = SET.quality; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2);
+  renderKeys();
+}
+function renderKeys() {
+  const box = $('keylist'); box.innerHTML = '';
+  for (const [act, label] of ACTIONS) {
+    const row = document.createElement('div'); row.className = 'keyrow'; row.innerHTML = `<span>${label}</span>`;
+    [0, 1].forEach(slot => {
+      const b = document.createElement('button'); b.textContent = keyLabel(SET.keys[act][slot]);
+      b.onclick = () => { b.classList.add('wait'); b.textContent = 'Appuie…'; input.capture = code => { if (code !== 'Escape' || act === 'pause') { SET.keys[act] = [...SET.keys[act]]; SET.keys[act][slot] = code; } applySettings(); renderKeys(); }; };
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  }
+}
+(function wirePause() {
+  document.querySelectorAll('#pause .tabs button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#pause .tabs button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('#pause .tab').forEach(t => t.classList.toggle('hidden', t.dataset.tab !== b.dataset.tab)); audio.ui();
+  });
+  for (const k of ['master', 'music', 'sfx', 'ambience', 'fov', 'sens']) $('s-' + k).oninput = e => { SET[k] = +e.target.value; $('o-fov').textContent = SET.fov + '°'; $('o-sens').textContent = (+SET.sens).toFixed(2); applySettings(); if (k === 'sfx') audio.ui(); };
+  for (const k of ['bloom', 'shadows', 'shake', 'compass', 'invertY']) $('s-' + k).onchange = e => { SET[k] = e.target.checked; applySettings(); };
+  $('s-quality').onchange = e => { SET.quality = e.target.value; saveSettings(SET); ui.toast('Qualité appliquée au prochain lancement (page rechargée).'); setTimeout(() => location.reload(), 900); };
+  $('keys-reset').onclick = () => { SET.keys = JSON.parse(JSON.stringify(DEFAULT_SET.keys)); applySettings(); renderKeys(); };
+  $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; canvas.requestPointerLock?.(); };
+  $('to-title').onclick = () => { saveState(S); location.reload(); };
+  document.addEventListener('pointerlockchange', () => {
+    if (!document.pointerLockElement && started && !ui.panel && !ui.dialogOpen && !cinematic && input.wantLock && $('endcard').classList.contains('hidden')) openPause();
+  });
+})();
+
 // ------------------------------------------------------------------ Boucle
 const amb = { skyTop: new THREE.Color(), skyBot: new THREE.Color(), fog: new THREE.Color(), sun: new THREE.Color(), fogD: 0 };
 const clock = new THREE.Clock();
@@ -473,27 +540,27 @@ function frame() {
   if (started) adaptQuality(Math.min(0.5, raw));
   if (!started) { titleCam(dt); render(); return; }
 
-  if (input.hit('Escape')) { ui.closePanels(); }
-  if (input.hit('KeyM')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
+  if (input.ah('pause')) { if (ui.panel) { ui.closePanels(); input.wantLock = true; } else if (!cinematic) openPause(); }
+  if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
   if (ui.panel === 'map') drawMap();
-  if (input.hit('KeyE') && ui.dialogOpen) { ui.advance(); input.pressed.delete('KeyE'); }
+  if (input.ah('interact') && ui.dialogOpen) { ui.advance(); input.consume('interact'); }
   if (input.hit('Mouse0') && ui.dialogOpen && !input.mouse.locked) ui.advance();
   const busy = ui.dialogOpen || ui.panel || cinematic;
 
-  if (!busy) player.look(input);
+  if (!busy) player.look(input, SET.sens, SET.invertY);
 
   // --- train local
   let tin = { throttle: 0, brake: false, pump: false };
   if (player.mode === 'cab' && !busy) {
-    if (input.down('KeyW') || input.down('KeyZ')) tin.throttle = 1;
-    if (input.down('KeyS')) tin.throttle = -1;
-    tin.brake = input.down('Space');
-    if (train.kind === 'draisine') tin.pump = input.hit('KeyF');
-    else if (input.hit('KeyF')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Tender vide ! Charbonnière du Moyeu.'); } }
-    if (input.hit('KeyA') || input.hit('KeyQ')) { train.pref = 1; audio.clunk(); }
-    if (input.hit('KeyD')) { train.pref = 0; audio.clunk(); }
-    if (input.hit('KeyH')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
-    if (input.hit('KeyE')) { player.mode = 'foot'; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.pressed.delete('KeyE'); }
+    if (input.a('forward')) tin.throttle = 1;
+    if (input.a('back')) tin.throttle = -1;
+    tin.brake = input.a('jump');
+    if (train.kind === 'draisine') tin.pump = input.ah('action');
+    else if (input.ah('action')) { const r = train.shovel(); if (r === true) { audio.shovel(); for (let k = 0; k < 10; k++) sparks.emit(locoCabWorld(train).add(new THREE.Vector3(0, 0.6, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3), { life: 0.5, size: 0.4, color: '#ff7a2a' }); } else if (r === 'empty') { audio.deny(); ui.toast('Tender vide ! Charbonnière du Moyeu.'); } }
+    if (input.ah('left')) { train.pref = 1; audio.clunk(); }
+    if (input.ah('right')) { train.pref = 0; audio.clunk(); }
+    if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
+    if (input.ah('interact')) { player.mode = 'foot'; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.consume('interact'); }
   }
   if (!(player.mode === 'cab') && Math.abs(train.speed) > 0.1) tin.brake = true; // frein automatique sans conducteur
   train.update(dt, tin);
@@ -530,7 +597,7 @@ function frame() {
       const r = remotes.get(player.rideId);
       if (!r) player.mode = 'foot';
       else { const c = r.train.loco.localToWorld(new THREE.Vector3(1.2, 1.45, r.train.loco.userData.cab.z)); player.pos.copy(c); player.avatar.position.copy(c); player.avatar.rotation.y = r.train.loco.rotation.y;
-        if (input.hit('KeyE') && !busy) { player.mode = 'foot'; player.pos.x += 3; } }
+        if (input.ah('interact') && !busy) { player.mode = 'foot'; player.pos.x += 3; } }
     }
   }
   ui.train(train, player.mode === 'cab');
@@ -555,8 +622,11 @@ function frame() {
   for (const f of finds) { if (!f.taken) { f.item.rotation.y += dt * 1.5; f.item.position.y = Math.sin(time * 2) * 0.2; } else f.item.rotation.y += dt * 0.5; }
   sheriffTick(dt);
   western.autos.forEach((a, i) => { a.rotation.z = Math.sin(time * 4 + i) * (S.sheriff === 'home' ? 0.12 : 0.03); a.position.y = S.sheriff === 'home' ? Math.abs(Math.sin(time * 6 + i)) * 0.3 : 0; });
-  hub.core.rotation.y += dt * 0.6; hub.core.rotation.x += dt * 0.3;
-  hub.core.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
+  hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
+  hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
+  hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
+  westDecor.update(dt, time); gelDecor.update(dt, time);
+  hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.lamps.forEach(l => { const n = net.nodes.get(l.node); l.mat.emissive.set(train.nextNode() === l.node ? (train.pref ? '#ffb347' : '#40ff80') : '#40ff80'); });
 
   // --- distants
@@ -581,7 +651,16 @@ function frame() {
   // --- ambiance
   const focus = player.mode === 'foot' ? player.pos : train.head;
   ambianceAt(focus.x, focus.z, amb);
-  scene.fog.color.copy(amb.fog); scene.fog.density = amb.fogD;
+  // boussole + phénomènes
+  const friends = [...remotes.entries()].filter(([, r]) => r.state).map(([id, r]) => ({ id, name: r.name, color: r.color, pos: r.avatar.position }));
+  compass.update(dt, { yaw: player.yaw, pos: focus, hubFactor: amb.hub, biome: amb.biome, friends, objective: objectivePos(), enabled: SET.compass && !cinematic }, (start, end) => {
+    if (start) { pheno = start; ui.toast(PHENO_INFO[start].msg, false); if (start === 'magnetique' || start === 'aurore') audio.beeps(5, 200); }
+    if (end) { pheno = null; ui.toast('La boussole se calme.'); }
+  });
+  const pf = pheno && PHENO_INFO[pheno];
+  phenoK += ((pf ? 1 : 0) - phenoK) * Math.min(1, dt * 0.5);
+  scene.fog.color.copy(amb.fog); scene.fog.density = amb.fogD * (1 + phenoK * ((pf?.fog || lastFog) - 1));
+  if (pf?.fog) lastFog = pf.fog;
   sky.uniforms.top.value.copy(amb.skyTop); sky.uniforms.bot.value.copy(amb.skyBot); sky.uniforms.sunCol.value.copy(amb.sun); sky.uniforms.time.value = time;
   sun.color.copy(amb.sun); hemi.color.copy(amb.skyTop).lerp(new THREE.Color('#fff'), 0.5); hemi.groundColor.copy(amb.fog).multiplyScalar(0.6);
   sky.mesh.position.copy(camera.position);
@@ -591,7 +670,7 @@ function frame() {
   ambTimer += dt;
   if (ambTimer > 0.5) { ambTimer = 0; audio.setZone(amb.hub > 0.5 ? 'hub' : amb.biome === 4 ? 'western' : amb.biome === 5 ? 'gelure' : 'closed'); }
   const wkind = amb.biome === 5 && amb.hub < 0.5 ? 'snow' : 'dust';
-  weather.update(dt, camera.position, wkind, amb.hub > 0.5 ? 0 : (wkind === 'snow' ? 0.9 : (amb.biome === 4 ? 0.35 : 0.1)));
+  weather.update(dt, camera.position, pf?.kind || wkind, amb.hub > 0.5 ? 0 : Math.max(phenoK * (pf?.weather || 0), wkind === 'snow' ? 0.9 : (amb.biome === 4 ? 0.35 : 0.1)) * (pf?.weather ? 2.2 : 1));
   audio.setWind(amb.hub > 0.5 ? 0.1 : wkind === 'snow' ? 0.8 : 0.4);
 
   smoke.update(dt); sparks.update(dt); steam.update(dt);
@@ -685,7 +764,7 @@ function updateCamera(dt) {
   camPos.lerp(want, 1 - Math.exp(-dt * 12)); camLook.lerp(target, 1 - Math.exp(-dt * 18));
   camera.position.copy(camPos); camera.lookAt(camLook);
   // légère vibration en cabine à vitesse
-  if (player.mode === 'cab') { const sh = Math.min(0.08, Math.abs(train.speed) * 0.003); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
+  if (player.mode === 'cab' && SET.shake) { const sh = Math.min(0.08, Math.abs(train.speed) * 0.003); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
 }
 
 function titleCam(dt) {
@@ -702,7 +781,7 @@ function titleCam(dt) {
 function render() { composer.render(); }
 
 // accès debug / tests automatisés
-window.__oct = { renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
+window.__oct = { compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

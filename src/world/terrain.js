@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { makeNoise, smooth, lerp } from '../util/noise.js';
 import { biomeWeights, groundColor, HUB_RADIUS } from './biomes.js';
+import { groundDetailTexture } from './decor.js';
 
 export const WORLD_R = 1500;
 const N = makeNoise(4242);
@@ -71,7 +72,7 @@ export class Terrain {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, map: groundDetailTexture() });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     scene.add(mesh);

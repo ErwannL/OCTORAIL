@@ -28,7 +28,9 @@ export class AudioEngine {
     for (const z of Object.keys(SCALES)) { const g = C.createGain(); g.gain.value = z === 'hub' ? 1 : 0; g.connect(this.music); g.connect(this.revSend); this.layers[z] = g; }
     this.drums = C.createGain(); this.drums.gain.value = 0; this.drums.connect(this.music);
     // vent / ambiance
-    this.wind = this.noiseLoop(400, 0.0); this.melt = this.noiseLoop(3000, 0.0, 'highpass');
+    this.amb = C.createGain(); this.amb.gain.value = 0.7; this.amb.connect(this.master);
+    this.wind = this.noiseLoop(400, 0.0, 'lowpass', this.amb); this.melt = this.noiseLoop(3000, 0.0, 'highpass', this.amb);
+    if (this.pendingVol) this.setVolumes(this.pendingVol);
     this.nextTime = C.currentTime + 0.1;
     this.timer = setInterval(() => this.schedule(), 50);
     this.ready = true;
@@ -39,10 +41,14 @@ export class AudioEngine {
     for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < L; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, decay); }
     return b;
   }
-  noiseLoop(freq, gain, type = 'lowpass') {
+  setVolumes(v) {
+    if (!this.ready) { this.pendingVol = v; return; }
+    const t = this.now; this.master.gain.setTargetAtTime(v.master, t, 0.05); this.music.gain.setTargetAtTime(0.42 * v.music * 1.6, t, 0.05); this.sfx.gain.setTargetAtTime(0.9 * v.sfx, t, 0.05); this.amb.gain.setTargetAtTime(v.ambience, t, 0.05);
+  }
+  noiseLoop(freq, gain, type = 'lowpass', dest = null) {
     const C = this.ctx, src = C.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
     const f = C.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = 0.7;
-    const g = C.createGain(); g.gain.value = gain; src.connect(f).connect(g).connect(this.sfx); src.start();
+    const g = C.createGain(); g.gain.value = gain; src.connect(f).connect(g).connect(dest || this.sfx); src.start();
     return { g, f };
   }
   noiseBurst(t, dur, freq, q, vol, type = 'bandpass', dest = this.sfx) {

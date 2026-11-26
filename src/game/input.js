@@ -6,6 +6,7 @@ export class Input {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       if (!this.keys.has(e.code)) this.pressed.add(e.code);
       this.keys.add(e.code);
+      if (this.capture) { e.preventDefault(); const f = this.capture; this.capture = null; f(e.code); return; }
       if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', e => this.keys.delete(e.code));
@@ -17,6 +18,10 @@ export class Input {
     addEventListener('mouseup', e => this.keys.delete('Mouse' + e.button));
     this.wantLock = true;
   }
+  setBindings(b) { this.bind = b; }
+  a(name) { return (this.bind?.[name] || []).some(c => this.keys.has(c)); }
+  ah(name) { return (this.bind?.[name] || []).some(c => this.pressed.has(c)); }
+  consume(name) { for (const c of this.bind?.[name] || []) this.pressed.delete(c); }
   down(c) { return this.keys.has(c); }
   hit(c) { return this.pressed.has(c); }
   endFrame() { this.pressed.clear(); this.mouse.dx = 0; this.mouse.dy = 0; }

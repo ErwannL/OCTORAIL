@@ -235,6 +235,15 @@ export function buildAvatarModel(color = '#e0703a') {
   bk.add(G.cyl(0.11, 0.11, 0.62, 14), MAT.copper(), { p: [0.15, 0.14, -0.5] });
   bk.add(G.cyl(0.11, 0.11, 0.62, 14), MAT.copper(), { p: [-0.15, 0.14, -0.5] });
   bk.add(G.tor(0.36, 0.05, 6, 20), dark, { p: [0, 0.5, 0], r: [H, 0, 0] });          // col
+  bk.add(G.tor(0.3, 0.09, 8, 20), mat('#c94a3a', { roughness: 0.9 }), { p: [0, 0.48, 0.02], r: [H + 0.15, 0, 0] }); // écharpe
+  bk.add(G.box(0.14, 0.42, 0.06), mat('#c94a3a', { roughness: 0.9 }), { p: [0.16, 0.25, 0.28], r: [0.1, 0, 0.15] });
+  for (const s of [-1, 1]) {
+    bk.add(G.sph(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), dark, { p: [s * 0.36, 0.42, 0], s: [1.1, 0.7, 1] }); // épaulettes
+    bk.add(G.rbox(0.16, 0.18, 0.1, 0.03), mat('#5a4030'), { p: [s * 0.22, -0.32, 0.22] });                  // poches
+    bk.add(G.box(0.04, 0.6, 0.03), dark, { p: [s * 0.18, 0.15, 0.215] });                                   // bretelles
+  }
+  bk.add(G.cyl(0.04, 0.04, 0.5, 6), MAT.copper(), { p: [0, 0.5, -0.45], r: [0.6, 0, 0] });                  // tuyau d'air
+  bk.add(G.rbox(0.16, 0.1, 0.06, 0.02), glow('#6fe39a', 1.5), { p: [-0.18, 0.12, 0.22] });                  // voyant de vie
   body.add(bk.build());
   const head = new THREE.Group(); head.position.y = 0.82; body.add(head);
   const hk = new Kit();
@@ -242,16 +251,19 @@ export function buildAvatarModel(color = '#e0703a') {
   hk.add(G.sph(0.3, 24, 12, -1.0, 2.0, 0.95, 1.05), visor, { p: [0, 0, 0.07] });
   hk.add(G.tor(0.34, 0.035, 6, 24), dark, { r: [0, 0, 0] });
   hk.add(G.cyl(0.015, 0.015, 0.35, 6), dark, { p: [0.18, 0.38, -0.05] });
+  for (const s of [-1, 1]) { hk.add(G.cyl(0.09, 0.09, 0.08, 14), dark, { p: [s * 0.33, 0, 0], r: [0, 0, H] }); hk.add(G.cyl(0.05, 0.05, 0.1, 10), MAT.brass(), { p: [s * 0.37, 0, 0], r: [0, 0, H] }); }
+  hk.add(G.box(0.05, 0.12, 0.05), MAT.brass(), { p: [0, 0.33, 0.12] });
   head.add(hk.build());
   const tip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glow('#ffb347', 3)); tip.position.set(0.18, 0.57, -0.05); head.add(tip);
+  for (const s of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), glow('#ffffff', 2)); eye.position.set(s * 0.09, 0.02, 0.27); head.add(eye); }
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), glow('#ffe0a0', 4)); lamp.position.set(0, 0.52, -0.52); body.add(lamp);
   const legs = [], arms = [];
   for (const s of [-1, 1]) {
     const hip = new THREE.Group(); hip.position.set(s * 0.16, 0.72, 0); g.add(hip);
-    const lk = new Kit(); lk.add(G.cap(0.12, 0.38, 4, 10), dark, { p: [0, -0.3, 0] }); lk.add(G.rbox(0.22, 0.16, 0.34, 0.06), mat('#4a3020'), { p: [0, -0.64, 0.05] });
+    const lk = new Kit(); lk.add(G.cap(0.12, 0.38, 4, 10), dark, { p: [0, -0.3, 0] }); lk.add(G.rbox(0.24, 0.2, 0.36, 0.06), mat('#4a3020'), { p: [0, -0.62, 0.05] }); lk.add(G.box(0.26, 0.05, 0.4), MAT.iron(), { p: [0, -0.73, 0.06] }); lk.add(G.sph(0.11, 10, 8), mat(color, { roughness: 0.55 }), { p: [0, -0.3, 0.07], s: [1, 0.9, 0.7] }); lk.add(G.tor(0.12, 0.025, 4, 12), MAT.brass(), { p: [0, -0.5, 0], r: [H, 0, 0] });
     hip.add(lk.build()); legs.push(hip);
     const sh = new THREE.Group(); sh.position.set(s * 0.4, 1.33, 0); g.add(sh);
-    const ak = new Kit(); ak.add(G.cap(0.1, 0.42, 4, 10), suit, { p: [0, -0.27, 0] }); ak.add(G.sph(0.11, 10, 8), dark, { p: [0, -0.56, 0] });
+    const ak = new Kit(); ak.add(G.cap(0.1, 0.42, 4, 10), suit, { p: [0, -0.27, 0] }); ak.add(G.rbox(0.2, 0.2, 0.18, 0.06), dark, { p: [0, -0.56, 0] }); ak.add(G.cap(0.035, 0.08, 3, 6), dark, { p: [0, -0.62, 0.09], r: [0.6, 0, 0] }); ak.add(G.tor(0.11, 0.03, 4, 12), dark, { p: [0, -0.42, 0], r: [H, 0, 0] }); if (s > 0) ak.add(G.rbox(0.12, 0.08, 0.14, 0.02), glow('#5fe0ff', 1.2), { p: [0.08, -0.35, 0.02] });
     sh.add(ak.build()); arms.push(sh);
   }
   g.userData = { legs, arms, body };

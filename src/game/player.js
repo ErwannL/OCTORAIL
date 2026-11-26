@@ -24,19 +24,19 @@ export class Player {
   }
 
   updateFoot(dt, input, extraColliders) {
-    const sp = input.down('ShiftLeft') ? 9 : 5;
+    const sp = input.a('run') ? 9 : 5;
     const f = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const r = new THREE.Vector3(-f.z, 0, f.x);
     const want = new THREE.Vector3();
-    if (input.down('KeyW') || input.down('KeyZ')) want.add(f);
-    if (input.down('KeyS')) want.sub(f);
-    if (input.down('KeyD')) want.add(r);
-    if (input.down('KeyA') || input.down('KeyQ')) want.sub(r);
+    if (input.a('forward')) want.add(f);
+    if (input.a('back')) want.sub(f);
+    if (input.a('right')) want.add(r);
+    if (input.a('left')) want.sub(r);
     if (want.lengthSq() > 0) want.normalize().multiplyScalar(sp);
     this.vel.x += (want.x - this.vel.x) * Math.min(1, dt * 10);
     this.vel.z += (want.z - this.vel.z) * Math.min(1, dt * 10);
     this.vel.y -= 22 * dt;
-    if (this.onGround && input.hit('Space')) { this.vel.y = 8; this.onGround = false; }
+    if (this.onGround && input.ah('jump')) { this.vel.y = 8; this.onGround = false; }
     this.pos.addScaledVector(this.vel, dt);
     let g = this.groundAt(this.pos.x, this.pos.z);
     for (const c of extraColliders) { const h = c(this.pos.x, this.pos.z); if (h !== null && h > g && h < this.pos.y + 1.2) g = h; }
@@ -58,8 +58,8 @@ export class Player {
     u.body.position.y = 0.95 + Math.abs(Math.sin(this.walkPhase * 3)) * 0.06 * k;
   }
 
-  look(input) {
-    this.yaw -= input.mouse.dx * 0.0025; this.pitch -= input.mouse.dy * 0.0025;
+  look(input, sens = 1, inv = false) {
+    this.yaw -= input.mouse.dx * 0.0025 * sens; this.pitch -= input.mouse.dy * 0.0025 * sens * (inv ? -1 : 1);
     if (input.down('ArrowLeft')) this.yaw += 0.03; if (input.down('ArrowRight')) this.yaw -= 0.03;
     if (input.down('ArrowUp')) this.pitch += 0.02; if (input.down('ArrowDown')) this.pitch -= 0.02;
     this.pitch = Math.max(-1.2, Math.min(0.5, this.pitch));

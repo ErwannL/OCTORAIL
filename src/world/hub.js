@@ -164,6 +164,8 @@ export function buildHub(scene, interact) {
   for (const x of [-5.5, -2.75, 0, 2.75, 5.5]) circ(machines.hall, x, -1.9, 0.5);
   for (let i = 0; i < 5; i++) circ(machines.hall, -4 + i * 2, 0.6, 0.62, 3.5);
   box(machines.hall, 0, -2.75, 6.3, 0.35);
+  { const h = machines.hall, v = W(h, 0, -1.9); COLLIDERS.camBox(v.x, v.z, 6.3, 1.0, h.rotation.y, 5.4, 7.4); }
+  { const sm = machines.shop, v = W(sm, 0, 0.1); COLLIDERS.camBox(v.x, v.z, 3.8, 1.9, sm.rotation.y, 4.4, 5.8); }
   for (let i = 0; i < 16; i++) { const a = i / 16 * PI * 2 + PI / 16, x = Math.cos(a) * 38, z = -Math.sin(a) * 38; COLLIDERS.circle(x, z, 0.35); COLLIDERS.circle(x - Math.sin(a) * 2, z - Math.cos(a) * 2, 0.65, 1); }
   BIOMES.forEach((b, i) => { const a = i * PI / 4 + PI / 8; COLLIDERS.circle(Math.cos(a) * 45, -Math.sin(a) * 45, 0.25); });
   for (let p = 0; p < 8; p++) { const [x, z] = at(p * PI / 4, 8.6); COLLIDERS.box(x, z, 0.65, 0.4, p * PI / 4 + H, 1.7); }
@@ -182,6 +184,7 @@ export function buildHub(scene, interact) {
     for (const d of [-7, 0, 7]) COLLIDERS.circle(qx + Math.cos(a) * d, qz - Math.sin(a) * d, 0.22, 99, -99, false);
     COLLIDERS.box(qx + tan[0] * 1.2, qz + tan[1] * 1.2, 0.3, 1.1, a, 1.9);
     const [cx, cz] = side(9.5); COLLIDERS.circle(cx, cz, 0.2);
+    { const [rx, rz] = side(5.6); COLLIDERS.camBox(rx - tan[0] * 0.4, rz - tan[1] * 0.4, 2.8, 9.5, a + H, 4.6, 5.6); } // auvent du quai (la caméra l'évite, le joueur passe dessous)
     const O = side(5.6), cs = Math.cos(a), sn = Math.sin(a), L = (lx, lz) => [O[0] + lx * cs + lz * sn, O[1] - lx * sn + lz * cs];
     { const [x, z] = L(5.2, 0.3); COLLIDERS.box(x, z, 1.35, 0.7, a, 1.9, 0.8, false); }          // chariot à bagages
     { const [x, z] = L(-5.1, 0.4); COLLIDERS.box(x, z, 0.5, 0.7, a, 2.0, 0.8, false); }         // pile de caisses

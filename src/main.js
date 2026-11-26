@@ -390,9 +390,10 @@ function openShop() {
   const list = document.getElementById('shop-list');
   list.innerHTML = '';
   // vente auto du sac
-  if (player.bag.length) {
-    const total = player.bag.reduce((a, b) => a + b.value, 0);
-    const n = player.bag.length; player.bag = [];
+  const toSell = player.bag.filter(b => !b.fuel);
+  if (toSell.length) {
+    const total = toSell.reduce((a, b) => a + b.value, 0);
+    const n = toSell.length; player.bag = player.bag.filter(b => b.fuel); ui.bag(player.bag, player.bagMax);
     addCredits(total, `${n} objet(s) vendu(s)`);
   }
   if (train.storage?.length) { const t = train.storage.reduce((a, b) => a + b.value, 0); train.storage = []; addCredits(t, 'wagon-stockage vidé'); }
@@ -451,6 +452,48 @@ function trainNear(pos, R) { return train.head && train.head.distanceTo(pos) < R
 const FUEL_R = 70; // le quai Ouest est à ~55 m de la Charbonnière : on peut servir le train depuis son point de départ
 function locoCabWorld(tr) { return tr.loco.localToWorld(tr.loco.userData.cab.clone()); }
 
+const _lw = new THREE.Vector3();
+const FUEL_SACK = { coal: { icon: '⚫', name: 'le sac de charbon', amount: 8 }, water: { icon: '💧', name: 'le seau d\'eau', amount: 25 } };
+function fuelSackIdx() { return player.bag.findIndex(b => b.fuel); }
+function bagFuelName() { const b = player.bag.find(x => x.fuel); return b ? FUEL_SACK[b.fuel].name : ''; }
+// Verse tous les sacs/seaux du sac dans le tender ; renvoie true si quelque chose a été versé
+function pourFuelSacks() {
+  if (!S.owned.vapeur) return false;
+  let did = false;
+  for (let i = player.bag.length - 1; i >= 0; i--) {
+    const b = player.bag[i]; if (!b.fuel) continue;
+    const full = b.fuel === 'coal' ? train.coal >= train.maxCoal : train.water >= train.maxWater;
+    if (full) { ui.toast(b.fuel === 'coal' ? 'Le tender à charbon est déjà plein.' : 'Le réservoir est déjà plein.'); audio.deny(); continue; }
+    if (b.fuel === 'coal') train.coal = Math.min(train.maxCoal, train.coal + b.amount); else train.water = Math.min(train.maxWater, train.water + b.amount);
+    player.bag.splice(i, 1); did = true;
+    if (b.fuel === 'coal') audio.shovel(); else { audio.setMelt(1); setTimeout(() => audio.setMelt(0), 700); }
+    ui.toast(b.fuel === 'coal' ? `+${b.amount} charbon dans le tender` : `+${b.amount} eau dans le réservoir`);
+  }
+  if (did) { ui.bag(player.bag, player.bagMax); checkFuel(); }
+  return did;
+}
+function interactLabel(it, cur) {
+  const far = !trainNear(it.pos, FUEL_R);
+  if (it.id === 'coal') {
+    if (!S.owned.vapeur) return 'Charbonnière — pas de loco à vapeur (Comptoir) : [E] pour en savoir plus';
+    return far ? '[E] Prendre un sac de charbon (le train est loin) — à verser dans le tender' : '[E] Charger 10 charbon dans le tender';
+  }
+  if (it.id === 'water') {
+    if (!S.owned.vapeur) return 'Château d\'eau — pas de loco à vapeur (Comptoir) : [E] pour en savoir plus';
+    return far ? '[E] Remplir un seau d\'eau (le train est loin) — à verser dans le réservoir' : '[E] Remplir le réservoir d\'eau';
+  }
+  if (it.id === 'shop') return '[E] Ouvrir le Comptoir (vend ton sac, améliorations)';
+  if (it.id === 'hall') return '[E] Lire : Hall des trouvailles';
+  return cur;
+}
+function takeFuelSack(kind) {
+  if (player.bag.length >= player.bagMax) { ui.toast('Sac plein ! Revends au Comptoir ou verse ton sac dans le tender.'); audio.deny(); return; }
+  const f = FUEL_SACK[kind];
+  player.bag.push({ icon: f.icon, value: 0, fuel: kind, amount: f.amount }); ui.bag(player.bag, player.bagMax);
+  if (kind === 'coal') audio.shovel(); else { audio.setMelt(1); setTimeout(() => audio.setMelt(0), 700); }
+  ui.toast(`${f.icon} Tu prends ${f.name} (${kind === 'coal' ? '+8 charbon' : '+25 eau'}). Approche-toi de ta loco et appuie sur E pour le verser.`);
+}
+
 function handleFootInteract() {
   const it = nearestInteract();
   let label = it?.label || null;
@@ -468,13 +511,16 @@ function handleFootInteract() {
   if (pick?.kind === 'find') label = `[E] Ramasser : ${finds[pick.i].name}`;
   if (crystal !== null) label = '[F] Miner la glace-mémoire';
   if (it?.id === 'iceblock' && S.sheriff === 'ice') label = (S.owned.chalumeau ? '[F] maintenir : faire fondre la glace' : 'Un robot figé… il faut un chalumeau');
-  if (it?.id === 'coal' && S.owned.vapeur) label = trainNear(it.pos, FUEL_R) ? '[E] Charger 10 charbon dans le tender' : 'Gare ton train près du quai pour charger';
-  if (it?.id === 'water' && S.owned.vapeur) label = trainNear(it.pos, FUEL_R) ? '[E] Remplir le réservoir d\'eau' : 'Gare ton train près du quai pour remplir';
+  if (it) label = interactLabel(it, label);
+  const sackNear = fuelSackIdx() >= 0 && S.owned.vapeur && train.head && train.loco.getWorldPosition(_lw).distanceTo(player.pos) < 9;
+  if (sackNear && dCab >= 5 && (!it || it.id === 'coal' || it.id === 'water')) label = `[E] Verser ${bagFuelName()} dans le tender`;
+  else if (sackNear && dCab < 5) label = '[E] Monter en cabine (verse le sac dans le tender)';
   for (const r of remotes.values()) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5 && dCab >= 5) label = `[E] Monter dans le train de ${r.name}`;
   ui.prompt(label);
 
   if (input.ah('interact')) {
-    if (dCab < 5) { player.mode = 'cab'; audio.clunk(); return; }
+    if (dCab < 5) { pourFuelSacks(); player.mode = 'cab'; audio.clunk(); return; }
+    if (sackNear && (!it || it.id === 'coal' || it.id === 'water') && pourFuelSacks()) return;
     for (const [id, r] of remotes) if (r.train.head && locoCabWorld(r.train).distanceTo(player.pos) < 5) { player.mode = 'ride'; player.rideId = id; audio.clunk(); return; }
     if (pick?.kind === 'nugget') return collectNugget(pick.i);
     if (pick?.kind === 'find') return collectFind(pick.i);
@@ -532,8 +578,16 @@ function collectFind(i) {
 }
 function useInteract(it) {
   if (it.id === 'shop') return openShop();
-  if (it.id === 'coal' && S.owned.vapeur && trainNear(it.pos, FUEL_R)) { train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
-  if (it.id === 'water' && S.owned.vapeur && trainNear(it.pos, FUEL_R)) { train.water = train.maxWater; audio.setMelt(1); setTimeout(() => audio.setMelt(0), 900); ui.toast('Réservoir plein'); checkFuel(); return; }
+  if (it.id === 'coal') {
+    if (!S.owned.vapeur) { ui.toast('La Charbonnière alimente les locomotives à vapeur. Achète-en une au Comptoir du Moyeu.'); audio.deny(); return; }
+    if (trainNear(it.pos, FUEL_R)) { if (train.coal >= train.maxCoal) { ui.toast('Tender plein.'); audio.deny(); return; } train.coal = Math.min(train.maxCoal, train.coal + 10); audio.shovel(); ui.toast('+10 charbon'); checkFuel(); return; }
+    return takeFuelSack('coal');
+  }
+  if (it.id === 'water') {
+    if (!S.owned.vapeur) { ui.toast('Le Château d\'eau remplit les locomotives à vapeur. Achète-en une au Comptoir du Moyeu.'); audio.deny(); return; }
+    if (trainNear(it.pos, FUEL_R)) { if (train.water >= train.maxWater) { ui.toast('Réservoir déjà plein.'); audio.deny(); return; } train.water = train.maxWater; audio.setMelt(1); setTimeout(() => audio.setMelt(0), 900); ui.toast('Réservoir plein'); checkFuel(); return; }
+    return takeFuelSack('water');
+  }
   if (it.id === 'hall') { ui.say([{ who: 'Hall des trouvailles', icon: '🏛', text: `${S.finds.length} / 5 trouvailles exposées. Elles brillent sous un rayon de lumière dans les mondes.` }]); return; }
   if (it.id === 'iceblock' && S.sheriff === 'ice') {
     const lines = [{ who: 'Toi', icon: '👤', color: me.color, text: 'Un robot en laiton… figé en plein saut de monocycle. Son chapeau est encore en l\'air.' }];
@@ -858,7 +912,7 @@ function sheriffTick(dt) {
 }
 
 let camInit = false; const _o2 = new THREE.Vector3();
-let _camT = null; // cible de la caméra : un volume « caméra seulement » qui la contient (joueur sous un auvent) est ignoré
+let _camT = null, armLen = NaN; // cible de la caméra : un volume « caméra seulement » qui la contient (joueur sous un auvent) est ignoré
 function camBlocked(x, y, z) {
   if (VOX.solid(x, z, y - 0.35, y + 0.35, 0.3)) return true; // vraie géométrie
   for (const c of COLLIDERS.near(x, z)) {
@@ -894,38 +948,22 @@ function updateCamera(dt) {
   }
   if (player.mode === 'foot') { target = player.pos.clone().add(new THREE.Vector3(0, 1.7, 0)); dist = camZoom; }
   else { const tr = player.mode === 'cab' ? train : remotes.get(player.rideId)?.train || train; target = tr.loco.position.clone().add(new THREE.Vector3(0, 3, 0)); dist = (13 + Math.abs(tr.speed) * 0.25) * camZoom / 6.5; }
-  const off = new THREE.Vector3(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch)).multiplyScalar(dist);
-  const want = target.clone().add(off); _camT = target;
-  // la caméra ne traverse que les petits objets : seuls les gros volumes (bâtiments, silo, murs) la repoussent.
-  const NSTEP = 24;
-  const freeOf = (o) => { for (let i = 1; i <= NSTEP; i++) { const t = i / NSTEP; if (camBlocked(target.x + o.x * t, target.y + o.y * t, target.z + o.z * t)) return Math.max(0, (i - 1.5) / NSTEP); } return 1; };
-  const free = freeOf(off);
-  if (free < 1) {
-    const df = free * dist, MIN = 3.0;
-    if (df >= MIN) want.copy(target).addScaledVector(off, free);
-    else { // trop près : on monte (survol), sinon on contourne par le côté, jamais collé à la tête
-      const hl = Math.hypot(off.x, off.z) || 1, dh = Math.max(0.4, df);
-      const hh = Math.min(4.2, Math.sqrt(Math.max(0, MIN * MIN - dh * dh)) + 0.6);
-      want.set(target.x + off.x / hl * dh, target.y + hh, target.z + off.z / hl * dh);
-      if (camBlocked(want.x, want.y, want.z)) {
-        let best = df, bo = null;
-        for (const da of [0.6, -0.6, 1.2, -1.2, 1.9, -1.9, 2.6, -2.6, 3.14]) {
-          const ca = Math.cos(da), sa = Math.sin(da), o2 = _o2.set(off.x * ca - off.z * sa, off.y, off.x * sa + off.z * ca);
-          const f2 = freeOf(o2) * dist; if (f2 > best + 0.3) { best = f2; bo = o2.clone(); if (f2 >= MIN) break; }
-        }
-        if (bo) want.copy(target).addScaledVector(bo, Math.min(1, best / dist)); else want.copy(target).addScaledVector(off, Math.max(free, 2.2 / dist));
-      }
-    }
-  }
-  if (!Number.isFinite(want.x + want.y + want.z)) want.copy(target).add(_o2.set(0, 3, 6)); // garde-fou NaN : jamais de caméra empoisonnée
-  if (!Number.isFinite(camPos.x + camPos.y + camPos.z)) camInit = false;
-  const gh = terrain.heightAt(want.x, want.z) + 0.8; if (want.y < gh) want.y = gh;
-  if (camPos.distanceTo(want) > 60 || !camInit) { camPos.copy(want); camLook.copy(target); camInit = true; } // téléportation / respawn / 1re image
-  else {
-    const closer = camPos.distanceTo(target) > want.distanceTo(target) + 0.05;
-    camPos.lerp(want, 1 - Math.exp(-dt * (closer ? 16 : 2.5))); // rapprochement vif, éloignement lent (pas de pompage)
-  }
-  camLook.lerp(target, 1 - Math.exp(-dt * 18));
+  // Bras de caméra classique : direction = souris, longueur = distance libre la plus courte (géométrie réelle + terrain).
+  // Jamais de déplacement latéral ni de saut : le bras se raccourcit instantanément devant un obstacle, se rallonge en douceur.
+  const dir = _o2.set(Math.sin(player.yaw) * Math.cos(player.pitch), -Math.sin(player.pitch), Math.cos(player.yaw) * Math.cos(player.pitch));
+  _camT = target;
+  const blockedAt = (d) => { const x = target.x + dir.x * d, y = target.y + dir.y * d, z = target.z + dir.z * d; return y < terrain.heightAt(x, z) + 0.45 || camBlocked(x, y, z); };
+  let free = dist;
+  for (let d = 0.35; d <= dist; d += 0.25) if (blockedAt(d)) { free = Math.max(0.35, d - 0.35); break; }
+  if (!Number.isFinite(armLen) || !camInit) armLen = free;
+  if (free < armLen) armLen = free; // raccourcit instantanément : jamais dans un objet
+  else armLen += (free - armLen) * (1 - Math.exp(-dt * 3));
+  camPos.copy(target).addScaledVector(dir, armLen);
+  if (!Number.isFinite(camPos.x + camPos.y + camPos.z)) camPos.copy(target).add(_o2.set(0, 3, 6));
+  camInit = true;
+  camLook.copy(target);
+  // trop près (mur juste derrière) : on masque le personnage plutôt que de remplir l'écran avec son casque
+  if (player.mode === 'foot') player.avatar.visible = armLen > 1.3;
   camera.position.copy(camPos); camera.lookAt(camLook);
   // légère vibration en cabine à vitesse
   if (player.mode === 'cab' && SET.shake) { const sh = Math.min(0.08, Math.abs(train.speed) * 0.003); camera.position.x += (Math.random() - 0.5) * sh; camera.position.y += (Math.random() - 0.5) * sh; }
@@ -959,7 +997,7 @@ function updateRange() {
 // accès debug / tests automatisés
 // collision à pied avec le flanc des trains (local + distants) ; on peut toujours monter dessus (saut) ou en cabine (E)
 COLLIDERS.dynamic.push(out => { trainBodies(train, out); for (const r of remotes.values()) trainBodies(r.train, out); });
-window.__oct = { VOX, THREE, collExclude, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
+window.__oct = { VOX, THREE, collExclude, updateCamera, camBlocked, interactables, hub, culler, composer, bloom, Q, COLLIDERS, remotes, compass, renderer, scene, smoke, sparks, steam, weather, camera, get S() { return S; }, get train() { return train; }, get player() { return player; }, net, terrain, setStage, freeSheriff, deliveryCinematic, nuggets, crystals, finds, gelure, western, openShop, audio, ui, input };
 if (DEBUG) setTimeout(() => console.log('DEBUG prêt'), 0);
 ui.objective(STAGES[0].text);
 frame();

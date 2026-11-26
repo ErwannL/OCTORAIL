@@ -70,7 +70,7 @@ export class Player {
     if (input.a('back')) want.sub(f);
     if (input.a('right')) want.add(r);
     if (input.a('left')) want.sub(r);
-    if (want.lengthSq() > 0) want.normalize().multiplyScalar(sp);
+    if (want.lengthSq() > 0) want.normalize().multiplyScalar(this.charge > 0.12 ? 1.2 : sp);
     this.vel.x += (want.x - this.vel.x) * Math.min(1, dt * 12);
     this.vel.z += (want.z - this.vel.z) * Math.min(1, dt * 12);
     this.vel.y -= 22 * dt;
@@ -92,6 +92,7 @@ export class Player {
     // Collision sur la géométrie réelle (VOX) + corps mobiles (trains).
     const P = this.pos;
     const ground = (x, z, feet) => Math.max(this.groundAt(x, z), VOX.floor(x, z, feet, STEP));
+    const steep = (x, z, nx, nz) => { if (!this.onGround) return false; const g0 = this.terrain.heightAt(x, z), g1 = this.terrain.heightAt(nx, nz); const d = Math.hypot(nx - x, nz - z) || 1e-6; return g1 > P.y + 0.05 && (g1 - g0) / d > 0.9; };
     const hits = (x, z, feet) => VOX.solid(x, z, feet + STEP, feet + BODY, RAD) || this.trainHit(x, z, feet);
     // coincé (apparition, téléportation) : on se dégage vers la case libre la plus proche, jamais à travers
     const unstick = () => {
@@ -107,16 +108,17 @@ export class Player {
     const steps = Math.max(1, Math.ceil(Math.hypot(this.vel.x, this.vel.z) * dt / 0.12));
     for (let i = 0; i < steps; i++) {
       const dx = this.vel.x * dt / steps, dz = this.vel.z * dt / steps;
-      if (startStuck || !hits(P.x + dx, P.z + dz, P.y)) { P.x += dx; P.z += dz; }
-      else if (!hits(P.x + dx, P.z, P.y)) { P.x += dx; this.vel.z *= 0.5; }
-      else if (!hits(P.x, P.z + dz, P.y)) { P.z += dz; this.vel.x *= 0.5; }
+      const ok = (nx, nz) => !hits(nx, nz, P.y) && !steep(P.x, P.z, nx, nz);
+      if (startStuck || ok(P.x + dx, P.z + dz)) { P.x += dx; P.z += dz; }
+      else if (ok(P.x + dx, P.z)) { P.x += dx; this.vel.z *= 0.5; }
+      else if (ok(P.x, P.z + dz)) { P.z += dz; this.vel.x *= 0.5; }
     }
     P.y += this.vel.y * dt;
     // plafond : on ne saute pas à travers un auvent
     if (this.vel.y > 0 && VOX.solid(P.x, P.z, P.y + BODY - 0.05, P.y + BODY + 0.1, RAD * 0.8)) this.vel.y = 0;
     let g = ground(P.x, P.z, P.y);
     for (const c of extraColliders) { const h = c(P.x, P.z); if (h !== null && h > g && h < P.y + 1.2) g = h; }
-    if (P.y <= g) { P.y = g; this.vel.y = 0; this.onGround = true; } else if (P.y > g + 0.05) this.onGround = false;
+    if (P.y <= g) { if (!this.onGround) this.springOut = Math.min(this.springOut, 0.25); P.y = g; this.vel.y = 0; this.onGround = true; } else if (P.y > g + 0.05) this.onGround = false;
     if (hits(P.x, P.z, P.y)) unstick(); // descente d'un rebord : jamais de chevauchement
     const R = Math.hypot(this.pos.x, this.pos.z); if (R > 1380) this.pos.multiplyScalar(1380 / R);
     const moving = Math.hypot(this.vel.x, this.vel.z);
@@ -142,7 +144,7 @@ export class Player {
   animate(moving, dt = 0.016) {
     const u = this.avatar.userData, k = Math.min(1, moving / 5);
     // ressorts : sortent avec la charge, se détendent au bond puis se rétractent
-    this.springOut = Math.max(0, this.springOut - dt * 1.6);
+    this.springOut = Math.max(0, this.springOut - dt * (this.onGround ? 4 : 1.2));
     const sv = Math.max(this.charge > 0.12 ? this.charge : 0, this.springOut);
     if (this.springs) for (const s2 of this.springs) { s2.visible = sv > 0.02; s2.scale.y = 0.2 + (this.charge > 0.12 ? (1 - this.charge * 0.5) : 1.4 * this.springOut); }
     u.legs.forEach(h => { const leg = h.children[0]; if (leg) leg.scale.y = 1 - Math.min(0.55, sv * 0.6); });
@@ -156,7 +158,7 @@ export class Player {
       this.gadgets.potion.visible = on && this.prepKind === 'potion';
       if (on) {
         const t = 1 - this.prep / 0.75;
-        if (this.prepKind === 'wrench') { u.arms[1].rotation.x = -1.3; u.arms[1].rotation.z = -0.3 + Math.sin(t * 25) * 0.35; this.gadgets.wrench.rotation.y = t * 12; }
+        if (this.prepKind === 'wrench') { const up = Math.min(1, t * 3); u.arms[1].rotation.x = -2.5 * up; u.arms[1].rotation.z = 0.55 * up; this.gadgets.wrench.rotation.set(0, 0, Math.PI / 2 + Math.min(1, Math.max(0, t * 1.6 - 0.3)) * Math.PI * 1.5); u.head && (u.head.rotation.z = -0.15 * up); }
         else { u.arms[1].rotation.x = -2.4 * Math.min(1, t * 2.5); u.arms[1].rotation.z = 0.4; this.gadgets.potion.rotation.x = -t * 1.8; }
       } else { u.arms[1].rotation.z = 0; }
       if (!on && this.sprinting) { u.arms[0].rotation.x *= 1.4; u.arms[1].rotation.x *= 1.4; }

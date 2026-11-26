@@ -158,7 +158,7 @@ export function buildHub(scene, interact) {
   const W = (m, lx, lz) => m.localToWorld(new THREE.Vector3(lx, 0, lz));
   const circ = (m, lx, lz, r, top = 99) => { const v = W(m, lx, lz); COLLIDERS.circle(v.x, v.z, r, top); };
   const box = (m, lx, lz, hx, hz, top = 99) => { const v = W(m, lx, lz); COLLIDERS.box(v.x, v.z, hx, hz, m.rotation.y, top); };
-  circ(machines.coal, 0, -1, 2.8); box(machines.coal, -3.6, -1, 1.1, 1.1); circ(machines.coal, -4.4, -1, 1.1); box(machines.coal, 2.8, 3.8, 0.85, 1.15, 1.3); box(machines.coal, 0, 3.2, 0.7, 2.6, 1.6);
+  circ(machines.coal, 0, -1, 2.8); box(machines.coal, -3.6, -1, 1.1, 1.1); circ(machines.coal, -4.4, -1, 1.1); box(machines.coal, 2.8, 3.8, 0.85, 1.15, 1.3); box(machines.coal, 0, 3.2, 0.7, 2.6, 1.6); box(machines.coal, 0, 6.45, 0.9, 0.7, 0.8);
   for (const [x, z] of [[-1.85, -1.85], [1.85, -1.85], [-1.85, 1.85], [1.85, 1.85]]) circ(machines.water, x, z, 0.35);
   box(machines.shop, 0, 0.6, 3.5, 1.1, 1.4); box(machines.shop, 0, -1.6, 3.5, 0.3); circ(machines.shop, -3.4, 1.4, 0.25); circ(machines.shop, 3.4, 1.4, 0.25);
   for (const x of [-5.5, -2.75, 0, 2.75, 5.5]) circ(machines.hall, x, -1.9, 0.5);
@@ -207,7 +207,12 @@ function coalMachine() {
   for (const [x, z] of [[-2, -3], [2, -3], [-2, 1], [2, 1]]) k.add(G.box(0.3, 3, 0.3), iron, { p: [x, 1.5, z] });
   // tapis convoyeur incliné vers le quai
   k.add(G.box(1.2, 0.2, 6), iron, { p: [0, 1.9, 3.0], r: [0.35, 0, 0] });
-  k.add(G.box(1.0, 0.06, 6), mat('#202020', { roughness: 1 }), { p: [0, 2.03, 3.0], r: [0.35, 0, 0] });
+  // (la bande elle-même est un mesh à texture défilante, voir plus bas)
+  // trémie de réception au bout du convoyeur : parois + tas de charbon
+  k.add(G.box(1.7, 0.1, 1.2), iron, { p: [0, 0.12, 6.45] });
+  k.add(G.box(0.1, 0.7, 1.2), iron, { p: [-0.85, 0.45, 6.45] }); k.add(G.box(0.1, 0.7, 1.2), iron, { p: [0.85, 0.45, 6.45] });
+  k.add(G.box(1.7, 0.7, 0.1), iron, { p: [0, 0.45, 7.05] }); k.add(G.box(1.7, 0.5, 0.1), iron, { p: [0, 0.35, 5.9] });
+  for (let i = 0; i < 14; i++) k.add(G.box(0.34, 0.3, 0.34), MAT.coal(), { p: [Math.sin(i * 3.1) * 0.5, 0.3 + (i % 3) * 0.13, 6.45 + Math.cos(i * 2.3) * 0.35], r: [i, i * 2, i * 0.5] });
   for (let i = 0; i < 6; i++) k.add(G.cyl(0.12, 0.12, 1.25, 10), MAT.steel(), { p: [0, 0.95 + i * 0.37, 5.6 - i * 1.0], r: [0, 0, H] });
   for (const z of [1.2, 4.5]) for (const x of [-0.6, 0.6]) k.add(G.box(0.12, 2.2 - (z > 3 ? 1.1 : 0), 0.12), iron, { p: [x, 0.9 - (z > 3 ? 0.4 : 0), z] });
   // chariot de charbon
@@ -228,10 +233,38 @@ function coalMachine() {
   // manomètre sur le silo
   k.add(G.cyl(0.4, 0.4, 0.14, 18), brass, { p: [0, 3.0, 1.6], r: [H, 0, 0] }); k.add(G.cyl(0.32, 0.32, 0.16, 18), mat('#f6ecd2'), { p: [0, 3.0, 1.6], r: [H, 0, 0] }); k.add(G.box(0.04, 0.26, 0.03), iron, { p: [0.05, 3.05, 1.7], r: [0, 0, -0.6] });
   grp.add(k.build());
-  // morceaux de charbon qui défilent sur le convoyeur (animation autonome, 1 draw call)
-  { const lk = new Kit(); for (let i = 0; i < 6; i++) lk.add(G.box(0.34, 0.26, 0.34), MAT.coal(), { p: [Math.sin(i * 2.3) * 0.25, 0.15, -2.5 + i], r: [i, i * 2, 0] });
-    const lumps = lk.build(); lumps.position.set(0, 2.1, 3.0); lumps.rotation.x = 0.35; grp.add(lumps);
-    lumps.userData.noCollide = true; lumps.children[0].onBeforeRender = () => { lumps.position.z = 3.0 + ((performance.now() / 1000 * 0.8) % 1) * 0.94; lumps.position.y = 2.1 - ((performance.now() / 1000 * 0.8) % 1) * 0.34; lumps.updateMatrixWorld(true); }; }
+  // convoyeur continu : bande à nervures qui défile + morceaux régulièrement espacés qui sortent du silo,
+  // descendent la pente puis tombent dans la trémie (le recyclage se fait sous le bord de la trémie : aucun saut visible)
+  {
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const c = cv.getContext('2d');
+    c.fillStyle = '#1b1b1d'; c.fillRect(0, 0, 64, 64); c.fillStyle = '#3d3d42'; c.fillRect(0, 0, 64, 9); c.fillStyle = '#0c0c0d'; c.fillRect(0, 9, 64, 3);
+    c.fillStyle = '#2b2b2f'; c.fillRect(0, 0, 5, 64); c.fillRect(59, 0, 5, 64);
+    const bt = new THREE.CanvasTexture(cv); bt.wrapS = bt.wrapT = THREE.RepeatWrapping; bt.repeat.set(1, 12); bt.colorSpace = THREE.SRGBColorSpace; bt.anisotropy = 4;
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 6), new THREE.MeshStandardMaterial({ map: bt, roughness: 0.95, metalness: 0.1 }));
+    belt.position.set(0, 2.03, 3.0); belt.rotation.x = 0.35; belt.receiveShadow = true; belt.userData.noCollide = true; grp.add(belt);
+    const SPD = 0.9, N = 14, S0 = -1.5, S1 = 3.0, TB = (S1 - S0) / SPD, TF = 0.5, TC = TB + TF;
+    const th = 0.35, d = new THREE.Vector3(0, -Math.sin(th), Math.cos(th)), nrm = new THREE.Vector3(0, Math.cos(th), Math.sin(th));
+    const base = new THREE.Vector3(0, 2.03, 3.0).addScaledVector(nrm, 0.17);
+    const endP = base.clone().addScaledVector(d, S1);
+    const lg = new THREE.IcosahedronGeometry(0.17, 0); lg.scale(1.15, 0.85, 1);
+    const im = new THREE.InstancedMesh(lg, MAT.coal(), N); im.castShadow = true; im.frustumCulled = false; im.userData.noCollide = true; grp.add(im);
+    const rnd = Array.from({ length: N }, (_, i) => ({ x: Math.sin(i * 12.9898) * 0.28, j: Math.sin(i * 78.233) * 0.25, s: 0.8 + (Math.sin(i * 4.1) * 0.5 + 0.5) * 0.7, r: i * 1.7 }));
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
+    const upd = () => {
+      const t = performance.now() / 1000;
+      bt.offset.y = (t * SPD / 0.5) % 1; // 12 nervures sur 6 m = 0,5 m de période
+      for (let i = 0; i < N; i++) {
+        const R = rnd[i]; const tau = (t + (i + R.j) * TC / N) % TC;
+        let k = R.s;
+        if (tau < TB) { ps.copy(base).addScaledVector(d, S0 + tau * SPD); k *= Math.min(1, tau / 0.35); }
+        else { const f = tau - TB; ps.copy(endP); ps.z += d.z * SPD * f; ps.y += d.y * SPD * f - 4.9 * f * f; k *= ps.y < 0.62 ? Math.max(0, (ps.y - 0.38) / 0.24) : 1; }
+        ps.x += R.x; e.set(R.r + tau * 0.6, R.r * 2, tau * 0.3); q.setFromEuler(e); sc.setScalar(k);
+        m4.compose(ps, q, sc); im.setMatrixAt(i, m4);
+      }
+      im.instanceMatrix.needsUpdate = true;
+    };
+    upd(); belt.onBeforeRender = upd;
+  }
   const fly = new THREE.Group(); fly.position.set(-4.4, 1.3, -1);
   const fk = new Kit(); fk.add(G.tor(1.0, 0.12, 6, 28), iron, { r: [0, H, 0] }); for (let i = 0; i < 6; i++) fk.add(G.box(0.08, 1.9, 0.12), iron, { r: [i * PI / 6, 0, 0] });
   fly.add(fk.build()); grp.add(fly); grp.userData.fly = fly;

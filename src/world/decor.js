@@ -4,6 +4,7 @@ import { sectorIndex } from './biomes.js';
 import { mulberry } from '../util/noise.js';
 import { COLLIDERS } from './colliders.js';
 import { textSprite } from './tracks.js';
+import { TSUNAMI_ZONE } from './tsunami.js';
 import { rockShapeGeometry } from './flora.js';
 
 const PI = Math.PI, H = PI / 2;
@@ -94,7 +95,7 @@ export function buildTrackside(scene, net, terrain) {
       const a = e.pts[k - 1], b = e.pts[k + 1], p = e.pts[k];
       const nx = -(b.z - a.z), nz = b.x - a.x, L = Math.hypot(nx, nz) || 1;
       const x = p.x + nx / L * 5.2, z = p.z + nz / L * 5.2;
-      if (Math.hypot(x, z) < 75) { prev = null; continue; }
+      if (Math.hypot(x, z) < 75 || TSUNAMI_ZONE.test(x, z, 6)) { prev = null; continue; }
       const y = terrain.heightAt(x, z);
       const ang = Math.atan2(b.x - a.x, b.z - a.z) + H;
       const sec = sectorIndex(x, z);
@@ -123,8 +124,8 @@ export function buildTrackside(scene, net, terrain) {
 // ------------------------------------------------------------------ Western : éoliennes de ranch, épaves, squelettes, clôtures, virevoltants
 function bisonSkeleton(k, bone, dark) {
   // longueur le long de +z ; origine au sol
-  k.add(G.rbox(0.9, 0.7, 1.1, 0.12), bone, { p: [0, 0.75, 2.5], r: [0.25, 0, 0] });                 // crâne
-  k.add(G.box(0.5, 0.35, 0.5), bone, { p: [0, 0.55, 3.1] });                                         // museau
+  k.add(G.rbox(0.55, 0.45, 0.7, 0.1), bone, { p: [0, 0.8, 2.4], r: [0.25, 0, 0] });                 // crâne
+  k.add(G.cone(0.2, 0.7, 5), bone, { p: [0, 0.62, 2.95], r: [H + 0.35, 0, 0], s: [1, 1, 0.8] });                                         // museau
   for (const sx of [-1, 1]) {
     k.add(taperTube([[sx * 0.4, 0.95, 2.4], [sx * 0.9, 1.0, 2.35], [sx * 1.15, 1.35, 2.5], [sx * 1.0, 1.7, 2.7]], 0.12, 0.025, 8, 5), bone);
     k.add(G.sph(0.11, 6, 5), dark, { p: [sx * 0.27, 0.82, 2.95] });                                 // orbites
@@ -534,9 +535,9 @@ export function buildClosedWorlds(scene, terrain, net) {
     // petits rochers en lévitation + bancs de nuages
     const pebs = []; place(2, 90, 250, 1300, (x, y, z) => { const s = 0.8 + rnd() * 3; pebs.push(M4(x, y + 14 + rnd() * 70, z, rnd() * 6, [s * 1.3, s, s], rnd(), rnd())); });
     instanced(new THREE.IcosahedronGeometry(1, 0), rock, pebs, false);
-    const cl = [], ck = new Kit(), cm = mat('#ffffff', { roughness: 1, emissive: '#dfeeff', emissiveIntensity: 0.35, flatShading: true });
+    const cl = [], ck = new Kit(), cm = mat('#ffffff', { roughness: 1, emissive: '#dfeeff', emissiveIntensity: 0.08, flatShading: true });
     for (let i = 0; i < 7; i++) ck.add(new THREE.IcosahedronGeometry(1, 1), cm, { p: [(i - 3) * 0.7, Math.sin(i * 1.7) * 0.25, Math.cos(i * 2.3) * 0.3], s: [1.1 - Math.abs(i - 3) * 0.12, 0.55, 0.9] });
-    place(2, 60, 250, 1300, (x, y, z) => { const s = 8 + rnd() * 16; cl.push(M4(x, y + 6 + rnd() * 22, z, rnd() * 6, [s, s * 0.7, s])); });
+    place(2, 60, 250, 1300, (x, y, z) => { const s = 8 + rnd() * 16; cl.push(M4(x, y + 26 + rnd() * 30, z, rnd() * 6, [s, s * 0.7, s])); });
     instKit(scene, ck, cl, false);
   }
 
@@ -641,7 +642,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Les Entrailles : forêt de champignons géants phosphorescents, lamelles, spores, tentacules
-  { const stalk = mat('#d8c8e8', { roughness: 0.8, flatShading: true }), capA = mat('#7a3fa0', { roughness: 0.7, flatShading: true }), capB = mat('#2f8a8a', { roughness: 0.7, flatShading: true }), gill = mat('#43225f', { roughness: 0.9 }), spotA = glow('#d08cff', 2.6), spotB = glow('#5dffd0', 2.6), bulb = glow('#9affd0', 2.2), vein = mat('#6a3a86', { emissive: '#8a40c0', emissiveIntensity: 0.5, roughness: 0.6, flatShading: true });
+  { const stalk = mat('#d8c8e8', { roughness: 0.8, flatShading: true }), capA = mat('#8a4fb8', { roughness: 0.7, flatShading: true, emissive: '#6a2fa0', emissiveIntensity: 0.45 }), capB = mat('#2f9a9a', { roughness: 0.7, flatShading: true, emissive: '#1a8a80', emissiveIntensity: 0.45 }), gill = mat('#43225f', { roughness: 0.9 }), spotA = glow('#d08cff', 2.6), spotB = glow('#5dffd0', 2.6), bulb = glow('#9affd0', 2.2), vein = mat('#6a3a86', { emissive: '#8a40c0', emissiveIntensity: 0.5, roughness: 0.6, flatShading: true });
     const cap = (k, m, sp, x, y, z, r, h, st = 1) => { k.add(jitter(G.sph(r, 12, 6, 0, PI * 2, 0, H), 12, 0.12 * r), m, { p: [x, y, z], s: [1, h / r, 1] }); k.add(G.cyl(r * 0.98, r * 0.3, 0.12 * r, 12), gill, { p: [x, y - 0.02, z] }); for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + y, rr = r * (0.35 + (i % 3) * 0.2); k.add(G.sph(r * 0.08, 5, 4), sp, { p: [x + Math.cos(a) * rr, y + h * Math.sqrt(Math.max(0, 1 - (rr / r) ** 2)) * 0.98, z + Math.sin(a) * rr], s: [1, 0.5, 1] }); } void st; };
     const kinds = [];
     { const k = new Kit(); k.add(G.cyl(0.18, 0.3, 2.2, 8), stalk, { p: [0, 1.1, 0] }); k.add(G.tor(0.22, 0.04, 4, 8), stalk, { p: [0, 1.6, 0], r: [H, 0, 0] }); cap(k, capA, spotA, 0, 2.15, 0, 1.25, 0.75); kinds.push(k); }
@@ -650,7 +651,7 @@ export function buildClosedWorlds(scene, terrain, net) {
     { const k = new Kit(); k.add(jitter(G.cone(1.2, 2.2, 6), 9, 0.2), mat('#3a2a44', { flatShading: true }), { p: [0, 1.0, 0] });
       for (let i = 0; i < 3; i++) { const y = 0.7 + i * 0.55; k.add(G.cyl(1.5 - i * 0.3, 1.4 - i * 0.3, 0.16, 12, false), i % 2 ? capB : capA, { p: [0.55, y, 0], s: [1, 1, 0.7], r: [0, 0, 0.12] }); k.add(G.cyl(0.07, 0.07, 0.04, 6), i % 2 ? spotB : spotA, { p: [0.55 + 0.9 - i * 0.2, y + 0.1, 0] }); } kinds.push(k); }
     const lists = kinds.map(() => []);
-    place(7, 130, 240, 1300, (x, y, z, i) => { const ki = i % 4, s = (ki === 0 ? 1.5 : 1.2) + rnd() * 5; lists[ki].push(M4(x, y - 0.1, z, rnd() * 6, [s, s, s], (rnd() - 0.5) * 0.25)); });
+    place(7, 170, 240, 1300, (x, y, z, i) => { const ki = i % 4, s = (ki === 0 ? 2.2 : 1.8) + rnd() * 6; lists[ki].push(M4(x, y - 0.1, z, rnd() * 6, [s, s, s], (rnd() - 0.5) * 0.25)); });
     kinds.forEach((k, i) => instKit(scene, k, lists[i], false));
     // bulbes phosphorescents + coraux
     { const k = new Kit(); for (let i = 0; i < 5; i++) { const a = i * 1.26, h = 0.6 + (i % 3) * 0.35; k.add(G.cyl(0.03, 0.045, h, 5), stalk, { p: [Math.cos(a) * 0.35, h / 2, Math.sin(a) * 0.35] }); k.add(G.sph(0.14 + (i % 2) * 0.05, 6, 5), bulb, { p: [Math.cos(a) * 0.35, h + 0.1, Math.sin(a) * 0.35] }); }

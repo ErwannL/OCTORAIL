@@ -11,7 +11,7 @@ import { galleon, gearGeometry } from './decor.js';
 //    => les objets figés (baleine-machine, galions, poissons) apparaissent « dans » la glace ;
 //  - la lèvre surplombe un grand porche (le « tube »), puis un tunnel creusé suit la voie jusqu'à la face arrière.
 const PI = Math.PI, H = PI / 2;
-const SX = 0.62, SY = 0.85, GR = -8; // échelles (x, hauteur) et niveau « sous terre » relatif à la voie
+const SX = 0.55, SY = 0.85, GR = -8; // échelles (x, hauteur) et niveau « sous terre » relatif à la voie
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 function table(ctrl) { // [x,y] strictement croissants -> fonction lissée (Catmull-Rom échantillonnée)
@@ -19,10 +19,12 @@ function table(ctrl) { // [x,y] strictement croissants -> fonction lissée (Catm
   const x0 = ctrl[0][0], x1 = ctrl[ctrl.length - 1][0];
   return x => { if (x <= x0 || x >= x1) return GR; let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (pts[m].x <= x) lo = m; else hi = m; } const a = pts[lo], b = pts[hi], t = (x - a.x) / ((b.x - a.x) || 1); return a.y + (b.y - a.y) * t; };
 }
-const HTOP = table([[-196, GR], [-170, 2], [-130, 22], [-90, 55], [-45, 105], [0, 165], [35, 212], [70, 240], [105, 246], [135, 232], [158, 205], [170, 176], [177, 143], [178, 140]]);
-const LBOT = table([[-196, GR], [56, GR], [58, 0], [62, 6], [68, 28], [76, 60], [88, 95], [104, 122], [124, 142], [146, 156], [164, 160], [173, 152], [177, 143], [178, 140]]);
+const HTOP = table([[-196, GR], [-170, 2], [-130, 22], [-90, 55], [-45, 105], [0, 165], [35, 212], [70, 240], [105, 246], [135, 232], [160, 208], [178, 190], [196, 158], [208, 124], [214, 100], [215, 97]]);
+const LBOT = table([[-196, GR], [56, GR], [58, 0], [62, 6], [68, 28], [76, 60], [88, 95], [104, 122], [124, 142], [146, 158], [168, 164], [188, 152], [202, 128], [212, 104], [215, 97]]);
 const hash = (x, z) => Math.sin(x * 0.173 + z * 0.091) * Math.sin(x * 0.067 - z * 0.139 + 1.3) + 0.5 * Math.sin(x * 0.41 + z * 0.37 + 2.1) * Math.sin(z * 0.23 - x * 0.19);
 
+// zone occupée par la vague (repère local) pour écarter poteaux et décors
+export const TSUNAMI_ZONE = { set: false, test: () => false };
 export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   const rnd = mulberry(2024);
   const ki = Math.floor(edge.pts.length * frac), mid = edge.pts[ki], a2 = edge.pts[ki + 10];
@@ -43,19 +45,21 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
     let h = HTOP(xs), l = LBOT(xs);
     const solid = h > GR + 0.5;
     if (solid) { h = (h + n) * env * m1; if (l > GR + 1) l = (l + n * 0.8) * env * m1 + (1 - env) * 0; h = Math.max(GR, h); }
+    if (l > GR + 8) l += 3.5 * Math.sin(l * 0.3 + zeta * 0.02) + 2 * Math.sin(l * 0.8 + zeta * 0.05);
     h = h * SY; l = l > GR + 0.5 ? l * SY : GR;
     if (l >= h) l = h - 0.01;
     return [h, l];
   }
 
   // maillage -----------------------------------------------------------------------------
-  const xs = []; for (let x = -200; x < -100; x += 8) xs.push(x); for (let x = -100; x < 56; x += 5) xs.push(x); for (let x = 56; x < 182; x += 3.5) xs.push(x); for (let x = 182; x <= 224; x += 7) xs.push(x);
+  const xs = []; for (let x = -200; x < -100; x += 8) xs.push(x); for (let x = -100; x < 56; x += 5) xs.push(x); for (let x = 56; x < 182; x += 4) xs.push(x); for (let x = 182; x < 220; x += 4) xs.push(x); for (let x = 220; x <= 252; x += 8) xs.push(x);
   const zl = [0, 1.5, 3, 4.5, 6, 7.5, 9, 10.5, 12.5, 15, 18, 22, 27, 33, 40, 49, 60, 74, 90, 110, 132, 156, 184, 214, 246, 280, 316, 352];
   const zs = []; for (let i = zl.length - 1; i > 0; i--) zs.push(-zl[i]); for (let i = 0; i < zl.length; i++) zs.push(zl[i]);
   const NX = xs.length, NZ = zs.length;
   const grid = []; // grid[i][j] = {x,y(base),z, h, l, hc, lc}
   for (let i = 0; i < NX; i++) { const row = []; const lx = xs[i] * SX, t = track(lx), c = t[1], base = t[2]; for (let j = 0; j < NZ; j++) {
     const zeta = zs[j], [h0, l0] = surf(xs[i], zeta); let h = h0, l = l0;
+    const jt = (Math.abs(zeta) > 14 ? 1 : 0.2) * (rnd() - 0.5) * 3.5; if (h > 3) h += jt; if (l > 8) l += (rnd() - 0.5) * 3.5 * (Math.abs(zeta) > 14 ? 1 : 0);
     // creusement du tunnel le long de la voie
     const a = arch(zeta); if (a > 0 && h > a + 1.5) l = Math.max(l, a); else if (l > h) l = h;
     if (h < a + 1.2 && a > 0) { h = Math.max(h, GR); }
@@ -84,9 +88,9 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   }
   // couleurs : dégradé en hauteur + stries horizontales (couches de glace) ; écume blanche vers la crête et la lèvre
   const shellCol = (c, g, key) => { const y = g[key] - g.base, t = smooth(0, 190, y), band = 0.94 + 0.06 * Math.sin(y * 0.45 + g.z * 0.01); cA.set('#7fc6ec'); cB.set('#f2fbff'); c.copy(cA).lerp(cB, t * t).multiplyScalar(band); if (key === 'h' && y > 120) c.lerp(cB.set('#ffffff'), 0.4 * smooth(120, 200, y)); };
-  const coreCol = (c, g, key) => { const y = g[key] - g.base, t = smooth(-5, 200, y); cA.set('#1b5f95'); cB.set('#58b4e2'); c.copy(cA).lerp(cB, t).multiplyScalar(0.9 + 0.1 * Math.sin(y * 0.6)); if (key === 'lc' && y < 12) c.set('#4fa4d4').multiplyScalar(0.8 + 0.2 * Math.sin(g.x * 0.5)); };
+  const coreCol = (c, g, key) => { const y = g[key] - g.base, t = smooth(-5, 200, y); cA.set('#2a73a8'); cB.set('#8ccff0'); c.copy(cA).lerp(cB, t).multiplyScalar(0.8 + 0.25 * Math.sin(y * 0.6) + 0.25 * hash(g.x * 1.7, g.z * 1.3)); if (key === 'lc' && y < 12) c.set('#4fa4d4').multiplyScalar(0.8 + 0.2 * Math.sin(g.x * 0.5)); };
   const wave = new THREE.Group();
-  const shellGeo = build('h', 'l', ls => Math.min(...ls) < 14, shellCol);
+  const shellGeo = build('h', 'l', ls => Math.min(...ls) < 40, shellCol);
   const coreGeo = build('hc', 'lc', ls => Math.max(...ls) < GR + 2, coreCol);
   const shell = new THREE.Mesh(shellGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.46, emissive: '#3a9ad0', emissiveIntensity: 0.28, flatShading: true }));
   const core = new THREE.Mesh(coreGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.15, emissive: '#2a80c0', emissiveIntensity: 0.45, flatShading: true }));
@@ -106,16 +110,18 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
     const env = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(zz) / 350, 3.2)), 0.8); if (env < 0.12) continue;
     // lèvre : points le long du profil supérieur de x = 70..176
     const n = 3 + Math.floor(rnd() * 4);
-    for (let q = 0; q < n; q++) { const xd = 78 + rnd() * 98, [h] = surf(xd, zz); const lx = xd * SX; if (h < 40) continue; const s = (3 + rnd() * 7) * (0.5 + env); foamL.push(M4(lx + (rnd() - 0.3) * 2, toWorldY(lx, h) - 1 + rnd() * 3, zz + (rnd() - 0.5) * 6, [s * 1.3, s * 0.8, s], rnd() * 3, rnd() * 6, rnd() * 3)); }
+    for (let q = 0; q < n; q++) { const xd = 78 + rnd() * 136, [h] = surf(xd, zz); const lx = xd * SX; if (h < 40) continue; const s = (3 + rnd() * 7) * (0.5 + env); foamL.push(M4(lx + (rnd() - 0.3) * 2, toWorldY(lx, h) - 1 + rnd() * 3, zz + (rnd() - 0.5) * 6, [s * 1.3, s * 0.8, s], rnd() * 3, rnd() * 6, rnd() * 3)); }
     // écume sur le dos : taches plus claires
     if (rnd() < 0.7) { const xd = -80 + rnd() * 150, [h] = surf(xd, zz), lx = xd * SX; const s = 4 + rnd() * 8; foamL.push(M4(lx, toWorldY(lx, h) - 0.5, zz, [s * 1.6, s * 0.5, s * 1.2], 0, rnd() * 6, 0)); }
     // pointes de glace sur la crête
     if (rnd() < 0.55) { const xd = 20 + rnd() * 120, [h] = surf(xd, zz), lx = xd * SX, s = 4 + rnd() * 10; spikeL.push(M4(lx, toWorldY(lx, h) + s * 0.7, zz, [s * 0.35, s, s * 0.35], (rnd() - 0.5) * 0.5, rnd() * 6, (rnd() - 0.5) * 0.5 - 0.35)); }
     // stalactites sous la lèvre (le tube)
     const ns = 1 + Math.floor(rnd() * 3);
-    for (let q = 0; q < ns; q++) { const xd = 100 + rnd() * 74, [h, l] = surf(xd, zz + (rnd() - 0.5) * 5); if (l < 60 || h - l < 14) continue; const lx = xd * SX, len = 6 + rnd() * 26, w = 0.7 + rnd() * 1.6; coneL.push(M4(lx, toWorldY(lx, l) - len / 2 + 1, zz, [w, len / 2, w], (rnd() - 0.5) * 0.1, rnd() * 6, (rnd() - 0.5) * 0.1)); }
+    for (let q = 0; q < ns; q++) { const xd = 100 + rnd() * 112, [h, l] = surf(xd, zz + (rnd() - 0.5) * 5); if (l < 60 || h - l < 14) continue; const lx = xd * SX, len = 6 + rnd() * 26, w = 0.7 + rnd() * 1.6; coneL.push(M4(lx, toWorldY(lx, l) - len / 2 + 1, zz, [w, len / 2, w], (rnd() - 0.5) * 0.1, rnd() * 6, (rnd() - 0.5) * 0.1)); }
+    // épines de glace sur la paroi du fond du porche
+    for (let q = 0; q < 2; q++) if (rnd() < 0.7) { const xd = 60 + rnd() * 34, [, l] = surf(xd, zz); if (l > 6) { const lx = xd * SX, len = 5 + rnd() * 14; coneL.push(M4(lx + len * 0.35, toWorldY(lx, l) - len * 0.2, zz, [0.9 + rnd(), len / 2, 0.9 + rnd()], 0, rnd() * 6, -1.1 + rnd() * 0.4)); } }
     // gouttelettes figées en éclaboussure devant la lèvre
-    if (rnd() < 0.45) { const lx = (170 + rnd() * 55) * SX, y0 = (60 + rnd() * 100) * SY * env, s = 1.2 + rnd() * 3.5; dropL.push(M4(lx, toWorldY(lx, 0) + y0, zz + (rnd() - 0.5) * 8, [s, s * (1 + rnd() * 1.4), s], rnd(), rnd() * 6, rnd())); }
+    if (rnd() < 0.45) { const lx = (210 + rnd() * 50) * SX, y0 = (60 + rnd() * 100) * SY * env, s = 1.2 + rnd() * 3.5; dropL.push(M4(lx, toWorldY(lx, 0) + y0, zz + (rnd() - 0.5) * 8, [s, s * (1 + rnd() * 1.4), s], rnd(), rnd() * 6, rnd())); }
   }
   const inst = (geo, m, list, shadow = false) => { if (!list.length) return; const im = new THREE.InstancedMesh(geo, m, list.length); list.forEach((mm, i) => im.setMatrixAt(i, mm)); im.castShadow = shadow; im.receiveShadow = true; wave.add(im); };
   inst(foamG, foamM, foamL, true); inst(new THREE.IcosahedronGeometry(1, 1), iceM, dropL); inst(new THREE.ConeGeometry(1, 2, 5), iceM, coneL); inst(new THREE.ConeGeometry(1, 2, 4), foamM, spikeL, true);
@@ -157,14 +163,14 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
 
   // tunnel : nervures de glace, luminaires, stalactites, portail de pierre ------------------------
   { const k = new Kit(), rib = mat('#cfeeff', { roughness: 0.2, emissive: '#5ab0e0', emissiveIntensity: 0.4, flatShading: true }), lamp = glow('#9fe8ff', 2.4), lampW = glow('#ffd9a0', 1.4), stone = mat('#59606a', { roughness: 0.9, flatShading: true }), steel = MAT.steel();
-    const lo = -118, hi = 34;
+    const lo = -108, hi = 31;
     for (let lx = hi - 4; lx > lo; lx -= 9) { const t = track(lx), y = t[2]; k.add(G.tor(RT + 0.2, 0.42, 5, 18, PI), rib, { p: [lx, y - 0.2, t[1]], r: [0, H, 0] });
       for (const sz of [-1, 1]) { k.add(G.box(0.6, 3.2, 0.6), rib, { p: [lx, y + 1.4, t[1] + sz * (RT + 0.1)] }); }
       k.add(G.box(0.5, 0.25, 2.2), lamp, { p: [lx, y + RT + 0.15, t[1]] });
       for (const sz of [-1, 1]) k.add(G.box(0.3, 0.3, 0.3), lampW, { p: [lx - 0.4, y + 3.5, t[1] + sz * (RT - 0.4)] });
       for (let q = 0; q < 3; q++) k.add(G.cone(0.12 + rnd() * 0.12, 0.8 + rnd() * 2.2, 5), rib, { p: [lx + (rnd() - 0.5) * 6, y + RT - 0.6 - rnd() * 0.3, t[1] + (rnd() - 0.5) * 12], r: [PI, 0, 0] }); }
     // portail à l'entrée du tunnel (fond du porche)
-    { const lx = 36.5, t = track(lx), y = t[2], zc = t[1];
+    { const lx = 33.5, t = track(lx), y = t[2], zc = t[1];
       for (const sz of [-1, 1]) { k.add(G.box(3.4, 15, 4), stone, { p: [lx, y + 7, zc + sz * (RT + 2.0)] }); k.add(G.box(4.2, 1, 4.8), steel, { p: [lx, y + 14.8, zc + sz * (RT + 2.0)] }); k.add(G.box(0.6, 0.8, 0.5), lampW, { p: [lx + 1.8, y + 4.5, zc + sz * (RT + 0.2)] }); }
       k.add(G.box(3.4, 3.2, 2 * (RT + 3.6)), stone, { p: [lx, y + 13.4, zc] }); k.add(G.box(1.2, 0.9, 2 * (RT + 3.8)), steel, { p: [lx + 0.5, y + 15.4, zc] });
       for (let i = 0; i < 9; i++) k.add(G.cone(0.2, 1 + (i % 3) * 0.8, 5), rib, { p: [lx + 2, y + 11.6, zc - 8 + i * 2], r: [PI, 0, 0] });
@@ -177,9 +183,10 @@ export function buildTsunami(scene, terrain, net, edge, frac = 0.42) {
   wave.position.set(mid.x, oy, mid.z); wave.rotation.y = th;
   wave.traverse(o => { if (o.isMesh && !o.material.transparent && !o.isInstancedMesh) o.castShadow = o.castShadow || false; });
   scene.add(wave); wave.updateMatrixWorld(true);
+  TSUNAMI_ZONE.set = true; TSUNAMI_ZONE.test = (x, z, m = 0) => { const dx = x - mid.x, dz = z - mid.z; const lx = dx * cth - dz * sth, lz = dx * sth + dz * cth; return lx > -118 - m && lx < 125 + m && Math.abs(lz) < 340 + m; };
 
   // collisions : corps de la vague en tronçons de part et d'autre du couloir du tunnel
-  { const seg = 14, x0 = -118, x1 = 36, step = (x1 - x0) / seg;
+  { const seg = 14, x0 = -108, x1 = 33, step = (x1 - x0) / seg;
     for (let s = 0; s < seg; s++) { const lx = x0 + (s + 0.5) * step, c = cAt(lx), hx = step / 2 + 0.3;
       for (const side of [-1, 1]) { const zA = c + side * (RT - 0.9), zB = side * 330, zc = (zA + zB) / 2, hz = Math.abs(zB - zA) / 2; const v = wave.localToWorld(new THREE.Vector3(lx, 0, zc)); COLLIDERS.box(v.x, v.z, hx, hz, th, 999, -99, false); } } }
   return wave;

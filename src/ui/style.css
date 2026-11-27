@@ -181,3 +181,14 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 .demo-cv { display: block; width: 150px; height: 100px; box-sizing: content-box; border: 3px solid #d2a24c; border-radius: 12px; background: #241a12; box-shadow: 0 0 0 1px #5a3d14, inset 0 0 12px #000a, 0 2px 8px #0008; }
 .demo-cap { display: block; margin-top: 4px; font-size: 11px; line-height: 1.25; opacity: .8; text-align: center; }
 @media (max-width: 560px) { #shop .item { grid-template-columns: 156px 1fr; } #shop .item > button { grid-column: 1 / -1; } }
+/* sous-menus du Comptoir */
+.shop-tabs { display: flex; gap: 6px; margin: 10px 0 12px; flex-wrap: wrap; }
+.shop-tabs button { flex: 1; } .shop-tabs small { background: #c8a25a; color: #1a120a; border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+/* barres de défilement maison (laiton) partout : jamais la barre grise du navigateur */
+* { scrollbar-width: thin; scrollbar-color: #c8a25a rgba(0,0,0,.25); }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: rgba(0,0,0,.25); border-radius: 8px; }
+*::-webkit-scrollbar-thumb { background: linear-gradient(#e9c46a, #a5782e); border-radius: 8px; border: 1px solid #5a4020; }
+*::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.shop-pages { display: flex; align-items: center; justify-content: center; gap: 14px; margin: -4px 0 10px; } .shop-pages button { width: 44px; } .shop-pages span { opacity: .8; }
+#shop .icon-demo { display: flex; align-items: center; justify-content: center; font-size: 46px; background: radial-gradient(circle, #3a2a18, #17100a); border: 2px solid #8a6a35; border-radius: 8px; height: 96px; }

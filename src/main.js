@@ -559,10 +559,22 @@ function openShop() {
     addCredits(total, `${n} objet(s) vendu(s)`);
   }
   if (train.storage?.length) { const t = train.storage.reduce((a, b) => a + b.value, 0); train.storage = []; addCredits(t, 'wagon-stockage vidé'); }
-  for (const it of SHOP) {
+  // onglets (sous-menus) : jamais de longue liste à faire défiler
+  const CATS = [['trains', '🚂 Trains', it => it.id === 'vapeur' || it.id === 'convoyeur'], ['wagons', '🚃 Wagons', it => it.wagon], ['outils', '🛠️ Outils', it => !it.wagon && !['vapeur', 'convoyeur', 'doublure', 'sac'].includes(it.id)], ['tenue', '🎒 Tenue', it => ['doublure', 'sac'].includes(it.id)]];
+  openShop.tab ??= 'trains';
+  const tabs = document.createElement('nav'); tabs.className = 'tabs shop-tabs';
+  for (const [id, label, f] of CATS) { const n = SHOP.filter(f).filter(it => !S.owned[it.id]).length; const b = document.createElement('button'); b.innerHTML = label + (n ? ` <small>${n}</small>` : ''); if (id === openShop.tab) b.className = 'on'; b.onclick = () => { openShop.tab = id; openShop.page = 0; audio.ui?.(); openShop(); }; tabs.appendChild(b); }
+  list.appendChild(tabs);
+  const catF = CATS.find(c => c[0] === openShop.tab)[2], items = SHOP.filter(catF), PER = innerHeight < 760 ? 2 : innerHeight < 880 ? 3 : 4, pages = Math.ceil(items.length / PER);
+  openShop.page = Math.min(openShop.page || 0, pages - 1);
+  if (pages > 1) { const pg = document.createElement('div'); pg.className = 'shop-pages';
+    const mk = (t, d) => { const b = document.createElement('button'); b.textContent = t; b.disabled = (openShop.page + d < 0 || openShop.page + d >= pages); b.onclick = () => { openShop.page += d; audio.ui?.(); openShop(); }; return b; };
+    pg.append(mk('◀', -1), Object.assign(document.createElement('span'), { textContent: `Page ${openShop.page + 1} / ${pages}` }), mk('▶', 1)); list.appendChild(pg); }
+  const KNOWN_DEMO = ['vapeur', 'chalumeau', 'vitrine', 'stockage', 'doublure', 'sac', 'convoyeur', 'dortoir'];
+  for (const it of items.slice(openShop.page * PER, openShop.page * PER + PER)) {
     const owned = !!S.owned[it.id], locked = it.needs && !S.owned[it.needs];
     const row = document.createElement('div'); row.className = 'item' + (owned ? ' owned' : '');
-    row.innerHTML = `<div class="demo" data-demo="${it.id}"><small class="demo-cap"></small></div><div><b>${it.icon} ${it.name}</b><small>${it.desc}</small></div>`;
+    row.innerHTML = (KNOWN_DEMO.includes(it.id) ? `<div class="demo" data-demo="${it.id}"><small class="demo-cap"></small></div>` : `<div class="demo icon-demo"><span>${it.icon}</span></div>`) + `<div><b>${it.icon} ${it.name}</b><small>${it.desc}</small></div>`;
     const b = document.createElement('button');
     b.textContent = owned ? 'Acquis' : locked ? 'Verrouillé' : `${it.price} ◈`;
     b.disabled = owned || locked;

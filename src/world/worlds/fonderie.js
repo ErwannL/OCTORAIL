@@ -278,7 +278,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   const cM = multi(cK); { const im = scatter(cM.geo, cM.mats[0], 70, 1, 2.2, 9, 0.02, { name: 'bougies' }); im.material = cM.mats; }
   // sculptures de cire : elles fondent le jour et se refigent la nuit dans une autre forme
   const scK = new Kit(); scK.add(G.cyl(1.1, 1.4, 1.0, 10), wax, { p: [0, 0.3, 0] }); scK.add(G.sph(1.0, 10, 8), wax, { p: [0, 1.4, 0] }); scK.add(G.sph(0.7, 10, 8), wax, { p: [0.3, 2.5, 0.1] }); scK.add(G.cone(0.5, 1.5, 8), wax, { p: [0.1, 3.5, 0] });
-  const scul = scatter(scK.geometry(), wax, 36, 1.0, 2.2, 10, 0.25, { shadow: true, name: 'sculpture', collide: 3 }); scul.frustumCulled = false;
+  const scul = scatter(scK.geometry(), wax, 36, 1.0, 2.2, 10, 0.25, { shadow: true, name: 'sculpture', collide: 3 }); scul.frustumCulled = false; scul.userData.noChunk = true;
   scul.userData.inst.forEach((o, i) => { o.a = [1, 1, 0]; o.b = [1, 1, 0]; o.seed = i; });
 
   // ===================================================================== 7. HABITANTS
@@ -291,7 +291,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   bodyK.add(G.cyl(0.02, 0.02, 0.25, 4), iron, { p: [0, 1.6, 0] });
   const bodyM = multi(bodyK); const NB = TOWN ? 7 : 0;
   const bod = new THREE.InstancedMesh(bodyM.geo, bodyM.mats, Math.max(1, NB)), fl = new THREE.InstancedMesh(G.cone(0.13, 0.42, 6).translate(0, 0.21, 0), hotY, Math.max(1, NB));
-  bod.count = fl.count = NB; bod.castShadow = true; bod.frustumCulled = fl.frustumCulled = false; root.add(bod, fl);
+  bod.count = fl.count = NB; bod.castShadow = true; for (const o of [bod, fl]) o.userData.noCull = o.userData.noChunk = true; bod.frustumCulled = fl.frustumCulled = false; root.add(bod, fl);
   const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.4, 10).translate(0, 0.2, 0), choco); hat.add(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.05, 12), choco)); hat.visible = NB > 0; root.add(hat);
   const folks = []; for (let i = 0; i < NB; i++) folks.push({ r: 9 + (i % 3) * 4.5, a: rnd() * PI * 2, w: (rnd() < 0.5 ? -1 : 1) * (0.05 + rnd() * 0.06), h: 0.85 + rnd() * 0.35, ph: rnd() * 10 });
 

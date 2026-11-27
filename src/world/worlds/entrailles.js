@@ -209,7 +209,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     const P = (s, out) => { const u = s / L; const a = st.fw ? A : B, b = st.fw ? B : A; out.copy(a).lerp(b, Math.max(0, Math.min(1, u)));
       const g = H(out.x, out.z); out.y = (u <= 0 || u >= 1) ? g - 12 : g - 6 + (HGT + 6) * Math.sin(Math.PI * u); return out; };
     const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    return { st, update(dt, t, near, emit) {
+    return { st, meshes: [body, ring], update(dt, t, near, emit) {
       st.phase += dt * 11; if (st.phase > L + NS * SEG + 40) { st.phase = -30; st.fw = !st.fw; }
       if (!near) return;
       for (let i = 0; i < NS; i++) {
@@ -294,6 +294,8 @@ export function buildWorld(scene, terrain, net, ctx) {
   let li = 0; for (const s of swarms) { s.o = li; s.n = Math.min(s.n, 160 - li); li += s.n; } lumi.count = li;
   swarms.forEach(s => { s.ph = Array.from({ length: s.n }, () => [rnd() * 6.28, 0.6 + rnd() * 1.4, rnd() * 6.28]); });
 
+  const dyn = o => o && o.traverse(c => { c.userData.noChunk = true; c.userData.noCull = true; });
+  [fogIM, lumi, halo, worm?.st.head, ...(worm?.meshes || [])].forEach(dyn);
   Object.assign(window.__entr, { worm: worm?.st, fogs, pools, orv: orv?.a });
   // ======================= UPDATE =======================
   const center = new THREE.Vector3(800, 0, 800); let bubbleT = 0, wasNear = -1;

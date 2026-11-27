@@ -144,7 +144,9 @@ buildClosedWorlds(scene, terrain, net);
 buildTrackside(scene, net, terrain); buildTrestles(scene, net, terrain);
 // les six mondes rallumés (un module par monde, voir src/world/worlds/)
 const worldMods = [];
-for (const [n, f] of Object.entries({ colosse: W_colosse, neon: W_neon, archipel: W_archipel, chrono: W_chrono, fonderie: W_fonderie, entrailles: W_entrailles })) { try { worldMods.push(f(scene, terrain, net, { BIOMES, get sparks() { return sparks; }, get smoke() { return smoke; }, get steam() { return steam; }, get audio() { return audio; }, get ui() { return ui; }, get player() { return player; }, get train() { return train; }, get input() { return input; }, get S() { return S; } } /* getters : à lire dans update() seulement */)); } catch (e) { console.error('Monde', n, e); } }
+for (const [n, f] of Object.entries({ colosse: W_colosse, neon: W_neon, archipel: W_archipel, chrono: W_chrono, fonderie: W_fonderie, entrailles: W_entrailles })) { const before = new Set(scene.children); try { worldMods.push(f(scene, terrain, net, { BIOMES, get sparks() { return sparks; }, get smoke() { return smoke; }, get steam() { return steam; }, get audio() { return audio; }, get ui() { return ui; }, get player() { return player; }, get train() { return train; }, get input() { return input; }, get S() { return S; } } /* getters : à lire dans update() seulement */)); } catch (e) { console.error('Monde', n, e); }
+  // instances animées des mondes : jamais découpées/masquées par le culler (sinon elles disparaissent en bougeant)
+  for (const c of scene.children) if (!before.has(c)) c.traverse(o => { if (o.isInstancedMesh) { o.userData.noCull = true; o.userData.noChunk = true; o.frustumCulled = false; } }); }
 // l'Octuor : 7 gardiens égarés (+ SHÉRIF-7 géré par la quête historique)
 let octuor = null;
 setTimeout(() => { try { octuor = createOctuor({ scene, terrain, net, BIOMES, ui, audio, sparks, steam, S: () => S, push: () => pushShared(), train: () => train, sheriffHome: () => S.sheriff === 'home', camPos: () => camera.position }); window.__octuor = octuor; } catch (e) { console.error('Octuor', e); } }, 0);

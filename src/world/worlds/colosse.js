@@ -162,7 +162,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     const list = []; const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     for (let t = 0; t < 700 && list.length < 90; t++) { const r = 150 + rnd() * 1200, a = (rnd() - 0.5) * 0.7, x = Math.cos(a) * r, z = -Math.sin(a) * r;
       if (!free(x, z, 10)) continue; const s = 0.8 + rnd() * 1.6, y = baseY(x, z, 0.8 * s, 4);
-      m4.compose(new THREE.Vector3(x, y - 0.15 * s, z), q.setFromEuler(e.set(0.5 + rnd() * 0.5, rnd() * 6, 0)), new THREE.Vector3(s, s, s * 0.3)); list.push(m4.clone()); placed.push({ n: 'ecaille', x, z, y, r: 0.8 * s }); }
+      m4.compose(new THREE.Vector3(x, y - 0.3 * s, z), q.setFromEuler(e.set(0.5 + rnd() * 0.5, rnd() * 6, 0)), new THREE.Vector3(s, s, s * 0.3)); list.push(m4.clone()); placed.push({ n: 'ecaille', x, z, y, r: 0.8 * s }); }
     const im = new THREE.InstancedMesh(G.cone(1, 1.6, 5), M.amber, list.length); list.forEach((m, i) => im.setMatrixAt(i, m)); im.receiveShadow = true; scene.add(im); }
 
   scene.add(K.build());
@@ -189,7 +189,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   gk.add(G.cone(0.1, 0.5, 4), M.fur, { p: [0, 0.45, -0.5], r: [-1.1, 0, 0] });
   const ek = new Kit(); for (const s of [-1, 1]) ek.add(G.sph(0.11, 6, 5), M.eye, { p: [s * 0.15, 0.5, 0.38] }); ek.add(G.cone(0.16, 0.28, 4), M.amber, { p: [0, 0.78, -0.1], r: [-0.5, 0, 0], s: [1, 1, 0.4] });
   const NG = 10, grigs = [];
-  for (let i = 0; i < NG; i++) grigs.push({ r: 3 + rnd() * 7, a: rnd() * PI * 2, sp: (rnd() < 0.5 ? -1 : 1) * (0.25 + rnd() * 0.3), ph: rnd() * 6, hop: 2 + rnd() * 2 });
+  for (let i = 0; i < NG; i++) grigs.push({ r: 1.8 + rnd() * 2, a: rnd() * PI * 2, sp: (rnd() < 0.5 ? -1 : 1) * (0.25 + rnd() * 0.3), ph: rnd() * 6, hop: 2 + rnd() * 2 });
   const grigIM = new THREE.InstancedMesh(gk.geometry(), M.fur, NG), grigE = new THREE.InstancedMesh(ek.geometry(), M.eye, NG);
   for (const m of [grigIM, grigE]) { m.frustumCulled = false; m.castShadow = true; scene.add(m); }
   // Mère Lichen
@@ -218,7 +218,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   // halo de fragment (un seul, déplacé sur la plaque la plus proche)
   const halo = new THREE.Mesh(G.sph(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending })); halo.visible = false; scene.add(halo);
 
-  for (const m of [domeIM, plateIM, grigIM, grigE, fleaIM, fleaIM2, sporeIM]) m.userData.noChunk = true; // animées : pas de découpe par cull.js
+  for (const m of [domeIM, plateIM, grigIM, grigE, fleaIM, fleaIM2, sporeIM]) { m.userData.noChunk = true; m.userData.noCull = true; } // animées : pas de découpe par cull.js
   // ---------------------------------------------------------------- update
   let wasE = false, sneezeT = 40 + rnd() * 30, swing = 0, swingV = 0, lastRing = -9, lichenLine = 0, grigLine = 0, near = false;
   const v3 = new THREE.Vector3(), eul = new THREE.Euler();
@@ -245,14 +245,14 @@ export function buildWorld(scene, terrain, net, ctx) {
       // Grignoteux
       const jump = Math.max(0, swing * swing * 2);
       grigs.forEach((g, i) => { g.a += g.sp * dt / Math.max(1, g.r * 0.25); const x = Mk.x + Math.cos(g.a) * g.r, z = Mk.z + Math.sin(g.a) * g.r, hop = Math.abs(Math.sin(time * g.hop + g.ph)) * (0.35 + jump);
-        const sq = 1 + (hop < 0.05 ? -0.12 : 0.05); tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, -g.a + (g.sp > 0 ? 0 : PI), 0)), ts.set(1.4 / Math.sqrt(sq), 1.4 * sq, 1.4 / Math.sqrt(sq))); grigIM.setMatrixAt(i, tm); grigE.setMatrixAt(i, tm); });
+        const sq = 1 + (hop < 0.05 ? -0.12 : 0.05); tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, -g.a + (g.sp > 0 ? 0 : PI), 0)), ts.set(1.15 / Math.sqrt(sq), 1.15 * sq, 1.15 / Math.sqrt(sq))); grigIM.setMatrixAt(i, tm); grigE.setMatrixAt(i, tm); });
       grigIM.instanceMatrix.needsUpdate = grigE.instanceMatrix.needsUpdate = true;
       // Mère Lichen tapote le sol trois fois
       { const c = (time * 1.4) % 4; cane.rotation.x = c < 3 ? -Math.abs(Math.sin(c * PI)) * 0.35 : 0; lichen.children[0].rotation.z = Math.sin(time * 0.6) * 0.04; }
       // puces-wagons
-      fleas.forEach((f, i) => { const a = time * f.sp + f.ph, x = f.x + Math.cos(a) * f.r, z = f.z + Math.sin(a) * f.r * 0.6, hop = Math.max(0, Math.sin(time * 6 + i)) * 0.12;
-        tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, Math.atan2(-Math.sin(a), Math.cos(a) * 0.6), 0)), ts.set(1, 1, 1)); fleaIM.setMatrixAt(i, tm); fleaIM2.setMatrixAt(i, tm);
-        if (Math.random() < dt * 1.5 && camPos && Math.hypot(camPos.x - x, camPos.z - z) < 200) ctx.steam?.emit(v3.set(x, tv.y + 1.7, z), new THREE.Vector3(0, 1.5, 0), { life: 1, size: 0.7, color: '#ffffff', alpha: 0.4 }); });
+      fleas.forEach((f, i) => { const a = time * f.sp + f.ph, x = f.x + Math.cos(a) * f.r, z = f.z + Math.sin(a) * f.r * 0.6, hop = Math.max(0, Math.sin(time * 6 + i)) * 0.15;
+        tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, Math.atan2(-Math.sin(a), Math.cos(a) * 0.6), 0)), ts.set(1.6, 1.6, 1.6)); fleaIM.setMatrixAt(i, tm); fleaIM2.setMatrixAt(i, tm);
+        if (Math.random() < dt * 1.5 && camPos && Math.hypot(camPos.x - x, camPos.z - z) < 200) ctx.steam?.emit(v3.set(x, tv.y + 2.6, z), new THREE.Vector3(0, 1.5, 0), { life: 1, size: 0.7, color: '#ffffff', alpha: 0.4 }); });
       fleaIM.instanceMatrix.needsUpdate = fleaIM2.instanceMatrix.needsUpdate = true;
       // spores
       spores.forEach((s, i) => { const a = s.a + time * s.sp; tm.compose(tv.set(s.c.x + Math.cos(a) * s.r, s.c.y + s.h + Math.sin(time * 0.8 + s.ph) * 0.8, s.c.z + Math.sin(a) * s.r), tq.identity(), ts.setScalar(0.7 + 0.5 * Math.sin(time * 3 + s.ph))); sporeIM.setMatrixAt(i, tm); });

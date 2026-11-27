@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { networkInterfaces } from 'node:os';
 import { WebSocketServer } from 'ws';
 
 const PORT = +process.env.PORT || 8787;
@@ -12,6 +13,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const http = createServer(async (req, res) => {
   try {
     let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^(\.\.[/\\])+/, '');
+    if (p === '/info' || p === '\\info') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ips: Object.values(networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address), port: PORT })); }
+    if (p === '/ping' || p === '\\ping') { res.writeHead(200, { 'access-control-allow-origin': '*' }); return res.end('ok'); }
     if (p === '/' || p === '\\') p = '/index.html';
     const file = join(DIST, p);
     if (!file.startsWith(DIST)) throw 0;

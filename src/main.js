@@ -483,7 +483,7 @@ tabEl.addEventListener('click', e => { if (e.target.classList.contains('close'))
 netc.on('leave', m => { const r = remotes.get(m.id); if (!r) return; remotes.delete(m.id);
   beamFx(r.avatar.position.clone().setY(r.avatar.position.y - 0.2), r.color, 1); departures.push({ avatar: r.avatar, train: r.train, t: 0, y0: r.avatar.position.y });
   ui.toast(`<b style="color:${r.color}">${r.name}</b> retourne en sommeil cryogénique`); updatePlayersList(); });
-netc.on('state', m => { const r = remotes.get(m.id); if (!r) return; if (!r.state && r.fresh) { r.fresh = false; beamFx(podPos(r.slot), r.color, -1, 1.4); } r.state = m.s; });
+netc.on('state', m => { const r = remotes.get(m.id); if (!r) return; if (!r.state && r.fresh) { r.fresh = false; beamFx(podPos(r.slot), r.color, -1, 1.4); } r.state = m.s; r.newState = true; });
 netc.on('shared', m => {
   const prevStage = S.stage; const prevSheriff = S.sheriff;
   S = { ...S, ...m.shared };
@@ -1025,6 +1025,7 @@ function frame() {
       const r = remotes.get(player.rideId);
       if (!r) player.mode = 'foot';
       else { const c = r.train.loco.localToWorld(new THREE.Vector3(1.2, 1.45, r.train.loco.userData.cab.z)); player.pos.copy(c); player.avatar.position.copy(c); player.avatar.rotation.y = r.train.loco.rotation.y;
+        ui.prompt(`🪑 Tu es <b>passager</b> du train de <b style="color:${r.color}">${r.name}</b> — c'est lui qui conduit · [E] descendre`);
         if (input.ah('interact') && !busy) { player.mode = 'foot'; player.pos.x += 3; } }
     }
   }
@@ -1078,13 +1079,23 @@ function frame() {
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 
   // --- distants
-  for (const r of remotes.values()) {
+  for (const [id, r] of remotes) {
     if (!r.state) continue;
     const s = r.state;
-    r.train.applyRemote(s.tr); r.train.update(dt);
+    // train distant : on applique l'état reçu (10/s), et entre deux messages on le fait avancer à sa vitesse (pas d'à-coups)
+    if (r.newState) { r.train.applyRemote(s.tr); r.newState = false; } else if (r.train.head && Math.abs(r.train.speed) > 0.01) r.train.advance(r.train.speed * dt);
+    r.train.update(dt);
     r.avatar.visible = true;
-    const target = new THREE.Vector3(s.p[0], s.p[1], s.p[2]);
-    r.avatar.position.lerp(target, 0.3); r.avatar.rotation.y = s.ry;
+    // avatar distant : suivi lissé + vraie animation de marche (jambes/bras) d'après sa vitesse réelle
+    const target = new THREE.Vector3(s.p[0], s.p[1], s.p[2]), prev = r.avatar.position.clone();
+    r.avatar.position.lerp(target, 1 - Math.exp(-dt * 12));
+    const sp = prev.distanceTo(r.avatar.position) / Math.max(dt, 1e-3);
+    r.anim ??= { avatar: r.avatar, walkPhase: 0, springOut: 0, charge: 0, onGround: true, prep: 0, smooth: 0 };
+    r.anim.smooth += (sp - r.anim.smooth) * Math.min(1, dt * 8); r.anim.walkPhase += r.anim.smooth * dt * 1.6;
+    try { Player.prototype.animate.call(r.anim, r.anim.smooth > 0.3 ? r.anim.smooth : 0, dt); } catch {}
+    let dy = s.ry - r.avatar.rotation.y; dy = (dy + Math.PI * 3) % (Math.PI * 2) - Math.PI; r.avatar.rotation.y += dy * Math.min(1, dt * 12);
+    // je suis passager de ce train : recalé APRÈS sa mise à jour (plus de retard derrière le train)
+    if (player.mode === 'ride' && player.rideId === id) { const c = r.train.loco.localToWorld(new THREE.Vector3(1.2, 1.45, r.train.loco.userData.cab.z)); player.pos.copy(c); player.avatar.position.copy(c); player.avatar.rotation.y = r.train.loco.rotation.y; }
     // panneau de vitesse pour l'effet Doppler (ton du sifflet suit la position)
     if (r.train.kind === 'vapeur' && Math.abs(r.train.speed) > 0.5 && Math.random() < Math.abs(r.train.speed) / 200) {
       const chim = r.train.loco.localToWorld(r.train.loco.userData.chimney.clone());

@@ -27,6 +27,7 @@ import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel }
 import { Compass, PHENO_INFO } from './ui/compass.js';
 import { createAirField } from './world/airfield.js';
 import { createDiag } from './ui/diag.js';
+import { WORLD_LORE, HUB_LORE, LOADING_TIPS } from './data/lore.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
@@ -299,6 +300,7 @@ let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog
 
 // ------------------------------------------------------------------ Écran titre
 (function titleScreen() {
+  { const cr = document.querySelector('#title .credits'); let i = Math.floor(Math.random() * LOADING_TIPS.length); const tick = () => { if (cr && !started) { cr.textContent = '« ' + LOADING_TIPS[i++ % LOADING_TIPS.length] + ' »'; setTimeout(tick, 6000); } }; tick(); }
   const cbox = document.getElementById('colors');
   COLORS.forEach((c, i) => { const el = document.createElement('i'); el.style.background = c; if (i === 0) el.classList.add('on');
     el.onclick = () => { me.color = c; cbox.querySelectorAll('i').forEach(x => x.classList.remove('on')); el.classList.add('on'); audio.init(); audio.ui(); }; cbox.appendChild(el); });
@@ -355,6 +357,8 @@ function wagonList() {
   if (S.owned.vitrine) w.push('vitrine');
   if (S.owned.stockage) w.push('stockage');
   if (S.owned.dortoir) w.push('dortoir');
+  if (S.owned.plateau) w.push('plateau');
+  if (S.owned.cryo) w.push('cryo');
   return w;
 }
 
@@ -936,6 +940,8 @@ function frame() {
   // --- froid en Gelure
   const sec = sectorIndex(player.pos.x, player.pos.z), R = Math.hypot(player.pos.x, player.pos.z);
   const inGelure = sec === 5 && R > 140;
+  if (R > 180 && started && !cinematic && !ui.dialogOpen) { S.seen ??= []; if (!S.seen.includes(sec)) { S.seen.push(sec); saveState(S); const L = WORLD_LORE[sec];
+    if (L) { ui.toast(`<b>${BIOMES[sec].name}</b> — ${BIOMES[sec].tagline}`); ui.say([{ who: 'OCTAVE (radio)', icon: '◈', color: '#ffb347', beep: 900, text: L.intro }]); } } }
   const dVeh = (() => { let d = 1e9; for (const m of [train.loco, ...train.wagons.map(w => w.mesh)]) d = Math.min(d, player.pos.distanceTo(m.position)); return d; })();
   const heatR = train.kind === 'vapeur' ? (S.owned.dortoir ? 22 : 15) : 8; // bulle de chaleur : chaudière (et dortoir)
   const warmTrain = dVeh < heatR;

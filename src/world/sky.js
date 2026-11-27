@@ -29,7 +29,7 @@ export function buildSky(scene) {
       }`,
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), mat);
-  sky.frustumCulled = false; sky.renderOrder = -100; sky.userData.noCull = true; // dessiné en premier, indépendant de camera.far
+  sky.frustumCulled = false; sky.renderOrder = -100; sky.userData.noCull = true; sky.userData.noCollide = true; // jamais solide (sphère de 400 m centrée sur le Moyeu à la construction) // dessiné en premier, indépendant de camera.far
   scene.add(sky);
   return { mesh: sky, uniforms };
 }

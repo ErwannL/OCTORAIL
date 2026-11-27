@@ -205,7 +205,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     const drillPivot = new THREE.Group(); drillPivot.rotation.x = Math.PI / 2; drillPivot.add(drill); head.add(drillPivot);
     scene.add(head);
     const dir = B.clone().sub(A).normalize();
-    const st = { phase: -20, fw: true, A, B, L, mid: A.clone().lerp(B, 0.5) };
+    const st = { phase: -20, fw: true, A, B, L, mid: A.clone().lerp(B, 0.5), head };
     const P = (s, out) => { const u = s / L; const a = st.fw ? A : B, b = st.fw ? B : A; out.copy(a).lerp(b, Math.max(0, Math.min(1, u)));
       const g = H(out.x, out.z); out.y = (u <= 0 || u >= 1) ? g - 12 : g - 6 + (HGT + 6) * Math.sin(Math.PI * u); return out; };
     const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
@@ -272,7 +272,9 @@ export function buildWorld(scene, terrain, net, ctx) {
         for (const off of [12, 14, 16]) for (const sd of [side, -side]) { const p = e.pts[kk], t = e.tan ? e.tan[kk] : e.pts[kk + 1].clone().sub(p).normalize();
           const x = p.x - t.z * off * sd, z = p.z + t.x * off * sd; if (got || !inSector(x, z) || !footClear(x, z, 1.2, 10.5)) continue; got = { x, z, ry: Math.atan2(p.x - x, p.z - z) }; } }
       if (!got) return; const { x, z, ry } = got, y = gmin(x, z, 1.2);
-      const add = (g, m, o) => { const oo = { ...o }; const pp = new THREE.Vector3(...(o.p || [0, 0, 0])).applyAxisAngle(new THREE.Vector3(0, 1, 0), ry); oo.p = [x + pp.x, y + pp.y, z + pp.z]; oo.r = [(o.r || [0, 0, 0])[0], ry + (o.r || [0, 0, 0])[1], (o.r || [0, 0, 0])[2]]; k.add(g, m, oo); };
+      const add = (g, m, o) => { const gg = g.clone(); const r = o.r || [0, 0, 0], sc = o.s || [1, 1, 1];
+        gg.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...(o.p || [0, 0, 0])), new THREE.Quaternion().setFromEuler(new THREE.Euler(...r)), new THREE.Vector3(...sc)));
+        gg.rotateY(ry); gg.translate(x, y, z); k.add(gg, m); };
       add(G.cyl(0.9, 1.1, 0.5, 8), C.rock2, { p: [0, -0.1, 0] });
       add(G.cyl(0.12, 0.16, 1.9, 8), C.verdigris, { p: [0, 1, 0] });
       add(G.rbox(1.3, 0.9, 0.1, 0.04), MAT.brass(), { p: [0, 1.55, 0.14], r: [-0.35, 0, 0] });

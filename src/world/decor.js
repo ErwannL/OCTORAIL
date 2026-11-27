@@ -492,9 +492,10 @@ function clockFaceTexture() {
 }
 export function buildClosedWorlds(scene, terrain, net) {
   // mondes refaits par src/world/worlds/*.js : leur décor provisoire ici est désactivé
+  const EXCL = [[354, -533, 60]]; // zones réservées aux repères des nouveaux mondes (Aiguillage-Monde de Néon-Bas)
   const REPLACED = new Set(['archipel', 'chrono']);
   const rnd = mulberry(99);
-  const place = (sector, n, rMin, rMax, cb) => { let c = 0; for (let t = 0; t < n * 20 && c < n; t++) { const r = rMin + rnd() * (rMax - rMin), a = sector * PI / 4 + (rnd() - 0.5) * PI / 4 * 0.9; const x = Math.cos(a) * r, z = -Math.sin(a) * r; if (sectorIndex(x, z) !== sector || net.nearest(x, z, 12)) continue; cb(x, terrain.heightAt(x, z), z, c++); } };
+  const place = (sector, n, rMin, rMax, cb) => { let c = 0; for (let t = 0; t < n * 20 && c < n; t++) { const r = rMin + rnd() * (rMax - rMin), a = sector * PI / 4 + (rnd() - 0.5) * PI / 4 * 0.9; const x = Math.cos(a) * r, z = -Math.sin(a) * r; if (sectorIndex(x, z) !== sector || net.nearest(x, z, 12) || EXCL.some(([ex, ez, er]) => Math.hypot(x - ex, z - ez) < er)) continue; cb(x, terrain.heightAt(x, z), z, c++); } };
   const instanced = (geo, material, list, shadow = false) => { const inst = new THREE.InstancedMesh(geo, material, list.length); list.forEach((m, i) => inst.setMatrixAt(i, m)); inst.castShadow = shadow; inst.receiveShadow = true; scene.add(inst); return inst; };
 
   // ---- Néon-Bas : gratte-ciels à façades vitrées lumineuses, enseignes verticales, anneaux néon, balises

@@ -39,12 +39,12 @@ function ribbon(terrain, pts, w, yOff, cols = 4) {
 }
 function lavaTexture(rnd) {
   const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
-  x.fillStyle = '#b3300a'; x.fillRect(0, 0, 128, 128);
+  x.fillStyle = '#ff6a1a'; x.fillRect(0, 0, 128, 128);
   for (let i = 0; i < 70; i++) {
     const px = rnd() * 128, py = rnd() * 128, r = 6 + rnd() * 18, hot = rnd();
     for (const ox of [-128, 0, 128]) for (const oy of [-128, 0, 128]) {
       const g = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, r);
-      g.addColorStop(0, hot > 0.55 ? 'rgba(255,236,140,0.95)' : hot > 0.25 ? 'rgba(255,150,40,0.85)' : 'rgba(60,18,8,0.8)');
+      g.addColorStop(0, hot > 0.45 ? 'rgba(255,240,150,1)' : hot > 0.15 ? 'rgba(255,170,50,0.9)' : 'rgba(90,22,8,0.75)');
       g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(px + ox - r, py + oy - r, r * 2, r * 2);
     }
   }
@@ -92,39 +92,36 @@ export function buildWorld(scene, terrain, net, ctx) {
     // avant-bras + bracelets rivetés
     k.add(G.cyl(5.2, 6.4, 22, 18), bronze, { p: [0, 14, -2] });
     for (const y of [7, 12.5]) { k.add(G.tor(6.05 - y * 0.04, 0.55, 6, 22), brass, { p: [0, y, -2], r: [H, 0, 0] }); for (let i = 0; i < 12; i++) { const a = i / 12 * PI * 2; k.add(G.sph(0.35, 6, 4), brass, { p: [Math.cos(a) * (6.3 - y * 0.04), y + 0.7, -2 + Math.sin(a) * (6.3 - y * 0.04)] }); } }
-    // paume (horizontale, creusée), poignet
-    k.add(G.rbox(17, 5, 19, 2.2, 3), bronze, { p: [0, 26, 2] });
-    k.add(G.sph(6.2, 16, 10), bronze, { p: [0, 23.5, -2], s: [1.1, 0.8, 1] });
-    k.add(G.cyl(6.4, 6.4, 0.4, 24), hot, { p: [0, 28.4, 2.5], s: [1, 1, 1.2] }); // le moule incandescent
-    k.add(G.tor(6.4, 0.7, 6, 24), bronzeD, { p: [0, 28.4, 2.5], r: [H, 0, 0], s: [1, 1.2, 1] });
-    // doigts : 4 doigts recourbés vers le ciel (phalanges + jointures)
-    const fing = [[-6.0, 0.8, 1.35], [-2.0, 1.0, 1.55], [2.1, 0.95, 1.5], [6.0, 0.75, 1.2]];
-    for (const [fx, ls, rad] of fing) {
-      let px = fx, py = 26.2, pz = 11, ang = 0.15; const L = [7.5 * ls, 6 * ls, 4.6 * ls];
+    // main dressée, paume ouverte face à la voie (+z local) : paume, moule incandescent, doigts écartés, pouce
+    k.add(G.sph(6.4, 16, 10), bronze, { p: [0, 25, -2], s: [1.15, 0.9, 0.85] });
+    k.add(G.rbox(18, 19, 6, 2.6, 3), bronze, { p: [0, 34, -1.5] });
+    k.add(G.cyl(5.4, 5.4, 0.5, 24), hot, { p: [0, 33, 1.55], r: [H, 0, 0], s: [1, 1, 1.15] }); // le moule incandescent
+    k.add(G.tor(5.5, 0.8, 6, 24), bronzeD, { p: [0, 33, 1.5], s: [1, 1.15, 1] });
+    const fing = [[-6.6, 0.85, 1.6, -0.2], [-2.2, 1.05, 1.75, -0.06], [2.2, 1.0, 1.7, 0.06], [6.5, 0.78, 1.45, 0.2]];
+    for (const [fx, ls, rad, spread] of fing) {
+      let px = fx, py = 42.5, pz = -1.5, bend = 0; const L = [8 * ls, 6.5 * ls, 5 * ls];
       for (let j = 0; j < 3; j++) {
-        ang += [0.25, 0.55, 0.5][j]; const dy = Math.sin(ang), dz = Math.cos(ang), r = rad * (1.25 - j * 0.12) + 0.6;
-        k.add(G.sph(r * 1.05, 12, 8), bronze, { p: [px, py, pz] });
-        k.add(G.cap(r, L[j], 4, 12), bronze, { p: [px + 0, py + dy * L[j] / 2, pz + dz * L[j] / 2], r: [H - ang, 0, 0] });
-        px += 0; py += dy * L[j]; pz += dz * L[j];
-        if (j === 2) k.add(G.sph(r * 0.95, 12, 8), bronzeD, { p: [px, py, pz], s: [1, 0.7, 1] });
+        bend += [0.08, 0.22, 0.3][j]; const d = new THREE.Vector3(Math.sin(spread), Math.cos(bend), Math.sin(bend)).normalize(), r = rad * (1.15 - j * 0.1) + 0.5;
+        const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d));
+        k.add(G.sph(r * 1.08, 12, 8), j ? bronze : bronzeD, { p: [px, py, pz] });
+        k.add(G.cap(r, L[j], 4, 12), bronze, { p: [px + d.x * L[j] / 2, py + d.y * L[j] / 2, pz + d.z * L[j] / 2], r: [e.x, e.y, e.z] });
+        px += d.x * L[j]; py += d.y * L[j]; pz += d.z * L[j];
       }
-      // coulures de cire sous les doigts
-      k.add(G.cone(0.6, 3 + rnd() * 3, 6), wax, { p: [fx + 0.4, 23.8, 12 + rnd() * 3], r: [PI, 0, 0] });
+      k.add(G.cone(0.6, 3 + rnd() * 4, 6), wax, { p: [fx + 0.5, 40.5, 1.6], r: [PI, 0, 0] });
     }
-    // pouce
-    { let px = 9, py = 25.5, pz = 0; const dirs = [[0.8, 0.3, 0.5], [0.4, 0.75, 0.55]], L = [6.5, 5];
-      for (let j = 0; j < 2; j++) { const [dx, dy, dz] = dirs[j], n = Math.hypot(dx, dy, dz), d = new THREE.Vector3(dx / n, dy / n, dz / n);
-        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d), e = new THREE.Euler().setFromQuaternion(q);
-        k.add(G.sph(2.3, 12, 8), bronze, { p: [px, py, pz] }); k.add(G.cap(2.1, L[j], 4, 12), bronze, { p: [px + d.x * L[j] / 2, py + d.y * L[j] / 2, pz + d.z * L[j] / 2], r: [e.x, e.y, e.z] });
+    { let px = 9.5, py = 29, pz = 0; const dirs = [[0.85, 0.45, 0.3], [0.45, 0.85, 0.35]], L = [7, 6];
+      for (let j = 0; j < 2; j++) { const [dx, dy, dz] = dirs[j], d = new THREE.Vector3(dx, dy, dz).normalize();
+        const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d));
+        k.add(G.sph(2.6, 12, 8), bronze, { p: [px, py, pz] }); k.add(G.cap(2.3, L[j], 4, 12), bronze, { p: [px + d.x * L[j] / 2, py + d.y * L[j] / 2, pz + d.z * L[j] / 2], r: [e.x, e.y, e.z] });
         px += d.x * L[j]; py += d.y * L[j]; pz += d.z * L[j]; } }
     // larmes de cire sur l'avant-bras et coulée de métal du bord de paume jusqu'à la mare
     for (let i = 0; i < 9; i++) { const a = rnd() * PI * 2; k.add(G.cap(0.45 + rnd() * 0.3, 3 + rnd() * 6, 3, 6), wax, { p: [Math.cos(a) * 5.6, 8 + rnd() * 12, -2 + Math.sin(a) * 5.6] }); }
-    k.add(G.box(1.1, 22, 0.5), hot, { p: [-8.2, 15.4, 6] });
+    k.add(G.box(1.1, 26, 0.5), hot, { p: [-7.6, 17.5, 2.2] });
     // anneau de piliers-creusets (petits lingots dressés autour) : on y pose les bougies du rite
     for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2 + 0.2, d = 15; k.add(G.cyl(0.9, 1.1, 3.6, 8), candle, { p: [Math.cos(a) * d, 4.6 - 0.4, Math.sin(a) * d] }); k.add(G.cone(0.35, 1.1, 6), hotY, { p: [Math.cos(a) * d, 7.1 - 0.4, Math.sin(a) * d] }); }
     const g = k.build(); // doigts tournés vers la voie (−x)
-    g.rotation.y = -H + 0.25; g.position.set(hx, base, hz); g.updateMatrixWorld(true); root.add(g);
-    palm.set(0, 28.6, 2.5).applyMatrix4(g.matrixWorld);
+    g.rotation.y = Math.atan2(-hx, 0) + 0.3; g.position.set(hx, base, hz); g.updateMatrixWorld(true); root.add(g);
+    palm.set(0, 33, 3).applyMatrix4(g.matrixWorld);
     handInfo = { x: hx, z: hz, base, g }; placed.push([hx, hz, 24, base, 'Moule-Mère']);
     COLLIDERS.circle(hx, hz, 21, base + 4.2); COLLIDERS.circle(hx, hz, 7, base + 30);
   }
@@ -325,7 +322,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     if (statue) statue.target = r() * PI * 2; };
   regen(); regen();
 
-  if (typeof window !== 'undefined') window.__fonderie = { placed, plaques, HAND, TOWN, lake, rivers: riverPts.length, dogPath: dogPath.length };
+  if (typeof window !== 'undefined') window.__fonderie = { placed, plaques, HAND, TOWN, lake, rivers: riverPts.length, dogPath: dogPath.length, bod, fl, hat };
 
   return {
     update(dt, time, camPos) {

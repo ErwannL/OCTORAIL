@@ -146,6 +146,15 @@ export function buildWorld(scene, terrain, net, ctx) {
       k.add(G.tor(3.2, 0.45, 6, 20), brass, { p: [nx * (AP + 0.3), DY + 25, nz * (AP + 0.3)], r: [0, a, 0] }); k.add(new THREE.CircleGeometry(3.2, 20), iron, { p: [nx * (AP + 0.15), DY + 25, nz * (AP + 0.15)], r: [0, a, 0] });
       reg.dials.push({ a, nx, nz });
     }
+    // fenêtres éclairées sur le fût (évitent engrenages et balancier)
+    { const win = glow('#ffb347', 1.3);
+      reg.dials.forEach((d, f) => { const sx = Math.cos(d.a), sz = -Math.sin(d.a);
+        for (let y = 18; y < SH - 6; y += 9) for (const off of f === 0 ? [-9, 9] : [-8, 0, 8]) {
+          if (f > 0 && y > 50 && y < 104) continue;
+          const ap = (32 - 5 * (y - 8) / (SH - 8)) / 2;
+          k.add(G.box(1.8, 4, 0.8), win, { p: [d.nx * ap + sx * off, y, d.nz * ap + sz * off], r: [0, d.a, 0] });
+          k.add(G.box(2.6, 0.5, 1.2), brassD, { p: [d.nx * ap + sx * off, y - 2.2, d.nz * ap + sz * off], r: [0, d.a, 0] });
+        } }); }
     const body = k.build(); grp.add(body);
     const dialM = new THREE.MeshStandardMaterial({ map: dialTexture(), emissive: '#ffcf80', emissiveIntensity: 0.35, roughness: 0.6 });
     dialM.emissiveMap = dialM.map;
@@ -165,7 +174,7 @@ export function buildWorld(scene, terrain, net, ctx) {
       hk.add(G.cyl(1.6, 1.6, 2.4, 16), m0, { p: [0, 0, 0], r: [H, 0, 0] });
       return hk.geometry();
     }
-    const hourG = handGeo(15, 2.0), minG = handGeo(22, 1.5), handM = mat('#141518', { metalness: 0.7, roughness: 0.35 });
+    const hourG = handGeo(16, 3.2), minG = handGeo(23, 2.4), handM = mat('#141518', { metalness: 0.7, roughness: 0.35 });
     reg.dials.forEach((d, i) => {
       const dg = new THREE.Group(); dg.position.set(d.nx * (AP + 0.4), DY, d.nz * (AP + 0.4)); dg.rotation.y = d.a; grp.add(dg);
       const hh = new THREE.Mesh(hourG, handM); hh.position.z = 1.0; hh.castShadow = true;

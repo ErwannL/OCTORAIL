@@ -172,13 +172,14 @@ export function buildWorld(scene, terrain, net, ctx) {
     inst(new THREE.DodecahedronGeometry(1, 0), C.rock2, rimRocks, true); }
 
   // ======================= 4. NAPPES DE BROUILLARD TOXIQUE =======================
-  const fogMat = new THREE.MeshBasicMaterial({ color: '#b46cff', map: radialTex(), transparent: true, opacity: 0.32, depthWrite: false, fog: true, side: THREE.DoubleSide });
+  const fogMat = new THREE.MeshBasicMaterial({ color: '#b46cff', map: radialTex(), transparent: true, opacity: 0.13, depthWrite: false, fog: true, side: THREE.DoubleSide });
   const fogs = [];
-  scatter(26, 160, 1300, 30, (x, z) => { const R = 40 + rnd() * 50, y = gmin(x, z, R * 0.4); if (H(x, z) - y > 6) return false; fogs.push({ x, z, y, R, ph: rnd() * 6.28, sp: 0.2 + rnd() * 0.3 }); });
-  const fogIM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2), fogMat, fogs.length * 2);
+  const avoid = [[CX, CZ, 110], [520, 380, 40], ...pools.map(p => [p.x, p.z, 25])];
+  scatter(24, 160, 1300, 30, (x, z) => { const R = 28 + rnd() * 30; if (avoid.some(([ax, az, ar]) => Math.hypot(x - ax, z - az) < ar + R)) return false; const y = gmin(x, z, R * 0.4); if (H(x, z) - y > 6) return false; fogs.push({ x, z, y, R, ph: rnd() * 6.28, sp: 0.2 + rnd() * 0.3 }); });
+  const fogIM = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2), fogMat, fogs.length * 3);
   fogIM.frustumCulled = false; fogIM.renderOrder = 2; scene.add(fogIM);
-  const updFog = (t) => { let i = 0; for (const f of fogs) for (let l = 0; l < 2; l++) {
-    const rise = 2.2 + l * 3 + 1.8 * Math.sin(t * 0.12 + f.ph), dx = Math.sin(t * 0.05 * f.sp + f.ph + l) * 10, dz = Math.cos(t * 0.04 + f.ph * 2 + l) * 10, s = f.R * (1 - l * 0.25) * (1 + 0.08 * Math.sin(t * 0.3 + f.ph));
+  const updFog = (t) => { let i = 0; for (const f of fogs) for (let l = 0; l < 3; l++) {
+    const rise = 1.6 + l * 2.2 + 1.8 * Math.sin(t * 0.12 + f.ph), dx = Math.sin(t * 0.05 * f.sp + f.ph + l) * 10, dz = Math.cos(t * 0.04 + f.ph * 2 + l) * 10, s = f.R * (1 - l * 0.25) * (1 + 0.08 * Math.sin(t * 0.3 + f.ph));
     fogIM.setMatrixAt(i++, M.compose(V.set(f.x + dx, f.y + rise, f.z + dz), Q.setFromEuler(E.set(0, t * 0.02 * (l ? -1 : 1) + f.ph, 0)), S.set(s, 1, s))); }
     fogIM.instanceMatrix.needsUpdate = true; };
   updFog(0);

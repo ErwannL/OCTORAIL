@@ -200,7 +200,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     lichen.add(lk.build()); }
   const cane = new THREE.Group(); { const ck = new Kit(); ck.add(G.cyl(0.04, 0.05, 1.7, 5), M.woodD, { p: [0, -0.85, 0] }); ck.add(G.sph(0.09, 6, 5), M.amber, { p: [0, 0.02, 0] }); cane.add(ck.build()); }
   cane.position.set(0.55, 1.55, 0.25); lichen.add(cane);
-  { const a = Math.atan2(-Mk.z, 0) ; const x = Mk.x + 3.5, z = Mk.z + (Math.sign(-Mk.z) || 1) * 3.5; lichen.position.set(x, hAt(x, z) - 0.05, z); lichen.rotation.y = Math.atan2(-x + Mk.x, -z + Mk.z) + a * 0; placed.push({ n: 'lichen', x, z, y: lichen.position.y + 0.05, r: 0.5 }); }
+  { const a = Math.atan2(-Mk.z, 0) ; const x = Mk.x + 3.5, z = Mk.z + (Math.sign(-Mk.z) || 1) * 3.5; lichen.position.set(x, baseY(x, z, 0.5, 6) - 0.05, z); lichen.rotation.y = Math.atan2(-x + Mk.x, -z + Mk.z) + a * 0; placed.push({ n: 'lichen', x, z, y: lichen.position.y + 0.05, r: 0.5 }); }
   scene.add(lichen);
   // Puces-wagons : insectes-locomotives qui trottinent près des voies
   const pk = new Kit(); pk.add(G.cyl(0.45, 0.45, 1.4, 10), M.rust, { p: [0, 0.75, 0], r: [H, 0, 0] }); pk.add(G.sph(0.5, 8, 6), M.rust, { p: [0, 0.85, -0.55], s: [1, 0.9, 0.8] }); pk.add(G.cyl(0.12, 0.18, 0.55, 6), M.rust, { p: [0, 1.35, 0.35] });
@@ -218,11 +218,12 @@ export function buildWorld(scene, terrain, net, ctx) {
   // halo de fragment (un seul, déplacé sur la plaque la plus proche)
   const halo = new THREE.Mesh(G.sph(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending })); halo.visible = false; scene.add(halo);
 
+  for (const m of [domeIM, plateIM, grigIM, grigE, fleaIM, fleaIM2, sporeIM]) m.userData.noChunk = true; // animées : pas de découpe par cull.js
   // ---------------------------------------------------------------- update
   let wasE = false, sneezeT = 40 + rnd() * 30, swing = 0, swingV = 0, lastRing = -9, lichenLine = 0, grigLine = 0, near = false;
   const v3 = new THREE.Vector3(), eul = new THREE.Euler();
   const ring = (vol) => { const a = ctx.audio; if (!a?.ready) return; const t = a.now; for (const [f, v, d] of [[196, 1, 4], [392, 0.5, 3], [466, 0.35, 2.2], [587, 0.25, 1.6], [784, 0.15, 1]]) a.tone(t, f, d, { vol: vol * v * 0.18, attack: 0.004 }); };
-  if (typeof window !== 'undefined') window.__colosse = { L, Mk, frags, domes, fleas, placed, huts };
+  if (typeof window !== 'undefined') window.__colosse = { L, Mk, frags, domes, fleas, placed, huts, grigIM, lichen };
 
   return {
     update(dt, time, camPos) {

@@ -85,7 +85,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   }
   // fenêtres-pensées : InstancedMesh avec couleur par instance (clignotent)
   const winGeo = new THREE.PlaneGeometry(2.0, 2.4);
-  const winMat = new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.DoubleSide, toneMapped: false });
+  const winMat = new THREE.MeshBasicMaterial({ color: '#2bf0ff', side: THREE.DoubleSide, toneMapped: false });
   const winList = [];
   for (let row = 0; row < 30; row++) {
     const y = 12 + row * 3.1, f = (y - 9.5) / TH, rr = 11 + (7 - 11) * f; // rayon de la face à cette hauteur
@@ -252,7 +252,7 @@ export function buildWorld(scene, terrain, net, ctx) {
         const r = mulberry(pattern);
         headCol.forEach((_, i) => { headCol[i] = Math.floor(r() * NEON.length); heads.setColorAt(i, _c.set(NEON[headCol[i]])); }); heads.instanceColor.needsUpdate = true;
         ghostSegs.forEach(s => { s.on = r() < 0.45; s.col = NEON[Math.floor(r() * 2)]; });
-        beamM.color.set(NEON[Math.floor(r() * 3)]);
+        beamM.color.set(NEON[Math.floor(r() * 3)]); heads.material.color.set(NEON[Math.floor(r() * NEON.length)]);
         if (camD < 700 && ctx.ui && midnight > 0 && ph < 0.02 && Math.hypot(camPos.x - T.x, camPos.z - T.z) < 300) ctx.ui.toast?.('🕛 <b>Minuit à Néon-Bas</b> : l’Aiguillage-Monde réécrit les voies…');
       }
       // voies fantômes : balayage lumineux pendant les 8 s qui suivent minuit puis lueur qui respire
@@ -264,7 +264,8 @@ export function buildWorld(scene, terrain, net, ctx) {
       winT += dt;
       if (winT > 0.1 && camD < 1400) { winT = 0; const storm = sweep < 6;
         winList.forEach((w, i) => { const v = Math.sin(time * (storm ? 9 : 1.3) + w.ph * 3 + w.y * 0.15) * 0.5 + 0.5; _c.set(storm ? NEON[(i + Math.floor(time * 6)) % 3] : (v > 0.8 ? '#ff2bd6' : '#2bf0ff')).multiplyScalar(v > 0.35 ? 0.12 + v * 0.3 : 0.03); wins.setColorAt(i, _c); });
-        wins.instanceColor.needsUpdate = true; }
+        wins.instanceColor.needsUpdate = true;
+        const v2 = Math.sin(time * (storm ? 12 : 1.1)) * 0.5 + 0.5; winMat.color.set(storm ? NEON[Math.floor(time * 6) % 3] : '#2bf0ff').lerp(_c.set('#ff2bd6'), storm ? 0 : v2).multiplyScalar(0.35 + 0.4 * v2); }
       beamM.opacity = 0.07 + 0.04 * Math.sin(time * 1.7) + (sweep < 6 ? 0.12 : 0);
       deadNeon.material.emissiveIntensity = Math.sin(time * 23) > 0.6 ? 2.5 : 0.4;
 

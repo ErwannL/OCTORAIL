@@ -477,6 +477,12 @@ function setStage(id) {
   const i = STAGES.findIndex(s => s.id === id);
   if (i > S.stage) { S.stage = i; ui.objective(STAGES[i].text); audio.pickup(); pushShared(); }
 }
+// les gisements se reconstituent : toutes les 90 s, un tiers des pépites et cristaux ramassés réapparaît
+setInterval(() => { if (!started) return; let n = 0;
+  for (const [arr, list] of [[S.nuggets, nuggets.list], [S.crystals, crystals.list]]) { const k = Math.ceil(arr.length / 3); for (const i of arr.splice(0, k)) { const o = list[i]; if (!o) continue; o.alive = true; o.m.visible = true; if (o.hp !== undefined) { o.hp = 1; o.m.scale.set(0.8, 1.8, 0.8); } n++; } }
+  if (n) { pushShared(); if (Math.random() < 0.5) ui.toast('✨ De l\'Or-moteur et de la glace-mémoire ont réapparu dans les mondes.'); } }, 90000);
+// fragments de lore lus dans les mondes : +20 crédits chacun (une fois)
+setInterval(() => { if (!started || !S.fragments) return; const paid = S.fragPaid | 0; if (S.fragments.length > paid) { const d = S.fragments.length - paid; S.fragPaid = S.fragments.length; addCredits(20 * d, `fragment${d > 1 ? 's' : ''} de lore archivé${d > 1 ? 's' : ''} par OCTAVE`); } }, 2000);
 function addCredits(n, why) { S.credits += n; ui.credits(S.credits, true); audio.coin(); if (why) ui.toast(`+${n} ◈ ${why}`); pushShared(); checkGold(); }
 function checkGold() { if (S.stage === 1 && S.credits >= 120) setStage('buy'); }
 function syncWagons() {
@@ -569,13 +575,16 @@ function openShop() {
     addCredits(total, `${n} objet(s) vendu(s)`);
   }
   if (train.storage?.length) { const t = train.storage.reduce((a, b) => a + b.value, 0); train.storage = []; addCredits(t, 'wagon-stockage vidé'); }
+  { const how = document.createElement('div'); how.className = 'shop-how';
+    how.innerHTML = '<b>Gagner des crédits :</b> 🪙 pépites d\'<b>Or-moteur</b> (elles fuient, attrape-les avec E) · 💠 <b>glace-mémoire</b> en Gelure ([F] maintenu) · ✦ <b>trouvailles</b> (+50) · 📜 <b>fragments</b> de lore dans chaque monde (E, +20) · 🤖 <b>gardiens</b> ramenés chez eux (+150). Le sac se revend tout seul en ouvrant le Comptoir. Pépites et glace repoussent toutes les 90 s.';
+    list.appendChild(how); }
   // onglets (sous-menus) : jamais de longue liste à faire défiler
   const CATS = [['trains', '🚂 Trains', it => it.id === 'vapeur' || it.id === 'convoyeur'], ['wagons', '🚃 Wagons', it => it.wagon], ['outils', '🛠️ Outils', it => !it.wagon && !['vapeur', 'convoyeur', 'doublure', 'sac'].includes(it.id)], ['tenue', '🎒 Tenue', it => ['doublure', 'sac'].includes(it.id)]];
   openShop.tab ??= 'trains';
   const tabs = document.createElement('nav'); tabs.className = 'tabs shop-tabs';
   for (const [id, label, f] of CATS) { const n = SHOP.filter(f).filter(it => !S.owned[it.id]).length; const b = document.createElement('button'); b.innerHTML = label + (n ? ` <small>${n}</small>` : ''); if (id === openShop.tab) b.className = 'on'; b.onclick = () => { openShop.tab = id; openShop.page = 0; audio.ui?.(); openShop(); }; tabs.appendChild(b); }
   list.appendChild(tabs);
-  const catF = CATS.find(c => c[0] === openShop.tab)[2], items = SHOP.filter(catF), PER = innerHeight < 760 ? 2 : innerHeight < 880 ? 3 : 4, pages = Math.ceil(items.length / PER);
+  const catF = CATS.find(c => c[0] === openShop.tab)[2], items = SHOP.filter(catF), PER = openShop.per ?? 4, pages = Math.ceil(items.length / PER);
   openShop.page = Math.min(openShop.page || 0, pages - 1);
   if (pages > 1) { const pg = document.createElement('div'); pg.className = 'shop-pages';
     const mk = (t, d) => { const b = document.createElement('button'); b.textContent = t; b.disabled = (openShop.page + d < 0 || openShop.page + d >= pages); b.onclick = () => { openShop.page += d; audio.ui?.(); openShop(); }; return b; };
@@ -600,6 +609,10 @@ function openShop() {
     row.appendChild(b); list.appendChild(row);
   }
   ui.openPanel('shop');
+  // ajustement automatique : moins d'objets par page tant que ça dépasse (jamais de scroll)
+  clearInterval(openShop.fit); let tries = 0;
+  openShop.fit = setInterval(() => { const e = document.getElementById('shop'); if (!e || e.classList.contains('hidden') || ++tries > 12) { clearInterval(openShop.fit); return; }
+    if (e.scrollHeight > e.clientHeight + 2 && PER > 1) { clearInterval(openShop.fit); openShop.per = PER - 1; openShop(); } }, 300);
   import('./ui/previews.js').then(m => m.attachPreviews(list, () => ui.panel === 'shop'));   // démos animées (rendu seulement boutique ouverte)
 }
 
@@ -1236,6 +1249,7 @@ function render() {
 }
 // --- diagnostic F3 (FPS, GPU, navigateur, verdict) — rien n'est envoyé
 const diag = createDiag(renderer, () => ({ quality: qName + (qName === 'auto' ? ' → ' + pixelRatio.toFixed(2) : ''), pr: pixelRatio, w: innerWidth, h: innerHeight, shadows: renderer.shadowMap.enabled, bloom: !!SET.bloom, post: !!Q.post, players: 1 + remotes.size, pos: player.pos.toArray().map(v => v.toFixed(0)).join(',') }));
+addEventListener('resize', () => { openShop.per = undefined; });
 addEventListener('keydown', e => { if (e.code === 'F3') { e.preventDefault(); diag.toggle(); } });
 setInterval(() => diag.refresh(), 500);
 window.__diag = diag;

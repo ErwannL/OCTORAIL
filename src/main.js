@@ -322,7 +322,7 @@ function renderHints() {
 let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
-const BUILD = 'v35';
+const BUILD = 'v36';
 (function titleScreen() {
   { const v = document.createElement('div'); v.textContent = 'OCTORAIL ' + BUILD; v.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px Chakra Petch,sans-serif;color:#c8a25a;opacity:.75;z-index:99;pointer-events:none'; document.body.appendChild(v); }
   { const cr = document.querySelector('#title .credits'); let i = Math.floor(Math.random() * LOADING_TIPS.length); const tick = () => { if (cr && !started) { cr.textContent = '« ' + LOADING_TIPS[i++ % LOADING_TIPS.length] + ' »'; setTimeout(tick, 6000); } }; tick(); }
@@ -331,25 +331,33 @@ const BUILD = 'v35';
     el.onclick = () => { me.color = c; cbox.querySelectorAll('i').forEach(x => x.classList.remove('on')); el.classList.add('on'); audio.init(); audio.ui(); }; cbox.appendChild(el); });
   try { document.getElementById('name').value = localStorage.getItem('octorail-name') || ''; } catch {}
   let going = false;
-  const go = async (room) => {
+  const go = async (room, host = null) => {
     if (going || started) return; going = true; // un seul départ, même si on spamme les boutons
-    for (const id of ['play-solo', 'play-mp']) { const b = document.getElementById(id); if (b) { b.disabled = true; b.style.opacity = 0.55; } }
+    for (const id of ['play-solo', 'play-mp', 'play-join']) { const b = document.getElementById(id); if (b) { b.disabled = true; b.style.opacity = 0.55; } }
     audio.init(); audio.ui();
     me.name = (document.getElementById('name').value.trim() || 'Passager').slice(0, 14);
     try { localStorage.setItem('octorail-name', me.name); } catch {}
     if (room) {
       ui.toast('Connexion au salon ' + room.toUpperCase() + '…');
-      const w = await netc.connect(room, { name: me.name, color: me.color });
+      const w = await netc.connect(room, { name: me.name, color: me.color }, host);
       if (w) {
         me.slot = w.slot; if (w.shared) S = { ...S, ...w.shared };
         for (const o of w.others) addRemote(o.id, o);
         ui.toast(`Salon <b>${w.room}</b> · ${w.others.length + 1} joueur(s)`);
-      } else ui.toast('Serveur multijoueur introuvable — partie solo.');
+      } else ui.toast(host ? `Impossible de joindre ${host} — vérifie l'adresse, Hamachi et que l'hôte a bien lancé son salon. Partie solo.` : 'Serveur multijoueur introuvable (lance OCTORAIL.exe pour héberger) — partie solo.');
     }
     start();
   };
   document.getElementById('play-solo').onclick = () => go(null);
   document.getElementById('play-mp').onclick = () => go(document.getElementById('room').value.trim() || 'OCTAVE');
+  // rejoindre un ami par son adresse (Hamachi, réseau local…)
+  { const hip = document.getElementById('host-ip'); try { hip.value = localStorage.getItem('octorail-host') || ''; } catch {}
+    document.getElementById('play-join').onclick = () => { const h = hip.value.trim(); if (!h) { hip.focus(); ui.toast('Entre l\'adresse de l\'hôte (ex : 25.12.34.56)'); return; } try { localStorage.setItem('octorail-host', h); } catch {} go(document.getElementById('room-join').value.trim() || 'OCTAVE', h); };
+    const tabs = [['mp-tab-host', 'mp-host'], ['mp-tab-join', 'mp-join']];
+    for (const [t, pnl] of tabs) document.getElementById(t).onclick = () => { for (const [t2, p2] of tabs) { document.getElementById(t2).classList.toggle('on', t2 === t); document.getElementById(p2).classList.toggle('hidden', p2 !== pnl); } audio.init(); audio.ui(); };
+    // adresses de ce PC (servies par OCTORAIL.exe) : Hamachi (25.x) en premier
+    fetch('/info').then(r => r.json()).then(i => { const ips = (i.ips || []).sort((a, b) => (b.startsWith('25.') ? 1 : 0) - (a.startsWith('25.') ? 1 : 0)); document.getElementById('my-ips').textContent = ips.length ? ips.slice(0, 3).join('  ·  ') : 'aucune (pas de réseau ?)'; })
+      .catch(() => { document.getElementById('my-ips').textContent = 'lance OCTORAIL.exe pour héberger'; document.getElementById('play-mp').disabled = true; }); }
   const qs = document.getElementById('quality'); qs.value = qName;
   qs.onchange = () => { SET.quality = qs.value; saveSettings(SET); location.reload(); };
   document.getElementById('reset').onclick = () => { clearState(); S = loadState(); ui.toast('Sauvegarde effacée'); };

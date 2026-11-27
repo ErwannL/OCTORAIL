@@ -25,8 +25,17 @@
       <div class="colors" id="colors"></div>
       <button id="play-solo" class="big">▶ Jouer</button>
       <div class="mp">
-        <input id="room" maxlength="12" placeholder="Code salon (ex: VAPEUR)">
-        <button id="play-mp">Rejoindre / créer un salon (1-8)</button>
+        <div class="mp-tabs"><button id="mp-tab-host" class="on">🏠 Créer un salon</button><button id="mp-tab-join">🔗 Rejoindre un ami</button></div>
+        <div id="mp-host" class="mp-pane">
+          <div class="mp-ips">Donne cette adresse à tes amis : <b id="my-ips">…</b></div>
+          <input id="room" maxlength="12" placeholder="Code salon (optionnel, ex: VAPEUR)">
+          <button id="play-mp">Héberger le salon (1-8 joueurs)</button>
+        </div>
+        <div id="mp-join" class="mp-pane hidden">
+          <input id="host-ip" maxlength="60" placeholder="Adresse de l'hôte (ex: 25.12.34.56)">
+          <input id="room-join" maxlength="12" placeholder="Code salon (si l'hôte en a mis un)">
+          <button id="play-join">Rejoindre la partie</button>
+        </div>
       </div>
       <label class="q">Qualité graphique <select id="quality"><option value="auto">Auto (s'adapte à ton PC)</option><option value="bas">Basse (PC modeste)</option><option value="moyen">Moyenne</option><option value="haut">Haute</option><option value="ultra">Ultra 4K (grosse carte graphique)</option></select></label>
       <button id="reset" class="small">Effacer la sauvegarde</button>

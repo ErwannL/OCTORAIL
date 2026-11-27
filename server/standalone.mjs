@@ -3,11 +3,13 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
 import { WebSocketServer } from 'ws';
 
 let sea = null; try { sea = require('node:sea'); if (!sea.isSea()) sea = null; } catch { sea = null; }
-const PORT = +process.env.PORT || 8787;
+let PORT = +process.env.PORT || 8787;
+const myIps = () => Object.values(networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address + (PORT !== 8787 ? ':' + PORT : ''));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 const DIST = join(process.cwd(), 'dist');
 
@@ -18,6 +20,7 @@ async function load(p) {
 
 const http = createServer(async (req, res) => {
   let p = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/\\/g, '/').replace(/^(\.\.\/)+/, '');
+  if (p === '/info') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ips: myIps(), port: PORT })); }
   if (p === '/' || p === '') p = '/index.html';
   if (p.includes('..')) { res.writeHead(400); return res.end(); }
   const data = await load(p);
@@ -54,17 +57,28 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => { room.players.delete(id); bcast({ t: 'leave', id }); if (me.info) console.log(`  - ${me.info.name} est parti`); if (!room.players.size) rooms.delete(code); });
 });
 
-http.on('error', e => { if (e.code === 'EADDRINUSE') { console.log(`\n  Le port ${PORT} est déjà utilisé : OCTORAIL tourne peut-être déjà. Ferme l'autre fenêtre.\n`); setTimeout(() => process.exit(1), 8000); } else throw e; });
-http.listen(PORT, '0.0.0.0', () => {
-  const ips = Object.values(networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
+http.on('error', e => { if (e.code === 'EADDRINUSE' && PORT < 8797) { PORT++; http.listen(PORT, '0.0.0.0'); } else { console.log('Erreur serveur :', e.message); setTimeout(() => process.exit(1), 8000); } });
+http.on('listening', () => {
+  const ips = myIps();
   console.log('\n  ==============================================');
   console.log('     OCTORAIL — serveur de salon lancé (hôte)');
   console.log('  ==============================================\n');
   console.log(`  Toi (hôte)          : http://localhost:${PORT}`);
-  for (const ip of ips) console.log(`  Amis, même réseau   : http://${ip}:${PORT}`);
-  console.log(`\n  Amis par Internet : redirige le port ${PORT} (TCP) de ta box vers ce PC,`);
-  console.log(`  puis donne-leur http://TON-IP-PUBLIQUE:${PORT}  (ou utilise un VPN type Radmin/ZeroTier/Tailscale).`);
-  console.log('\n  Dans le jeu : même « Code salon » pour tout le monde, puis « Rejoindre / créer un salon ».');
+  for (const ip of ips) console.log(`  Adresse à donner     : ${ip}${ip.startsWith('25.') ? '   <- Hamachi' : ''}`);
+  console.log('\n  Hôte : menu « Créer un salon » → « Héberger ». Amis : « Rejoindre un ami » → ton adresse (Hamachi : 25.x.x.x).');
   console.log('  Laisse cette fenêtre ouverte pendant la partie. Ferme-la pour arrêter le serveur.\n');
-  if (!process.env.NO_OPEN) exec(process.platform === 'win32' ? `start "" "http://localhost:${PORT}"` : `xdg-open http://localhost:${PORT}`, () => {});
+  if (!process.env.NO_OPEN) openApp(`http://localhost:${PORT}`);
 });
+http.listen(PORT, '0.0.0.0');
+
+// fenêtre d'application (sans barre d'adresse) : Edge (présent sur tout Windows 10/11) ou Chrome ; sinon navigateur par défaut
+function openApp(url) {
+  const L = process.env.LOCALAPPDATA || '', PF = process.env['ProgramFiles'] || 'C:\\Program Files', PF86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const cands = [PF86 + '\\Microsoft\\Edge\\Application\\msedge.exe', PF + '\\Microsoft\\Edge\\Application\\msedge.exe', PF + '\\Google\\Chrome\\Application\\chrome.exe', PF86 + '\\Google\\Chrome\\Application\\chrome.exe', L + '\\Google\\Chrome\\Application\\chrome.exe'];
+  const exe = process.platform === 'win32' ? cands.find(c => existsSync(c)) : null;
+  if (!exe) { exec(process.platform === 'win32' ? `start "" "${url}"` : `xdg-open ${url}`, () => {}); return; }
+  const prof = (L || process.cwd()) + '\\OCTORAIL\\fenetre'; try { mkdirSync(prof, { recursive: true }); } catch {}
+  const w = spawn(exe, [`--app=${url}`, `--user-data-dir=${prof}`, '--window-size=1600,900', '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required'], { stdio: 'ignore' });
+  console.log('  La fenêtre du jeu est ouverte. Fermer le jeu arrête aussi le serveur.\n');
+  w.on('exit', () => { console.log('  Jeu fermé : arrêt du serveur.'); setTimeout(() => process.exit(0), 500); });
+}

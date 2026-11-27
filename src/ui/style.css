@@ -195,3 +195,5 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 #map-cv { max-height: calc(100vh - 200px); max-width: 100%; height: auto; width: auto; aspect-ratio: 1; display: block; margin: 8px auto 0; } #map { overflow: hidden; }
 .shop-how { font-size: 12.5px; line-height: 1.45; background: rgba(200,162,90,.12); border: 1px solid rgba(200,162,90,.4); border-radius: 8px; padding: 7px 10px; margin-top: 8px; }
 @media (max-height: 640px) { #shop .sub { display: none; } #shop .shop-how { font-size: 11px; padding: 4px 8px; } #shop h2 { font-size: 22px; } .shop-tabs { margin: 6px 0; } .shop-pages { margin: 0 0 4px; } #shop .close { margin-top: 6px; } }
+.mp-tabs { display: flex; gap: 6px; margin-bottom: 8px; } .mp-tabs button { flex: 1; background: #2a2018; color: var(--ink); box-shadow: none; } .mp-tabs button.on { background: linear-gradient(#e2b45a, #a8742a); color: #2a1606; }
+.mp-pane { display: flex; flex-direction: column; gap: 6px; } .mp-pane.hidden { display: none; } .mp-ips { font-size: 13px; opacity: .9; } .mp-ips b { color: #ffe3a8; user-select: all; }

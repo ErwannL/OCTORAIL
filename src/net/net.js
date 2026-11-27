@@ -2,11 +2,12 @@
 export class Net {
   constructor() { this.ws = null; this.id = null; this.peers = new Map(); this.handlers = {}; this.online = false; }
   on(t, f) { this.handlers[t] = f; }
-  connect(room, hello) {
+  connect(room, hello, host = null) {
     return new Promise(res => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
       const port = location.port === '5173' ? '8787' : location.port;
-      const url = `${proto}://${location.hostname}${port ? ':' + port : ''}/ws?room=${encodeURIComponent(room)}`;
+      const h = host ? (host.trim().replace(/^\w+:\/\//, '').replace(/\/.*$/, '')) : null;
+      const url = h ? `ws://${h.includes(':') ? h : h + ':8787'}/ws?room=${encodeURIComponent(room)}` : `${proto}://${location.hostname}${port ? ':' + port : ''}/ws?room=${encodeURIComponent(room)}`;
       let done = false;
       try { this.ws = new WebSocket(url); } catch { return res(false); }
       const to = setTimeout(() => { if (!done) { done = true; res(false); } }, 15000); // PC lents : le message de bienvenue peut arriver tard

@@ -34,7 +34,7 @@ export function scatter(scene, terrain, net, rnd, count, inSector, geo, mat, opt
     const ground = terrain.heightAt(x, z);
     if (heightSpread(terrain, x, z, Math.max(0.5, Math.min(fp, 7))) > (opts.slopeMax ?? Math.max(0.8, Math.min(fp, 7) * 0.3))) continue;
     if (!opts.noBlock && COLLIDERS.blocked(x, ground + 0.3, z, Math.min(fp, 10) * 0.8)) continue;
-    p.set(x, terrain.heightAt(x, z) + (opts.yOff ?? 0) * sc, z);
+    { const fr = Math.max(0.3, Math.min(fp, 7) * 0.7); let lo = ground; for (let i = 0; i < 8; i++) lo = Math.min(lo, terrain.heightAt(x + Math.cos(i * PI / 4) * fr, z + Math.sin(i * PI / 4) * fr)); p.set(x, lo + (opts.yOff ?? 0) * sc, z); } // posé sur le point le plus bas de l'emprise
     q.setFromEuler(new THREE.Euler(opts.tilt ? (rnd() - 0.5) * opts.tilt : 0, rnd() * Math.PI * 2, opts.tilt ? (rnd() - 0.5) * opts.tilt : 0));
     s.set(sc, sc * (opts.yStretch ? 0.6 + rnd() * opts.yStretch : 1), sc);
     m.compose(p, q, s); inst.setMatrixAt(n++, m);

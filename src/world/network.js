@@ -233,8 +233,28 @@ export class Network {
         }
       }
     }
+    this.limitGrades();
     this.computeTangents();
     this.buildIndex();
+  }
+
+  // Rampes trop raides (> 10 %) : profil ramené vers ~7 % (moyenne des enveloppes déblai / remblai à pente bornée),
+  // extrémités inchangées (raccord aux noeuds). Le terrain suit le ballast (terrain.shapeAt), donc rien à reprendre ailleurs.
+  // Voies du Western / de la Gelure (tsunami, ville) exclues : leurs hauteurs sont calibrées pour la vague.
+  limitGrades(maxG = 0.10, target = 0.07) {
+    const keep = new Set(['K5-T5', 'K5-K4', 'J4-J5', 'K4-T4']);
+    for (const e of this.edges) {
+      if (keep.has(e.a + '-' + e.b) || keep.has(e.b + '-' + e.a)) continue;
+      if ([e.a, e.b].some(n => n === 'Q1') || (e.a === 'P1' && e.b !== 'S1') || (e.b === 'P1' && e.a !== 'S1')) continue; // faisceau P1/Q1 : voies parallèles/croisées, profil d'origine conservé (dégagement)
+      const P = e.pts, n = P.length; if (n < 12) continue;
+      const W = 5, grade = () => { let g = 0; for (let k = W; k < n; k++) g = Math.max(g, Math.abs(P[k].y - P[k - W].y) / (W * e.step)); return g; };
+      if (grade() <= maxG) continue;
+      const y = P.map(p => p.y), d = target * e.step, lo = y.slice(), hi = y.slice();
+      for (let k = 1; k < n; k++) { lo[k] = Math.min(lo[k], lo[k - 1] + d); hi[k] = Math.max(hi[k], hi[k - 1] - d); }
+      for (let k = n - 2; k >= 0; k--) { lo[k] = Math.min(lo[k], lo[k + 1] + d); hi[k] = Math.max(hi[k], hi[k + 1] - d); }
+      const z = lo.map((v, k) => (v + hi[k]) / 2), d0 = y[0] - z[0], d1 = y[n - 1] - z[n - 1];
+      for (let k = 0; k < n; k++) { const t = k / (n - 1); P[k].y = z[k] + d0 * (1 - t) + d1 * t; }
+    }
   }
 
   // tangentes unitaires 3D à chaque échantillon : différences centrées, caps imposés aux extrémités (continuité aux noeuds)

@@ -122,7 +122,7 @@ export function buildTracks(scene, net) {
   const railMat = new THREE.MeshStandardMaterial({ color: '#a9a39a', metalness: 0.85, roughness: 0.32 });
   const ballastMat = new THREE.MeshStandardMaterial({ color: '#5a5048', roughness: 1, flatShading: true });
   const sleeperMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95 });
-  const rnd = mulberry(77), CH = 100;
+  const rnd = mulberry(77), CH = 100, TCELL = 260, cells = new Map();
   const sg = new THREE.BoxGeometry(2.4, 0.2, 0.26);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), pp = new THREE.Vector3(), col = new THREE.Color(), eul = new THREE.Euler();
   const woods = ['#4a2f1c', '#5b3b24', '#6a4a2e', '#3c281a', '#74583a', '#56402c'];
@@ -137,9 +137,11 @@ export function buildTracks(scene, net) {
     const n = e.pts.length, lift = prio(e) * 0.006;
     for (let a0 = 0; a0 < n - 1; a0 += CH) {
       const a1 = Math.min(n - 1, a0 + CH);
-      const rails = mergeExt([extrude(e.pts, e.tan, a0, a1, -GAUGE, RAIL, 0.12), extrude(e.pts, e.tan, a0, a1, GAUGE, RAIL, 0.12)]);
-      const rm = new THREE.Mesh(rails, railMat); rm.castShadow = true; group.add(rm);
-      const bm = new THREE.Mesh(mergeExt([extrude(e.pts, e.tan, a0, a1, 0, BALLAST, -lift * 0.5)]), ballastMat); bm.receiveShadow = true; group.add(bm);
+      // morceaux regroupés par cellule spatiale (moins de draw calls au Moyeu où les voies convergent)
+      const mid = e.pts[(a0 + a1) >> 1], ck = Math.floor(mid.x / TCELL) + ',' + Math.floor(mid.z / TCELL);
+      let cb = cells.get(ck); if (!cb) cells.set(ck, cb = { rails: [], ball: [], mats: [], cols: [] });
+      cb.rails.push(extrude(e.pts, e.tan, a0, a1, -GAUGE, RAIL, 0.12), extrude(e.pts, e.tan, a0, a1, GAUGE, RAIL, 0.12));
+      cb.ball.push(extrude(e.pts, e.tan, a0, a1, 0, BALLAST, -lift * 0.5));
       // traverses : 2 par échantillon, couleurs / longueurs / angles variés
       const cnt = (a1 - a0) * 2, mats = [], cols = [];
       for (let k = a0; k < a1; k++) {
@@ -161,11 +163,16 @@ export function buildTracks(scene, net) {
         }
       }
       void cnt;
-      if (!mats.length) continue;
-      const sl = new THREE.InstancedMesh(sg, sleeperMat, mats.length);
-      mats.forEach((m, i) => { sl.setMatrixAt(i, m); sl.setColorAt(i, cols[i]); });
-      sl.userData.noChunk = true; sl.receiveShadow = true; sl.computeBoundingSphere(); group.add(sl);
+      cb.mats.push(...mats); cb.cols.push(...cols);
     }
+  }
+  for (const cb of cells.values()) {
+    const rm = new THREE.Mesh(mergeExt(cb.rails), railMat); rm.castShadow = true; group.add(rm);
+    const bm = new THREE.Mesh(mergeExt(cb.ball), ballastMat); bm.receiveShadow = true; group.add(bm);
+    if (!cb.mats.length) continue;
+    const sl = new THREE.InstancedMesh(sg, sleeperMat, cb.mats.length);
+    cb.mats.forEach((m, i) => { sl.setMatrixAt(i, m); sl.setColorAt(i, cb.cols[i]); });
+    sl.userData.noChunk = true; sl.receiveShadow = true; sl.computeBoundingSphere(); group.add(sl);
   }
   group.add(plates.build({ shadow: false }));
   // fins de voie : le talus de ballast ne s'arrête pas net (face ouverte) — il plonge en pente douce dans le sol
@@ -248,9 +255,8 @@ export function buildSignals(scene, net, BIOMES) {
         sig.add(G.cone(0.55, 0.35, 4), steel, { p: [sx, sy + 4.85, sz], r: [0, PI / 4, 0] });
         sig.add(G.box(1.5, 0.12, 0.08), redM, { p: [sx + 0.9, sy + 3.5, sz], r: [0, 0, -0.35] });
         sig.add(G.box(0.12, 0.2, 0.1), whiteM, { p: [sx + 1.55, sy + 3.3, sz], r: [0, 0, -0.35] });
-        const lm = new THREE.MeshStandardMaterial({ color: '#111', emissive: '#40ff80', emissiveIntensity: 3 });
-        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 8), lm); lamp.position.set(sx, sy + 4.2, sz + 0.26); lamp.scale.z = 0.5; g.add(lamp);
-        lamps.push({ node: n.id, mat: lm });
+        // lanterne : une instance (toutes les lanternes = 1 seul draw call) ; « mat.emissive.set » écrit la couleur de l'instance
+        lamps.push({ node: n.id, pos: [sx, sy + 4.2, sz + 0.26] });
         COLLIDERS.circle(sx, sz, 0.3, 99, -99, false);
       }
       // support de manoeuvre au pied de l'aiguillage
@@ -332,6 +338,12 @@ export function buildSignals(scene, net, BIOMES) {
     return ribbons.get(key);
   };
   const lampOff = '#2a8a50';
+  if (lamps.length) {
+    const lim = new THREE.InstancedMesh(new THREE.SphereGeometry(0.3, 12, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' }), lamps.length), lc = new THREE.Color(), lm4 = new THREE.Matrix4();
+    lamps.forEach((l, i) => { lim.setMatrixAt(i, lm4.makeScale(1, 1, 0.5).setPosition(l.pos[0], l.pos[1], l.pos[2])); lim.setColorAt(i, lc.set(lampOff).multiplyScalar(3)); let cur = lampOff;
+      l.mat = { emissive: { set: c => { if (c === cur) return; cur = c; lim.setColorAt(i, lc.set(c).multiplyScalar(3)); lim.instanceColor.needsUpdate = true; } } }; });
+    lim.userData.noChunk = true; lim.userData.noCull = true; lim.computeBoundingSphere(); g.add(lim);
+  }
   let lastT = 0;
   const update = (train, time) => {
     const dt = Math.min(0.1, Math.max(0, time - lastT)); lastT = time;

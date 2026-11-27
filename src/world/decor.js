@@ -495,7 +495,9 @@ export function buildClosedWorlds(scene, terrain, net) {
   const EXCL = [[354, -533, 60], [830, -150, 55]]; // zones réservées aux repères des nouveaux mondes (Aiguillage-Monde de Néon-Bas)
   const REPLACED = new Set(['archipel', 'chrono', 'fonderie']);
   const rnd = mulberry(99);
-  const place = (sector, n, rMin, rMax, cb) => { let c = 0; for (let t = 0; t < n * 20 && c < n; t++) { const r = rMin + rnd() * (rMax - rMin), a = sector * PI / 4 + (rnd() - 0.5) * PI / 4 * 0.9; const x = Math.cos(a) * r, z = -Math.sin(a) * r; if (sectorIndex(x, z) !== sector || net.nearest(x, z, 12) || EXCL.some(([ex, ez, er]) => Math.hypot(x - ex, z - ez) < er)) continue; cb(x, terrain.heightAt(x, z), z, c++); } };
+  // y transmis = sol le plus BAS sous l'emprise (rayon fr) : rien ne flotte côté pente, la base s'enterre côté amont
+  const lowAt = (x, z, fr) => { let lo = terrain.heightAt(x, z); for (let i = 0; i < 8; i++) { const a = i * PI / 4; lo = Math.min(lo, terrain.heightAt(x + Math.cos(a) * fr, z + Math.sin(a) * fr), terrain.heightAt(x + Math.cos(a) * fr * 0.5, z + Math.sin(a) * fr * 0.5)); } return lo; };
+  const place = (sector, n, rMin, rMax, cb, fr = 2.5) => { let c = 0; for (let t = 0; t < n * 20 && c < n; t++) { const r = rMin + rnd() * (rMax - rMin), a = sector * PI / 4 + (rnd() - 0.5) * PI / 4 * 0.9; const x = Math.cos(a) * r, z = -Math.sin(a) * r; if (sectorIndex(x, z) !== sector || net.nearest(x, z, 12) || EXCL.some(([ex, ez, er]) => Math.hypot(x - ex, z - ez) < er)) continue; cb(x, lowAt(x, z, fr), z, c++); } };
   const instanced = (geo, material, list, shadow = false) => { const inst = new THREE.InstancedMesh(geo, material, list.length); list.forEach((m, i) => inst.setMatrixAt(i, m)); inst.castShadow = shadow; inst.receiveShadow = true; scene.add(inst); return inst; };
 
   // ---- Néon-Bas : gratte-ciels à façades vitrées lumineuses, enseignes verticales, anneaux néon, balises
@@ -518,7 +520,7 @@ export function buildClosedWorlds(scene, terrain, net) {
       const c = Math.floor(rnd() * 3), side = Math.floor(rnd() * 4) * H + ry;
       blades[c].push(M4(x + Math.sin(side) * (ww * 0.5 + 0.4), y + hh * (0.35 + rnd() * 0.2), z + Math.cos(side) * (ww * 0.5 + 0.4), side, [1, 0.6 * hh * (0.3 + rnd() * 0.3), 1]));
       if (rnd() < 0.7) rings[Math.floor(rnd() * 2)].push(M4(x, y + hh * (0.55 + rnd() * 0.3), z, 0, [ww * 0.62, ww * 0.62, ww * 0.62], H, 0));
-    });
+    }, 9);
     types.forEach((T, i) => instanced(T.k.geometry(), winM, lists[i], false));
     const neonCol = ['#ff2fb8', '#2fe6ff', '#ffb030'];
     blades.forEach((l, i) => instanced(new THREE.BoxGeometry(0.5, 1, 1.6), glow(neonCol[i], 3.2), l));
@@ -623,13 +625,13 @@ export function buildClosedWorlds(scene, terrain, net) {
       const list = []; place(0, 50, 260, 1300, (x, y, z) => { const s = 5 + rnd() * 10; list.push(M4(x, y - 1, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, true); }
     // cages thoraciques (5 côtes en arc)
     { const k = new Kit(); for (let i = 0; i < 5; i++) { const pts = []; const rr = 3.6 - Math.abs(i - 2) * 0.35, hh = 5 - Math.abs(i - 2) * 0.5; for (let a = 0; a <= 8; a++) { const t = a / 8 * PI * 0.92; pts.push([Math.cos(t) * rr, Math.sin(t) * hh - 0.6, (i - 2) * 2.7]); } k.add(taperTube(pts, 0.4, 0.16, 16, 6), i % 2 ? bone : boneD); k.add(G.sph(0.5, 6, 5), boneD, { p: [rr, -0.5, (i - 2) * 2.7] }); k.add(G.sph(0.5, 6, 5), boneD, { p: [-rr, -0.5, (i - 2) * 2.7] }); } k.add(G.cyl(0.35, 0.35, 12, 6), boneD, { p: [0, 4.0, 0], r: [H, 0, 0] });
-      const list = []; place(0, 24, 260, 1300, (x, y, z) => { const s = 2.5 + rnd() * 5; list.push(M4(x, y, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, true); }
+      const list = []; place(0, 24, 260, 1300, (x, y, z) => { const s = 2.5 + rnd() * 5; list.push(M4(x, y, z, rnd() * 6, [s, s, s])); }, 6); instKit(scene, k, list, true); }
     // rangées de plaques dorsales
     { const k = new Kit(); for (let i = 0; i < 7; i++) { const h = 2 + Math.sin(i / 6 * PI) * 3 + (i % 2) * 0.4, x = (i - 3) * 1.7; k.add(G.cone(1.0, h, 4), plate, { p: [x, h / 2, 0], s: [1, 1, 0.28], r: [0, PI / 4, (i - 3) * 0.04] }); k.add(G.cone(0.38, h * 0.4, 4), plateTip, { p: [x, h * 0.85, 0], s: [1, 1, 0.3], r: [0, PI / 4, (i - 3) * 0.04] }); }
-      const list = []; place(0, 40, 260, 1300, (x, y, z) => { const s = 2.2 + rnd() * 3.5; list.push(M4(x, y - 0.3, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, true); }
+      const list = []; place(0, 40, 260, 1300, (x, y, z) => { const s = 2.2 + rnd() * 3.5; list.push(M4(x, Math.min(y, lowAt(x, z, 6 * s)) - 0.3, z, rnd() * 6, [s, s, s])); }, 5); instKit(scene, k, list, true); } // rangée longue (~12 m × s) : pied le plus bas sur toute la longueur
     // rochers moussus + calotte d'herbe
     const rg = rockGeometry(7), capG = new THREE.IcosahedronGeometry(1, 1);
-    const rl = [], cl2 = []; place(0, 120, 240, 1300, (x, y, z) => { const s = 2 + rnd() * 6, ry = rnd() * 6; rl.push(M4(x, y, z, ry, [s, s * 0.7, s])); cl2.push(M4(x, y + s * 0.5, z, ry, [s * 1.1, s * 0.3, s * 0.95])); });
+    const rl = [], cl2 = []; place(0, 120, 240, 1300, (x, y, z) => { const s = 2 + rnd() * 6, ry = rnd() * 6; rl.push(M4(x, y, z, ry, [s, s * 0.7, s])); cl2.push(M4(x, y + s * 0.5, z, ry, [s * 1.1, s * 0.3, s * 0.95])); }, 5);
     instanced(rg, mat('#7a7058', { flatShading: true, roughness: 0.95 }), rl, true); instanced(capG, moss, cl2);
     // fougères géantes
     { const k = new Kit(); for (let i = 0; i < 7; i++) { const a = i / 7 * PI * 2; k.add(taperTube([[0, 0, 0], [Math.cos(a) * 0.9, 1.3, Math.sin(a) * 0.9], [Math.cos(a) * 2.1, 1.6, Math.sin(a) * 2.1]], 0.12, 0.02, 6, 4), mat('#4f7a30', { flatShading: true })); k.add(G.cone(0.35, 1.4, 4), mat('#6aa23c', { flatShading: true }), { p: [Math.cos(a) * 1.8, 1.45, Math.sin(a) * 1.8], r: [Math.sin(a) * 1.0, 0, -Math.cos(a) * 1.0], s: [1, 1, 0.5] }); }
@@ -678,6 +680,6 @@ export function buildClosedWorlds(scene, terrain, net) {
       const list = []; place(7, 90, 240, 1300, (x, y, z) => { const s = 1.2 + rnd() * 2.8; list.push(M4(x, y, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, false); }
     // arches de tentacules veineuses
     { const k = new Kit(); k.add(taperTube([[-3, 0, 0], [-3.4, 3, 0.5], [-1.5, 6.4, 0], [1.5, 6.2, -0.5], [3.2, 3, 0], [3.4, 0, 0.3]], 0.55, 0.3, 22, 7), vein); for (const [x, y, z] of [[-3.4, 3, 0.5], [3.2, 3, 0]]) k.add(G.sph(0.35, 6, 5), bulb, { p: [x + 0.3, y, z + 0.4] }); k.add(G.sph(0.4, 6, 5), spotA, { p: [0, 6.4, -0.1] });
-      const list = []; place(7, 22, 260, 1300, (x, y, z) => { const s = 1.5 + rnd() * 2.5; list.push(M4(x, y - 0.3, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, true); }
+      const list = []; place(7, 22, 260, 1300, (x, y, z) => { const s = 1.5 + rnd() * 2.5; list.push(M4(x, y - 0.3, z, rnd() * 6, [s, s, s])); }, 6); instKit(scene, k, list, true); }
   }
 }

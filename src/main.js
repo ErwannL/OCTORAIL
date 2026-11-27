@@ -56,7 +56,7 @@ const canvas = document.getElementById('c');
 // bas : rendu direct sans post-traitement/ombres/env ; moyen/haut : composer + bloom basse résolution + ombres autour du joueur.
 // range = multiplicateur de la distance d'affichage ; grass/weather = densités.
 const QUALITY = {
-  bas:   { pr: 0.6,  shadow: 0,    bloom: false, env: false, post: false, grass: 0.25, weather: 0.3, range: 0.7 },
+  bas:   { pr: 0.6,  shadow: 0,    bloom: false, env: false, post: false, grass: 0.25, weather: 0.3, range: 0.55 },
   moyen: { pr: 0.85, shadow: 1024, bloom: true,  env: true,  post: true,  grass: 0.6,  weather: 0.6, range: 0.85 },
   haut:  { pr: 1.25, shadow: 2048, bloom: true,  env: true,  post: true,  grass: 1,    weather: 1,   range: 1 },
   // Ultra « 4K » : rendu interne jusqu'à 2x (sur-échantillonnage, ~4K sur un écran 1080p), ombres 4096, distance +30 %

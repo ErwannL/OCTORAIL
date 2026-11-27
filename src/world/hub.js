@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Kit, G, mat, MAT, glow } from './kit.js';
 import { BIOMES } from './biomes.js';
 import { textSprite } from './tracks.js';
@@ -66,7 +67,8 @@ export function buildHub(scene, interact) {
   const verriere = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16, 0, PI * 2, 0, H), new THREE.MeshStandardMaterial({ color: '#cfe8ff', transparent: true, opacity: 0.1, roughness: 0.1, metalness: 0.5, side: THREE.DoubleSide, depthWrite: false }));
   verriere.position.y = 0.3; verriere.userData.noCollide = true; g.add(verriere); // décor de verre : on entre dans le dôme par les arches
   const podGlass = new THREE.MeshStandardMaterial({ color: '#9fe3ff', transparent: true, opacity: 0.28, roughness: 0.05, emissive: '#2a8fb0', emissiveIntensity: 0.5, depthWrite: false });
-  for (let p = 0; p < 8; p++) { const a = p * PI / 4 + PI / 8; const [x, z] = at(a, 6.6); const gl = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 2.15, 20, 1, true), podGlass); gl.position.set(x, 2.12, z); g.add(gl); }
+  { const pods = []; for (let p = 0; p < 8; p++) { const a = p * PI / 4 + PI / 8; const [x, z] = at(a, 6.6); pods.push(new THREE.CylinderGeometry(0.8, 0.8, 2.15, 20, 1, true).translate(x, 2.12, z)); }
+    g.add(new THREE.Mesh(mergeGeometries(pods), podGlass)); } // 8 cloches de verre fusionnées : 1 draw call
 
   // --- Coeur du Moyeu : noyau + anneaux gyroscopiques
   const core = new THREE.Group(); core.position.y = 6.5; g.add(core);

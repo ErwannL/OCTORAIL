@@ -61,7 +61,8 @@ export function buildGrass(scene, terrain, net, density = 1) {
       if (sectorIndex(x, z) !== sector || Math.hypot(x, z) < rMin || net.nearest(x, z, 3.2)) continue;
       if (COLLIDERS.blocked(x, terrain.heightAt(x, z) + 0.3, z, 0.5)) continue; // pas de touffes plantées dans les rochers / buttes
       const s = 0.7 + rnd() * 1.1;
-      M.compose(new THREE.Vector3(x, terrain.heightAt(x, z), z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(s, s, s)); inst.setMatrixAt(c, M); inst.setColorAt(c, tint.setScalar(0.8 + rnd() * 0.4)); c++;
+      const gr = 0.35 * s, gy = Math.min(terrain.heightAt(x, z), terrain.heightAt(x + gr, z), terrain.heightAt(x - gr, z), terrain.heightAt(x, z + gr), terrain.heightAt(x, z - gr)); // pied le plus bas : pas de touffe en l'air sur les talus
+      M.compose(new THREE.Vector3(x, gy, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rnd() * 6, 0)), new THREE.Vector3(s, s, s)); inst.setMatrixAt(c, M); inst.setColorAt(c, tint.setScalar(0.8 + rnd() * 0.4)); c++;
     }
     inst.count = c; inst.receiveShadow = true; inst.userData.passable = true; scene.add(inst);
   };

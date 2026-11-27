@@ -31,6 +31,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   const rnd = mulberry(4501);
   const root = new THREE.Group(); root.name = 'neon'; scene.add(root);
   const H = (x, z) => terrain.heightAt(x, z);
+  const lowH = (x, z, r) => { let lo = H(x, z); for (let i = 0; i < 8; i++) lo = Math.min(lo, H(x + Math.cos(i * PI / 4) * r, z + Math.sin(i * PI / 4) * r)); return lo; }; // sol le plus bas sous une emprise
   const groundMin = (x, z, r) => { let h = H(x, z); for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2; h = Math.min(h, H(x + Math.cos(a) * r, z + Math.sin(a) * r)); } return h; };
   const clearRing = (x, z, r, d) => { if (net.nearest(x, z, r + d)) return false; return true; };
   const placed = []; // pour la vérification numérique (debug)
@@ -111,7 +112,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   const lampPole = kitGeo(k => { k.add(G.cyl(0.12, 0.18, 7, 6), steel, { p: [0, 3.5, 0] }); k.add(G.box(1.8, 0.18, 0.2), steel, { p: [0.8, 6.9, 0] }); k.add(G.cyl(0.45, 0.5, 0.4, 8), steel, { p: [0, 0.1, 0] }); });
   const lampHead = kitGeo(k => { k.add(G.box(0.25, 1.6, 0.25), steel, { p: [1.6, 6.1, 0] }); });
   const lampM = [], lampMH = [];
-  spots(70, 140, 1300, 9, 2, (x, z) => { const y = H(x, z) - 0.15, ry = rnd() * PI * 2; lampM.push(M4(x, y, z, ry)); lampMH.push(M4(x, y, z, ry)); placed.push({ name: 'lampe', x, z, y, r: 0.5 }); });
+  spots(70, 140, 1300, 9, 2, (x, z) => { const y = lowH(x, z, 0.8) - 0.15, ry = rnd() * PI * 2; lampM.push(M4(x, y, z, ry)); lampMH.push(M4(x, y, z, ry)); placed.push({ name: 'lampe', x, z, y, r: 0.5 }); });
   inst(lampPole, steel, lampM);
   const heads = inst(lampHead, new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), lampMH);
   const headCol = lampMH.map((_, i) => i % NEON.length); headCol.forEach((ci, i) => heads.setColorAt(i, _c.set(NEON[ci])));
@@ -131,13 +132,13 @@ export function buildWorld(scene, terrain, net, ctx) {
 
   // flaques miroirs (disques posés au ras du sol, décalage de polygones contre le z-fighting)
   const pud = [];
-  spots(60, 130, 1300, 7, 3, (x, z) => { const hs = [H(x, z), H(x + 2, z), H(x - 2, z), H(x, z + 2), H(x, z - 2)]; if (Math.max(...hs) - Math.min(...hs) > 0.25) return; pud.push(M4(x, Math.max(...hs) + 0.03, z, rnd() * 3, [1.5 + rnd() * 2, 1, 1 + rnd() * 1.5])); });
+  spots(60, 130, 1300, 7, 3, (x, z) => { const sx = 1.5 + rnd() * 2, sz = 1 + rnd() * 1.5, R = Math.max(sx, sz), lo = lowH(x, z, R), hi = Math.max(H(x, z), H(x + R, z), H(x - R, z), H(x, z + R), H(x, z - R)); if (hi - lo > 0.3) return; pud.push(M4(x, lo + 0.03, z, rnd() * 3, [sx, 1, sz])); });
   inst(new THREE.CircleGeometry(1, 14).rotateX(-PI / 2), wet, pud);
 
   // pylônes à câbles (Câblards) : mât + traverse + câbles pendants
   const pylon = kitGeo(k => { k.add(G.box(0.5, 12, 0.5), steel, { p: [0, 6, 0] }); k.add(G.box(5, 0.3, 0.3), steel, { p: [0, 11.5, 0] }); k.add(G.box(1.4, 0.6, 1.4), concrete, { p: [0, 0.1, 0] });
     for (const sx of [-2.2, 2.2]) k.add(G.tube([[sx, 11.4, 0], [sx * 1.2, 8, 0.6], [sx * 1.6, 5.5, 0.3]], 0.05, 10, 4), steel); });
-  const pyl = []; spots(30, 150, 1300, 9, 3, (x, z) => { const y = H(x, z) - 0.2; pyl.push(M4(x, y, z, rnd() * PI)); placed.push({ name: 'pylone', x, z, y, r: 0.7 }); });
+  const pyl = []; spots(30, 150, 1300, 9, 3, (x, z) => { const y = lowH(x, z, 2.5) - 0.2; pyl.push(M4(x, y, z, rnd() * PI)); placed.push({ name: 'pylone', x, z, y, r: 0.7 }); });
   inst(pylon, steel, pyl, true);
 
   // ====================== 3. VIE ======================
@@ -153,7 +154,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   const ADS = [['ACHETEZ !', 'quoi ? on ne sait plus'], ['BONJOUR GÉRARD', '… non ? quand même'], ['RIEN', 'à moitié prix'], ['PÉAGE', '12 crédits Octave']];
   const pubs = [];
   spots(6, 170, 1100, 12, 3, (x, z, i) => {
-    const g = new THREE.Group(), y = H(x, z); g.position.set(x, y - 0.1, z); root.add(g);
+    const g = new THREE.Group(), y = groundMin(x, z, 1); g.position.set(x, y - 0.1, z); root.add(g);
     const pk = new Kit(); pk.add(G.cyl(0.7, 0.9, 0.5, 10), steel, { p: [0, 0.25, 0] }); pk.add(G.cone(0.35, 0.6, 8), steel, { p: [0, 0.75, 0], r: [PI, 0, 0] }); g.add(pk.build());
     const col = NEON[i % 3], tex = textTex(ADS[i % ADS.length], col, 'rgba(10,0,30,0.35)');
     const holo = new THREE.Mesh(new THREE.PlaneGeometry(4, 2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
@@ -210,7 +211,8 @@ export function buildWorld(scene, terrain, net, ctx) {
     const L = 14, dx = Math.cos(ang) * L / 2, dz = -Math.sin(ang) * L / 2;
     let ok = true; for (let s = -1; s <= 1; s += 0.5) if (net.nearest(x + dx * s, z + dz * s, 9) || !inSector(x + dx * s, z + dz * s)) ok = false; if (!ok || !free(x, z, 7)) continue;
     const hs = [-1, 0, 1].map(s => H(x + dx * s, z + dz * s)); if (Math.max(...hs) - Math.min(...hs) > 1.2) continue;
-    ghostSegs.push({ x, z, y: Math.max(...hs) + 0.06, ang, slope: Math.atan2(hs[2] - hs[0], L), ph: rnd() });
+    const mid = (hs[0] + hs[2]) / 2; let bad = false; for (let t = -1; t <= 1.001 && !bad; t += 1 / 8) for (const w of [-0.9, 0, 0.9]) { const px = x + dx * t - dz / 7 * w, pz = z + dz * t + dx / 7 * w; if (Math.abs(H(px, pz) - (mid + (hs[2] - hs[0]) / 2 * t)) > 0.12) bad = true; } if (bad) continue; // segment droit incliné : il doit épouser le sol aux 2 bouts ET au milieu
+    ghostSegs.push({ x, z, y: mid + 0.06, ang, slope: Math.atan2(hs[2] - hs[0], L), ph: rnd() });
   }
   const ghostM = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   const ghostGeo = kitGeo(k => { k.add(G.box(14, 0.05, 0.12), steel, { p: [0, 0, -0.72] }); k.add(G.box(14, 0.05, 0.12), steel, { p: [0, 0, 0.72] }); for (let i = -3; i <= 3; i++) k.add(G.box(0.15, 0.04, 1.8), steel, { p: [i * 2, -0.01, 0] }); });

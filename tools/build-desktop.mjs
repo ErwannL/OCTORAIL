@@ -11,7 +11,7 @@ cpSync('desktop/main.cjs', join(STAGE, 'main.cjs'));
 if (existsSync('desktop/icon.png')) cpSync('desktop/icon.png', join(STAGE, 'icon.png'));
 cpSync('dist', join(STAGE, 'game'), { recursive: true });
 cpSync('node_modules/ws', join(STAGE, 'node_modules/ws'), { recursive: true });
-writeFileSync(join(STAGE, 'package.json'), JSON.stringify({ name: 'octorail', productName: 'OCTORAIL', version: '1.0.39', description: 'OCTORAIL — huit voies, huit mondes', author: 'OCTORAIL', main: 'main.cjs', dependencies: { ws: '8.18.0' } }, null, 1));
+writeFileSync(join(STAGE, 'package.json'), JSON.stringify({ name: 'octorail', productName: 'OCTORAIL', version: '1.0.40', description: 'OCTORAIL — huit voies, huit mondes', author: 'OCTORAIL', main: 'main.cjs', dependencies: { ws: '8.18.0' } }, null, 1));
 writeFileSync(join(TOOLS, 'builder.json'), JSON.stringify({
   appId: 'com.octorail.game', productName: 'OCTORAIL', electronVersion: '33.2.1',
   directories: { app: STAGE, output: join(TOOLS, 'out') }, npmRebuild: false, asar: true,

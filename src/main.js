@@ -322,7 +322,7 @@ function renderHints() {
 let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
-const BUILD = 'v39';
+const BUILD = 'v40';
 (function titleScreen() {
   { const v = document.createElement('div'); v.textContent = 'OCTORAIL ' + BUILD; v.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px Chakra Petch,sans-serif;color:#c8a25a;opacity:.75;z-index:99;pointer-events:none'; document.body.appendChild(v); }
   { const cr = document.querySelector('#title .credits'); let i = Math.floor(Math.random() * LOADING_TIPS.length); const tick = () => { if (cr && !started) { cr.textContent = '« ' + LOADING_TIPS[i++ % LOADING_TIPS.length] + ' »'; setTimeout(tick, 6000); } }; tick(); }
@@ -1104,20 +1104,25 @@ function frame() {
   }
   stats.dist += Math.abs(train.speed) * dt * (player.mode === 'cab' ? 1 : 0) + (player.mode === 'foot' && !player.eject ? Math.min(12, player.vel ? Math.hypot(player.vel.x, player.vel.z) : 0) * dt : 0);
   // --- collisions train contre train : un bon coup de tampon, pas un blocage
+  // --- trains des autres joueurs : jamais bloquants (personne ne peut coincer personne) ; au contact : BONK pour le fun,
+  //     puis « déphasage » : l'autre train clignote en fantôme tant qu'on se chevauche, et on se traverse
   bumpCd -= dt;
-  if (bumpCd <= 0 && train.head) for (const r of remotes.values()) {
+  if (train.head) for (const r of remotes.values()) {
     if (!r.state || !r.train.head) continue;
-    const pts = [train.head, train.loco.position], rp = [r.train.head, r.train.loco.position];
-    let hit = null; for (const a of pts) for (const b of rp) if (a.distanceTo(b) < 7) hit = a.clone().lerp(b, 0.5);
-    if (!hit) continue;
-    bumpCd = 1.5; stats.bumps++;
-    const v = train.speed; train.speed = -Math.sign(v || 1) * Math.max(4, Math.abs(v) * 0.6);
-    audio.noiseBurst(audio.now, 0.5, 400, 0.9, 0.35, 'lowpass'); audio.clack();
-    for (let q = 0; q < 60; q++) sparks.emit(hit.clone().add(new THREE.Vector3(0, 1.5, 0)), new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12), { life: 0.7, size: 0.35, color: q % 2 ? '#ffd27a' : '#ff8a3a' });
-    for (let q = 0; q < 12; q++) steam.emit(hit.clone().add(new THREE.Vector3(0, 2, 0)), new THREE.Vector3((Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4), { life: 1.5, size: 2, color: '#ffffff', alpha: 0.5 });
-    stats.kick = 0.6;
-    ui.toast(`💥 BONK ! Tamponné par <b style="color:${r.color}">${r.name}</b>`);
+    const mine = [train.loco, ...train.wagons.map(w => w.mesh)].map(m => m.position), theirs = [r.train.loco, ...r.train.wagons.map(w => w.mesh)].map(m => m.position);
+    let hit = null; for (const a of mine) { for (const b of theirs) if (a.distanceTo(b) < 6) { hit = a.clone().lerp(b, 0.5); break; } if (hit) break; }
+    if (!hit) { if (r.touching) { r.touching = false; r.train.root.visible = true; } continue; }
+    r.train.root.visible = Math.floor(time * 10) % 2 === 0; // fantôme clignotant
+    if (!r.touching && bumpCd <= 0 && Math.abs(train.speed - r.train.speed) > 2.5) {
+      bumpCd = 1.5; stats.bumps++;
+      audio.noiseBurst(audio.now, 0.5, 400, 0.9, 0.35, 'lowpass'); audio.clack();
+      for (let q = 0; q < 50; q++) sparks.emit(hit.clone().add(new THREE.Vector3(0, 1.5, 0)), new THREE.Vector3((Math.random() - 0.5) * 12, Math.random() * 8, (Math.random() - 0.5) * 12), { life: 0.7, size: 0.35, color: q % 2 ? '#ffd27a' : '#ff8a3a' });
+      stats.kick = 0.4;
+      ui.toast(`💥 BONK ! Tu traverses le train de <b style="color:${r.color}">${r.name}</b> (déphasage)`);
+    }
+    r.touching = true;
   }
+
   if (netc.online && time - lastSync > 0.1) {
     lastSync = time;
     netc.send({ t: 'state', s: { p: [+player.pos.x.toFixed(2), +player.pos.y.toFixed(2), +player.pos.z.toFixed(2)], ry: +player.avatar.rotation.y.toFixed(2), m: player.mode, tr: train.serialize(), st: { o2: Math.round(player.oxy ?? 100), tp: Math.round(player.temp), d: Math.round(stats.dist), b: stats.bumps, w: BIOMES[sectorIndex(player.pos.x, player.pos.z)]?.name, h: Math.hypot(player.pos.x, player.pos.z) < 95, cr: S.credits | 0 } } });

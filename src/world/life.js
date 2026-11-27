@@ -39,7 +39,7 @@ export function buildLife(scene, terrain, net, envGetter) {
   placeTrees(5, [birchGeometry(0), birchGeometry(1), birchGeometry(2)], 30, 0.8, 1.4, 1.0, { trunkTop: 7 });
   // Moyeu : arbres d'ornement en pot autour de la place (érable, cerisier, arbre-nuage doré)
   { const geos = [potTreeGeometry(0), potTreeGeometry(1), potTreeGeometry(2)], Ls = [[], [], []];
-    for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8 + 0.18, x = Math.cos(a) * 24, z = -Math.sin(a) * 24, v = i % 3, sc = 1.0 + (i % 2) * 0.12; Ls[v].push(M4(x, 0.25, z, i * 0.9, sc)); COLLIDERS.circle(x, z, 1.1 * sc, 1.35); COLLIDERS.circle(x, z, 0.35 * sc, 7); const u = geos[v].userData; COLLIDERS.camCircle(x, z, u.crownR * sc * 0.9, 0.25 + u.crownBottom * sc, 0.25 + u.top * sc); }
+    for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8 + 0.18, x = Math.cos(a) * 24, z = -Math.sin(a) * 24, v = i % 3, sc = 1.0 + (i % 2) * 0.12; Ls[v].push(M4(x, 0.25, z, i * 0.9, sc)); const u = geos[v].userData; COLLIDERS.circle(x, z, Math.max(1.3 * sc, (u.crownR || 2) * sc * 0.7), 99); /* arbre entier bloquant (pot + couronne), impossible de s'y percher */ COLLIDERS.camCircle(x, z, u.crownR * sc * 0.9, 0.25 + u.crownBottom * sc, 0.25 + u.top * sc); }
     geos.forEach((g, v) => { if (Ls[v].length) inst(g, FLORA_MAT, Ls[v]).userData.noCollide = true; }); // feuillage traversable : pot + tronc gérés par les COLLIDERS ci-dessus (sinon on « tient debout » sur la frondaison)
   }
 

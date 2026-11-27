@@ -175,6 +175,8 @@ export function buildTracks(scene, net) {
   const dk = new Kit(), polished = mat('#d9d4c8', { metalness: 0.9, roughness: 0.2 }), darkM = mat('#2f2c29', { metalness: 0.7, roughness: 0.45 });
   for (const tn of findTurnouts(net)) turnoutDetail(net, tn, dk, polished, darkM);
   group.add(dk.build({ shadow: false }));
+  // la voie elle-même ne doit jamais être « écartée de la voie » par la passe de dégagement (main.js) : morceaux courts de rails/ballast déplacés
+  group.traverse(o => { o.userData.trackPart = true; });
   scene.add(group);
   return group;
 }
@@ -374,7 +376,7 @@ export function buildTrestles(scene, net, terrain) {
     }
   }
   // fins de voie (terminus, épis) : heurtoir complet adossé à un talus de terre
-  const bumpers = new THREE.Group();
+  const bumpers = new THREE.Group(); bumpers.userData.trackPart = true; // ne pas écarter de la voie (passe « voies dégagées »)
   for (const d of deadEnds(net)) if (d.node.kind !== 'hub') bumpers.add(buildBumper(d, terrain));
   scene.add(bumpers);
   const m = k.build(); m.userData.solidFill = false; scene.add(m);
@@ -397,11 +399,11 @@ function bumperMats() {
 }
 // talus : tronc de pyramide déformé (base large enterrée, sommet arrondi derrière la poutre)
 function moundGeo(bot = -2.4) {
-  const g = new THREE.CylinderGeometry(1, 1, 1, 10, 3);
+  const g = new THREE.CylinderGeometry(1, 1, 1, 14, 4);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i) + 0.5, x = p.getX(i), z = p.getZ(i), w = 1 - y * 0.62; // y: 0 (base) .. 1 (sommet)
-     p.setXYZ(i, x * 3.6 * w, bot + y * (1.5 - bot), (z * 2.6 + (z > 0 ? 1.2 : 0)) * w + 2.9);
+    const y = p.getY(i) + 0.5, x = p.getX(i), z = p.getZ(i), w = 1 - Math.pow(y, 1.6) * 0.7; // y: 0 (base) .. 1 (sommet)
+     p.setXYZ(i, x * 3.6 * w, bot + y * (1.15 - bot), (z * 2.6 + (z > 0 ? 1.2 : 0)) * w + 2.9);
   }
   g.computeVertexNormals(); return g;
 }
@@ -445,7 +447,7 @@ export function buildBumper(d, terrain) {
   k.add(G.box(0.9, 0.9, 0.05), M.white, { p: [0, BH + 0.92, 0.27], r: [0, 0, Math.PI / 4] });
   k.add(G.box(0.62, 0.62, 0.06), M.red, { p: [0, BH + 0.92, 0.24], r: [0, 0, Math.PI / 4] });
   grp.add(k.build());
-  grp.position.copy(end); grp.rotation.y = ang;
+  grp.position.copy(end); grp.rotation.y = ang; grp.userData.trackPart = true;
   // le talus ne doit pas flotter : on l'abaisse si le sol est plus bas que la voie autour
   COLLIDERS.box(end.x + Math.sin(ang) * 0.4, end.z + Math.cos(ang) * 0.4, 1.6, 0.6, ang, end.y + 2, -99, false);
   return grp;

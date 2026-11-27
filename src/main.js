@@ -27,9 +27,9 @@ import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel }
 import { Compass, PHENO_INFO } from './ui/compass.js';
 import { createAirField } from './world/airfield.js';
 import { createDiag } from './ui/diag.js';
+import { createOctuor } from './game/octuor.js';
 import { WORLD_LORE, HUB_LORE, LOADING_TIPS } from './data/lore.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
-import * as GUARD from './world/guardians.js'; window.__guard = GUARD; // TEMP banc de test des gardiens
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
 import { Footprints } from './game/footprints.js';
@@ -135,6 +135,9 @@ const western = buildWestern(scene, terrain, net, interact);
 const gelure = buildGelure(scene, terrain, net, interact);
 buildClosedWorlds(scene, terrain, net);
 buildTrackside(scene, net, terrain); buildTrestles(scene, net, terrain);
+// l'Octuor : 7 gardiens égarés (+ SHÉRIF-7 géré par la quête historique)
+let octuor = null;
+setTimeout(() => { try { octuor = createOctuor({ scene, terrain, net, BIOMES, ui, audio, sparks, steam, S: () => S, push: () => pushShared(), train: () => train, sheriffHome: () => S.sheriff === 'home', camPos: () => camera.position }); window.__octuor = octuor; } catch (e) { console.error('Octuor', e); } }, 0);
 const westDecor = buildWesternDecor(scene, terrain, net);
 const gelDecor = buildGelureDecor(scene, terrain, net);
 buildGrass(scene, terrain, net, Q.grass);
@@ -194,7 +197,7 @@ const collExclude = new Set();
   });
   const queue = [...scene.children];
   while (queue.length) { const o = queue.shift();
-    if (keep.has(o) || o.isLight || o.isPoints || o.userData.noCollide) continue;
+    if (keep.has(o) || o.isLight || o.isPoints || o.userData.noCollide || o.userData.trackPart) continue; // trackPart : heurtoirs (posés sur la voie par construction)
     if (o.isInstancedMesh) continue;
     if (false) {
       if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
@@ -645,6 +648,7 @@ function takeFuelSack(kind) {
 }
 
 function handleFootInteract() {
+  { const oc = octuor?.foot(player, input.a('action'), input.ah('interact'), fdt); if (oc) { ui.prompt(oc); return; } }
   const it = nearestInteract();
   let label = it?.label || null;
   // monter dans son train
@@ -981,7 +985,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  updateBeams(dt); westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
+  updateBeams(dt); octuor?.update(dt, time); westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 

@@ -28,6 +28,13 @@ import { Compass, PHENO_INFO } from './ui/compass.js';
 import { createAirField } from './world/airfield.js';
 import { createDiag } from './ui/diag.js';
 import { createOctuor } from './game/octuor.js';
+import { buildWorld as W_colosse } from './world/worlds/colosse.js';
+import { buildWorld as W_neon } from './world/worlds/neon.js';
+import { buildWorld as W_archipel } from './world/worlds/archipel.js';
+import { buildWorld as W_chrono } from './world/worlds/chrono.js';
+import { buildWorld as W_fonderie } from './world/worlds/fonderie.js';
+import { buildWorld as W_entrailles } from './world/worlds/entrailles.js';
+
 import { WORLD_LORE, HUB_LORE, LOADING_TIPS } from './data/lore.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
 import { buildLife } from './world/life.js';
@@ -135,6 +142,9 @@ const western = buildWestern(scene, terrain, net, interact);
 const gelure = buildGelure(scene, terrain, net, interact);
 buildClosedWorlds(scene, terrain, net);
 buildTrackside(scene, net, terrain); buildTrestles(scene, net, terrain);
+// les six mondes rallumés (un module par monde, voir src/world/worlds/)
+const worldMods = [];
+for (const [n, f] of Object.entries({ colosse: W_colosse, neon: W_neon, archipel: W_archipel, chrono: W_chrono, fonderie: W_fonderie, entrailles: W_entrailles })) { try { worldMods.push(f(scene, terrain, net, { BIOMES, sparks, smoke, steam, audio, interactables: typeof interactables !== 'undefined' ? interactables : null })); } catch (e) { console.error('Monde', n, e); } }
 // l'Octuor : 7 gardiens égarés (+ SHÉRIF-7 géré par la quête historique)
 let octuor = null;
 setTimeout(() => { try { octuor = createOctuor({ scene, terrain, net, BIOMES, ui, audio, sparks, steam, S: () => S, push: () => pushShared(), train: () => train, sheriffHome: () => S.sheriff === 'home', camPos: () => camera.position }); window.__octuor = octuor; } catch (e) { console.error('Octuor', e); } }, 0);
@@ -985,7 +995,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  updateBeams(dt); octuor?.update(dt, time); westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
+  updateBeams(dt); octuor?.update(dt, time); for (const w of worldMods) w.update?.(dt, time, camera.position); westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 

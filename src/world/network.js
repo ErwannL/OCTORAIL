@@ -73,6 +73,12 @@ export class Network {
     const chord = B.p.clone().sub(A.p), len = chord.length(), dir = chord.clone().normalize(), nrm = new THREE.Vector2(-dir.y, dir.x);
     const tA = (opts.tA || dir).clone().normalize(), tB = (opts.tB || dir).clone().normalize();
     const ctrl = [A.p.clone()];
+    if (opts.via) { // points de passage imposés (boucles, épis, liaisons) au lieu du tremblé aléatoire
+      for (const v of opts.via) ctrl.push(v.clone());
+      ctrl.push(B.p.clone());
+      const { pts, L, n } = respace(hermite(ctrl, tA, tB, opts.k0 ?? opts.k ?? 1.0, opts.k1 ?? opts.k ?? 1.0));
+      return this.addEdge(a, b, pts, L, n, tA, tB, opts);
+    }
     const segs = opts.straight ? 1 : Math.max(2, Math.round(len / (opts.ctrlStep || 140)));
     for (let k = 1; k < segs; k++) {
       const t = k / segs;
@@ -103,7 +109,7 @@ export class Network {
   }
 
   build() {
-    const OPEN = [4, 5];
+    const OPEN = [4, 5]; // mondes historiques (géométrie figée : ville, tsunami gelé, quêtes)
     const psi = i => -i * SECTOR; // angle polaire (x = cos, z = sin) de l'axe du monde i
     const ringP = (p, r = RING_R) => new THREE.Vector2(Math.cos(p) * r, Math.sin(p) * r);
     // --- Moyeu : anneau continu A_i -> A_{i+1} (cercle exact) ; A_i est l'aiguillage d'entrée du quai i
@@ -119,10 +125,6 @@ export class Network {
       // raccord anneau -> voie du monde : tangent à l'anneau en A_i, tangent à l'axe du quai en S_i
       const ringT = this.edges.find(e => e.a === `A${i}` && e.kind === 'ring');
       this.edge(`A${i}`, `S${i}`, { tA: new THREE.Vector2(ringT.tA.x, ringT.tA.z), tB: u, straight: true, kind: 'ring', k: 1.15, brA: true, brB: true });
-      if (!OPEN.includes(i)) {
-        this.node(`B${i}`, at(i, 230), { kind: 'barrier', world: i });
-        this.edge(`S${i}`, `B${i}`, { tA: u, tB: u, wobble: 6, biome: i });
-      }
     }
     // --- voies des deux mondes ouverts : S -> J -> K -> T ; J et K sont des aiguillages (raccords labyrinthe)
     const R = { 4: { J: 520, K: 1200 }, 5: { J: 850, K: 980 } };
@@ -140,6 +142,69 @@ export class Network {
     // Croisements labyrinthe Western <-> Gelure : deux liaisons à aiguillages tangents (sens sortant)
     this.edge('J4', 'J5', { tA: dirVec(4), tB: dirVec(5), straight: true, kind: 'link', k0: 1.4, k1: 1.0, brA: true, brB: true });
     this.edge('K5', 'K4', { tA: dirVec(5), tB: dirVec(4), straight: true, kind: 'link', k0: 1.4, k1: 0.8, brA: true, brB: true });
+    this.labyrinth();
+  }
+
+  // Coupe l'arête e (géométrie inchangée) au point le plus proche du rayon r : crée le noeud `id` (aiguillage).
+  split(e, r, id, meta) {
+    let k = 1, bd = 1e9;
+    for (let j = 1; j < e.pts.length - 1; j++) { const d = Math.abs(Math.hypot(e.pts[j].x, e.pts[j].z) - r); if (d < bd) { bd = d; k = j; } }
+    const P = e.pts, t = new THREE.Vector2(P[k + 1].x - P[k - 1].x, P[k + 1].z - P[k - 1].z).normalize();
+    this.node(id, new THREE.Vector2(P[k].x, P[k].z), meta);
+    const B = this.nodes.get(e.b), tail = P.slice(k).map(v => v.clone()), oldB = e.b, tB = e.tB.clone();
+    e.pts = P.slice(0, k + 1); e.len = k * e.step; e.b = id; e.tB = new THREE.Vector3(t.x, 0, t.y);
+    B.edges.splice(B.edges.indexOf(e.id), 1);
+    this.nodes.get(id).edges.push(e.id);
+    const e2 = this.addEdge(id, oldB, tail, (tail.length - 1) * e.step, tail.length - 1, t, new THREE.Vector2(tB.x, tB.z), { kind: e.kind, biome: e.biome });
+    return { node: this.nodes.get(id), t, e1: e, e2 };
+  }
+
+  // --- Labyrinthe : les 8 mondes ouverts. Chaque monde : voie principale S -> P -> Q -> R -> U -> V -> T (terminus),
+  // une boucle (P -> R, côté du monde précédent), une liaison sortante Q_i -> U_{i+1}, un épi en impasse (V -> D, butoir).
+  // Côté « + » (normale gauche de l'axe) = vers le monde i-1 ; côté « - » = vers le monde i+1.
+  // Les mondes 4 et 5 gardent leurs voies d'origine : on les COUPE (géométrie inchangée) pour y poser des aiguillages.
+  labyrinth() {
+    const rnd = mulberry(1301), v2 = (i, r, s) => at(i, r, s);
+    const NEW = [0, 1, 2, 3, 6, 7];
+    const R = { P: 330, Q: 560, R: 790, U: 1000, V: 1110, T: 1320 };
+    for (const i of NEW) {
+      const u = dirVec(i), seq = ['S', 'P', 'Q', 'R', 'U', 'V', 'T'];
+      for (const s of seq.slice(1)) this.node(`${s}${i}`, at(i, R[s]), { kind: s === 'T' ? 'terminus' : 'junction', world: i });
+      for (let j = 0; j < seq.length - 1; j++) {
+        const a = seq[j], b = seq[j + 1], loopSeg = a === 'P' || a === 'Q';
+        const len = R[b] - (R[a] ?? 100), w = loopSeg ? 10 : 24, mid = [];
+        // tremblé déterministe (rnd propre au labyrinthe : n'altère pas les voies historiques)
+        const segs = Math.max(1, Math.round(len / 120));
+        for (let k = 1; k < segs; k++) { const o = (rnd() * 2 - 1) * w * Math.sin(k / segs * Math.PI); mid.push(v2(i, (R[a] ?? 100) + len * k / segs, a === 'V' ? Math.abs(o) + 6 : o)); } // V -> T : s'écarte de l'épi (côté -)
+        this.edge(`${a}${i}`, `${b}${i}`, { tA: u, tB: u, via: mid, biome: i });
+      }
+      // boucle de contournement P -> R (côté +)
+      this.edge(`P${i}`, `R${i}`, { tA: u, tB: u, via: [v2(i, 470, 52), v2(i, 560, 72), v2(i, 650, 52)], biome: i, kind: 'branch', brA: true, brB: true });
+      // épi en impasse V -> D (côté -)
+      const D = at(i, 1300, -78);
+      this.node(`D${i}`, D, { kind: 'spur', world: i });
+      const dt = D.clone().sub(at(i, 1215, -34)).normalize();
+      this.edge(`V${i}`, `D${i}`, { tA: u, tB: dt, via: [v2(i, 1215, -34)], biome: i, kind: 'branch', brA: true });
+    }
+    // monde 4 (Western) : boucle X4 -> Y4 côté +, arrivée de la liaison du monde 3 en N4
+    const eSJ4 = this.edges.find(e => e.a === 'S4' && e.b === 'J4'), eJK4 = this.edges.find(e => e.a === 'J4' && e.b === 'K4');
+    this.split(eSJ4, 300, 'X4', { kind: 'junction', world: 4 });
+    const y4 = this.split(eJK4, 800, 'Y4', { kind: 'junction', world: 4 });
+    this.split(y4.e2, 1010, 'N4', { kind: 'junction', world: 4 });
+    // monde 5 (Gelure) : boucle P5 -> R5 côté +, départ de la liaison vers le monde 6 en Q5
+    const eSJ5 = this.edges.find(e => e.a === 'S5' && e.b === 'J5');
+    const p5 = this.split(eSJ5, 240, 'P5', { kind: 'junction', world: 5 });
+    const q5 = this.split(p5.e2, 480, 'Q5', { kind: 'junction', world: 5 });
+    this.split(q5.e2, 700, 'R5', { kind: 'junction', world: 5 });
+    const tg = id => { const n = this.nodes.get(id), e = this.edges[n.edges.find(x => this.edges[x].kind === 'main' && this.edges[x].a === id)]; return new THREE.Vector2(e.tA.x, e.tA.z); };
+    this.edge('X4', 'Y4', { tA: tg('X4'), tB: tg('Y4'), via: [v2(4, 450, 52), v2(4, 560, 82), v2(4, 680, 58)], biome: 4, kind: 'branch', brA: true, brB: true });
+    this.edge('P5', 'R5', { tA: tg('P5'), tB: tg('R5'), via: [v2(5, 380, 48), v2(5, 480, 68), v2(5, 590, 50)], biome: 5, kind: 'branch', brA: true, brB: true });
+    // liaisons entre mondes voisins (sens sortant) : Q_i -> U_{i+1}
+    const linkTo = { 0: 'U1', 1: 'U2', 2: 'U3', 3: 'N4', 5: 'U6', 6: 'U7', 7: 'U0' };
+    for (const [i, dst] of Object.entries(linkTo)) {
+      const src = `Q${i}`;
+      this.edge(src, dst, { tA: tg(src), tB: tg(dst), straight: true, kind: 'link', k0: 1.3, k1: 1.0, brA: true, brB: true });
+    }
   }
 
   // Applique une hauteur à chaque échantillon (lissée) via la fonction fournie.

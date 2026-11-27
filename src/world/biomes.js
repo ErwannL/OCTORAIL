@@ -3,16 +3,16 @@ import * as THREE from 'three';
 // 8 mondes d'Halcyre. Index = direction (0 = Est, sens trigo, pas de 45°).
 // Monde = angle i*PI/4 ; position (cos, -sin) en (x, z) : z négatif = Nord.
 export const BIOMES = [
-  { id: 'colosse',  name: 'Le Colosse',          dir: 'Est',       open: false,
+  { id: 'colosse',  name: 'Le Colosse',          dir: 'Est',       open: true,
     ground: ['#4f6b2c', '#8a7a3a'], skyTop: '#3d6b5a', skyBot: '#c9d98f', fog: '#a9b97a', fogD: 0.0022, sun: '#fff1c4',
     tagline: 'Les rails sont posés sur le dos d\'une créature qui marche.' },
-  { id: 'neon',     name: 'Néon-Bas',            dir: 'Nord-Est',  open: false,
+  { id: 'neon',     name: 'Néon-Bas',            dir: 'Nord-Est',  open: true,
     ground: ['#16121f', '#2a1838'], skyTop: '#0a0614', skyBot: '#5b1a5e', fog: '#2b0f3a', fogD: 0.004, sun: '#ff4fd8',
     tagline: 'Les voies se réorganisent la nuit.' },
-  { id: 'archipel', name: "L'Archipel Suspendu", dir: 'Nord',      open: false,
+  { id: 'archipel', name: "L'Archipel Suspendu", dir: 'Nord',      open: true,
     ground: ['#7fb2d9', '#e6f2ff'], skyTop: '#3a8ee6', skyBot: '#dff1ff', fog: '#cfe6ff', fogD: 0.0018, sun: '#ffffff',
     tagline: 'Ici, le train roule parfois à l\'envers.' },
-  { id: 'chrono',   name: 'Chronocline',         dir: 'Nord-Ouest',open: false,
+  { id: 'chrono',   name: 'Chronocline',         dir: 'Nord-Ouest',open: true,
     ground: ['#5a4a1c', '#b08d3a'], skyTop: '#3b2a10', skyBot: '#e8b75a', fog: '#c79a45', fogD: 0.0026, sun: '#ffd27a',
     tagline: 'Le temps avance, ralentit, rembobine.' },
   { id: 'western',  name: 'Poussière-sur-Rail',  dir: 'Ouest',     open: true,
@@ -21,10 +21,10 @@ export const BIOMES = [
   { id: 'gelure',   name: 'Gelure',              dir: 'Sud-Ouest', open: true,
     ground: ['#cfe8f5', '#ffffff'], skyTop: '#5d8fb8', skyBot: '#e8f6ff', fog: '#dcefff', fogD: 0.0030, sun: '#e9f6ff',
     tagline: 'La voie traverse un tsunami gelé.' },
-  { id: 'fonderie', name: 'Fonderie-Rêve',       dir: 'Sud',       open: false,
+  { id: 'fonderie', name: 'Fonderie-Rêve',       dir: 'Sud',       open: true,
     ground: ['#a0461a', '#f0a040'], skyTop: '#6b2008', skyBot: '#ffb347', fog: '#ff9a4a', fogD: 0.0028, sun: '#ffcf8a',
     tagline: 'Le jour tout fond, la nuit tout se refige autrement.' },
-  { id: 'entrailles', name: 'Les Entrailles',    dir: 'Sud-Est',   open: false,
+  { id: 'entrailles', name: 'Les Entrailles',    dir: 'Sud-Est',   open: true,
     ground: ['#2b1c33', '#5a3a6b'], skyTop: '#1a0f22', skyBot: '#7a3fa0', fog: '#5b2d7a', fogD: 0.0045, sun: '#d08cff',
     tagline: 'L\'air est toxique. On passe dessous.' },
 ];

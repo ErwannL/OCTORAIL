@@ -87,6 +87,36 @@ function turnoutDetail(net, tn, kit, polished, darkM) {
   }
 }
 
+// Extrémité d'arête en impasse : [point, cap sortant (au-delà de la fin), tangente]
+export function deadEnds(net) {
+  const out = [];
+  for (const n of net.nodes.values()) {
+    if (n.edges.length !== 1) continue;
+    const e = net.edges[n.edges[0]], atB = e.b === n.id, P = e.pts, end = atB ? P[P.length - 1] : P[0], prev = atB ? P[P.length - 4] : P[3];
+    const dir = new THREE.Vector3(end.x - prev.x, 0, end.z - prev.z).normalize();
+    out.push({ node: n, edge: e, end, dir, ang: Math.atan2(dir.x, dir.z) });
+  }
+  return out;
+}
+// Bouchon de talus : le profil BALLAST se prolonge sur 4 m en s'abaissant sous le sol (plus de face ouverte en bout de voie)
+function ballastCaps(net) {
+  const pos = [], idx = [];
+  for (const d of deadEnds(net)) {
+    if (d.node.kind === 'hub') continue; // quai du Moyeu : couvert par la plate-forme et l'anneau
+    const { end, dir } = d, nx = dir.z, nz = -dir.x, RINGS = 6, base = pos.length / 3, P = BALLAST.length;
+    for (let r = 0; r <= RINGS; r++) {
+      const t = r / RINGS, fwd = t * 4.2, drop = t * t * 2.6, shrink = 1 - t * 0.18;
+      for (const [l, h] of BALLAST) pos.push(end.x + dir.x * fwd + nx * l * shrink, end.y + Math.min(h, -drop), end.z + dir.z * fwd + nz * l * shrink);
+      if (r > 0) { const o = base + (r - 1) * P, q = base + r * P; for (let j = 0; j < P - 1; j++) idx.push(o + j, q + j, o + j + 1, o + j + 1, q + j, q + j + 1); }
+    }
+    // dernier anneau : fermé par un éventail (sous terre)
+    const c = base + RINGS * P; for (let j = 1; j < P - 1; j++) idx.push(c, c + j, c + j + 1);
+  }
+  if (!idx.length) return null;
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
+  const ni = geo.toNonIndexed(); ni.computeVertexNormals(); return ni;
+}
+
 export function buildTracks(scene, net) {
   const group = new THREE.Group();
   const railMat = new THREE.MeshStandardMaterial({ color: '#a9a39a', metalness: 0.85, roughness: 0.32 });
@@ -138,6 +168,9 @@ export function buildTracks(scene, net) {
     }
   }
   group.add(plates.build({ shadow: false }));
+  // fins de voie : le talus de ballast ne s'arrête pas net (face ouverte) — il plonge en pente douce dans le sol
+  const capGeo = ballastCaps(net);
+  if (capGeo) { const cm = new THREE.Mesh(capGeo, ballastMat); cm.receiveShadow = true; group.add(cm); }
   // pièces d'aiguillage
   const dk = new Kit(), polished = mat('#d9d4c8', { metalness: 0.9, roughness: 0.2 }), darkM = mat('#2f2c29', { metalness: 0.7, roughness: 0.45 });
   for (const tn of findTurnouts(net)) turnoutDetail(net, tn, dk, polished, darkM);
@@ -340,20 +373,80 @@ export function buildTrestles(scene, net, terrain) {
       piers++;
     }
   }
-  // terminus : talus de fin de voie (rampe) + butoir
-  for (const nd of net.nodes ? (net.nodes instanceof Map ? [...net.nodes.values()] : Object.values(net.nodes)) : []) {
-    if (nd.kind !== 'terminus') continue;
-    const e = net.edges.find(x => x.a === nd.id || x.b === nd.id || x.a === nd.name || x.b === nd.name); if (!e) continue;
-    const atB = e.b === (nd.id ?? nd.name), end = atB ? e.pts[e.pts.length - 1] : e.pts[0], prev = atB ? e.pts[e.pts.length - 4] : e.pts[3];
-    const ang = Math.atan2(end.x - prev.x, end.z - prev.z), fx = Math.sin(ang), fz = Math.cos(ang);
-    for (let s = 0; s < 6; s++) { const d = 0.8 + s * 1.2, w = 6.8 - s * 0.5, hgt = 2.4 - s * 0.38, gx = end.x + fx * d, gz = end.z + fz * d;
-      k.add(G.box(w, hgt + 1.5, 1.3), earth, { p: [gx, end.y - 2.2 + hgt / 2 - 0.75 + 0.2, gz], r: [0, ang, 0] }); }
-    const bx = end.x - fx * 0.4, bz = end.z - fz * 0.4;
-    for (const sx of [-1.3, 1.3]) k.add(G.box(0.3, 1.5, 0.35), steel, { p: [bx + Math.cos(ang) * sx, end.y + 0.75, bz - Math.sin(ang) * sx], r: [0, ang, 0] });
-    k.add(G.box(3, 0.45, 0.4), red, { p: [bx, end.y + 1.25, bz], r: [0, ang, 0] });
-    COLLIDERS.box(bx, bz, 1.6, 0.3, ang, end.y + 1.5, -99, false);
-  }
+  // fins de voie (terminus, épis) : heurtoir complet adossé à un talus de terre
+  const bumpers = new THREE.Group();
+  for (const d of deadEnds(net)) if (d.node.kind !== 'hub') bumpers.add(buildBumper(d, terrain));
+  scene.add(bumpers);
   const m = k.build(); m.userData.solidFill = false; scene.add(m);
   console.log('Viaducs : piles', piers);
   return m;
+}
+
+// ---------------------------------------------------------------- heurtoir (butoir de fin de voie)
+// Repère local : +z = au-delà de la fin de voie, x = latéral, y = 0 au niveau de la voie (axe). Les tampons sont dans l'axe des rails.
+const BMAT = {};
+function bumperMats() {
+  if (BMAT.steel) return BMAT;
+  Object.assign(BMAT, {
+    steel: mat('#34363a', { metalness: 0.7, roughness: 0.42 }), rust: mat('#5b3a28', { metalness: 0.4, roughness: 0.75 }),
+    red: mat('#b8291f', { roughness: 0.55 }), white: mat('#ece6d8', { roughness: 0.6 }), brass: MAT.brass(),
+    earth: mat('#5a4c40', { roughness: 1, flatShading: true }), stone: mat('#6e665c', { roughness: 0.95, flatShading: true }),
+    wood: mat('#4e3422', { roughness: 0.9 }), lens: glow('#ff3020', 3), black: mat('#1b1b1d', { roughness: 0.7 }),
+  });
+  return BMAT;
+}
+// talus : tronc de pyramide déformé (base large enterrée, sommet arrondi derrière la poutre)
+function moundGeo(bot = -2.4) {
+  const g = new THREE.CylinderGeometry(1, 1, 1, 10, 3);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i) + 0.5, x = p.getX(i), z = p.getZ(i), w = 1 - y * 0.62; // y: 0 (base) .. 1 (sommet)
+     p.setXYZ(i, x * 3.6 * w, bot + y * (1.5 - bot), (z * 2.6 + (z > 0 ? 1.2 : 0)) * w + 2.9);
+  }
+  g.computeVertexNormals(); return g;
+}
+export function buildBumper(d, terrain) {
+  const M = bumperMats(), k = new Kit(), grp = new THREE.Group(), { end, ang } = d;
+  // le talus descend toujours sous le sol (même si le terrain derrière est en contrebas) : rien ne flotte
+  let gmin = end.y - 2.4; if (terrain) for (const z of [0, 2, 4, 6]) for (const x of [-3, 0, 3]) gmin = Math.min(gmin, terrain.heightAt(end.x + Math.sin(ang) * z + Math.cos(ang) * x, end.z + Math.cos(ang) * z - Math.sin(ang) * x) - 0.6);
+  const RY = 0.12 + 0.17; // dessus du rail (local)
+  const BH = RY + 0.95;   // hauteur des tampons (axe)
+  // talus de terre + ballast, pierres de calage
+  k.add(moundGeo(gmin - end.y), M.earth, {});
+  for (const [x, z, s] of [[-2.4, 1.6, 0.5], [2.2, 1.9, 0.6], [-1.1, 4.6, 0.7], [1.6, 4.2, 0.45], [0.2, 2.2, 0.4]]) k.add(G.sph(s, 6, 5), M.stone, { p: [x, 0.25 + s * 0.3, z], s: [1.2, 0.7, 1] });
+  // deux longerons cintrés (vieux rails relevés) de chaque côté : montant vertical + jambe de force vers l'arrière
+  for (const sx of [-0.75, 0.75]) {
+    k.add(G.box(0.16, 1.5, 0.22), M.steel, { p: [sx, RY + 0.6, 0.25] });
+    k.add(G.box(0.16, 0.2, 2.6), M.steel, { p: [sx, RY + 0.05, 1.3] });
+    k.add(G.box(0.14, 0.16, 2.0), M.steel, { p: [sx, RY + 0.75, 0.95], r: [0.68, 0, 0] });
+    for (const z of [0.35, 1.25, 2.3]) k.add(G.cyl(0.05, 0.05, 0.08, 6), M.brass, { p: [sx + Math.sign(sx) * 0.09, RY + 0.08, z], r: [0, 0, Math.PI / 2] });
+  }
+  // entretoises entre longerons
+  k.add(G.box(1.5, 0.12, 0.14), M.steel, { p: [0, RY + 0.2, 1.8] });
+  k.add(G.box(1.5, 0.12, 0.14), M.steel, { p: [0, RY + 0.55, 0.9], r: [0.68, 0, 0] });
+  // poutre de choc rouge / blanche (chevrons) sur toute la largeur
+  k.add(G.box(3.1, 0.5, 0.36), M.black, { p: [0, BH, 0.1] });
+  for (let s = 0; s < 8; s++) k.add(G.box(0.36, 0.44, 0.04), s % 2 ? M.white : M.red, { p: [-1.33 + s * 0.38, BH, -0.1] });
+  // tampons à ressort, dans l'axe des rails : plateau, tige, ressort, corps
+  for (const sx of [-0.75, 0.75]) {
+    k.add(G.cyl(0.2, 0.22, 0.42, 14), M.steel, { p: [sx, BH, -0.28], r: [Math.PI / 2, 0, 0] });
+    k.add(G.cyl(0.09, 0.09, 0.3, 10), M.brass, { p: [sx, BH, -0.62], r: [Math.PI / 2, 0, 0] });
+    for (let c = 0; c < 4; c++) k.add(G.tor(0.15, 0.025, 5, 12), M.rust, { p: [sx, BH, -0.5 - c * 0.07] });
+    k.add(G.cyl(0.32, 0.32, 0.07, 18), M.steel, { p: [sx, BH, -0.8], r: [Math.PI / 2, 0, 0] });
+    k.add(G.cyl(0.24, 0.24, 0.02, 18), M.brass, { p: [sx, BH, -0.84], r: [Math.PI / 2, 0, 0] });
+  }
+  // cales en bois sur les rails devant le heurtoir
+  for (const sx of [-0.75, 0.75]) k.add(G.box(0.24, 0.16, 0.7), M.wood, { p: [sx, RY + 0.08, -0.25] });
+  // lanterne rouge de fin de voie sur potence + plaque « FIN DE VOIE » (bandes)
+  k.add(G.cyl(0.06, 0.08, 1.9, 6), M.steel, { p: [0, BH + 1.1, 0.25] });
+  k.add(G.box(0.36, 0.42, 0.36), M.black, { p: [0, BH + 2.2, 0.25] });
+  k.add(G.cone(0.3, 0.24, 4), M.black, { p: [0, BH + 2.53, 0.25], r: [0, Math.PI / 4, 0] });
+  k.add(G.cyl(0.13, 0.13, 0.05, 14), M.lens, { p: [0, BH + 2.2, 0.05], r: [Math.PI / 2, 0, 0] });
+  k.add(G.box(0.9, 0.9, 0.05), M.white, { p: [0, BH + 0.92, 0.27], r: [0, 0, Math.PI / 4] });
+  k.add(G.box(0.62, 0.62, 0.06), M.red, { p: [0, BH + 0.92, 0.24], r: [0, 0, Math.PI / 4] });
+  grp.add(k.build());
+  grp.position.copy(end); grp.rotation.y = ang;
+  // le talus ne doit pas flotter : on l'abaisse si le sol est plus bas que la voie autour
+  COLLIDERS.box(end.x + Math.sin(ang) * 0.4, end.z + Math.cos(ang) * 0.4, 1.6, 0.6, ang, end.y + 2, -99, false);
+  return grp;
 }

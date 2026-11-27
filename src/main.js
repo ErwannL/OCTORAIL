@@ -26,6 +26,7 @@ import { Net } from './net/net.js';
 import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
 import { Compass, PHENO_INFO } from './ui/compass.js';
 import { createAirField } from './world/airfield.js';
+import { createDiag } from './ui/diag.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
@@ -1156,8 +1157,16 @@ function titleCam(dt) {
 }
 
 function render() {
+  const t0 = performance.now(); renderer.info.autoReset = false; renderer.info.reset();
   if (Q.post) composer.render(); else renderer.render(scene, camera);
+  diag.renderTime(performance.now() - t0); diag.frame();
 }
+// --- diagnostic F3 (FPS, GPU, navigateur, verdict) — rien n'est envoyé
+const diag = createDiag(renderer, () => ({ quality: qName + (qName === 'auto' ? ' → ' + pixelRatio.toFixed(2) : ''), pr: pixelRatio, w: innerWidth, h: innerHeight, shadows: renderer.shadowMap.enabled, bloom: !!SET.bloom, post: !!Q.post, players: 1 + remotes.size, pos: player.pos.toArray().map(v => v.toFixed(0)).join(',') }));
+addEventListener('keydown', e => { if (e.code === 'F3') { e.preventDefault(); diag.toggle(); } });
+setInterval(() => diag.refresh(), 500);
+window.__diag = diag;
+setTimeout(() => { if (diag.gpu.software) ui.toast('⛔ Ton navigateur n\'utilise pas la carte graphique (rendu logiciel) : ça va ramer. Appuie sur F3 pour le détail.'); }, 4000);
 // distance de visibilité (brouillard ~6 %) : règle camera.far et le masquage par distance
 function updateRange() {
   const D = Math.min(1500, 1.7 / Math.max(0.0005, scene.fog.density));

@@ -1,6 +1,7 @@
 // OCTORAIL — application de bureau (Electron) : une vraie fenêtre de jeu, aucun terminal.
 // Le serveur de salon (multijoueur 1-8) tourne caché dans l'application : héberger = ce PC, rejoindre = adresse d'un ami (Hamachi…).
 const { app, BrowserWindow, Menu, shell } = require('electron');
+const { exec } = require('node:child_process');
 const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { WebSocketServer } = require('ws');
 
@@ -13,6 +14,14 @@ function startServer() {
   return new Promise(resolve => {
     const srv = http.createServer((req, res) => {
       let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+      const local = /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || '');
+      if (p === '/ping') { res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); return res.end('{"ok":true}'); }
+      if (p === '/firewall' && local) {
+        // règle d'entrée pour le port du jeu sur tous les profils (privé + public : Hamachi est « public ») ; Windows demande l'autorisation admin
+        const exe = process.execPath.replace(/'/g, "''");
+        const cmd = `powershell -NoProfile -Command "Start-Process netsh -Verb RunAs -WindowStyle Hidden -ArgumentList 'advfirewall firewall add rule name=OCTORAIL dir=in action=allow protocol=TCP localport=8787-8797 profile=any'; Start-Process netsh -Verb RunAs -WindowStyle Hidden -ArgumentList 'advfirewall firewall add rule name=OCTORAIL-app dir=in action=allow program=\"${exe}\" profile=any'"`;
+        exec(cmd, err => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: !err, err: err ? String(err.message).slice(0, 200) : null })); }); return;
+      }
       if (p === '/info') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ ips: myIps(), port: PORT, desktop: true })); }
       if (p === '/' || p === '') p = '/index.html';
       const f = path.normalize(path.join(DIST, p));

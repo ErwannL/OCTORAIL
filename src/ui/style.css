@@ -198,3 +198,4 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 .mp-tabs { display: flex; gap: 6px; margin-bottom: 8px; } .mp-tabs button { flex: 1; background: #2a2018; color: var(--ink); box-shadow: none; } .mp-tabs button.on { background: linear-gradient(#e2b45a, #a8742a); color: #2a1606; }
 .mp-pane { display: flex; flex-direction: column; gap: 6px; } .mp-pane.hidden { display: none; } .mp-ips { font-size: 13px; opacity: .9; } .mp-ips b { color: #ffe3a8; user-select: all; }
 #title .mp { display: flex; flex-direction: column; gap: 8px; } #title .mp > * { width: 100%; } .mp-tabs button { padding: 8px 6px; white-space: nowrap; } .mp-pane input, .mp-pane button { width: 100%; box-sizing: border-box; }
+.mp-msg { font-size: 12.5px; line-height: 1.5; color: #ffd9a0; min-height: 0; } .mp-msg:empty { display: none; }

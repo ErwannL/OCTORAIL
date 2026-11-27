@@ -322,7 +322,7 @@ function renderHints() {
 let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
-const BUILD = 'v37';
+const BUILD = 'v38';
 (function titleScreen() {
   { const v = document.createElement('div'); v.textContent = 'OCTORAIL ' + BUILD; v.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px Chakra Petch,sans-serif;color:#c8a25a;opacity:.75;z-index:99;pointer-events:none'; document.body.appendChild(v); }
   { const cr = document.querySelector('#title .credits'); let i = Math.floor(Math.random() * LOADING_TIPS.length); const tick = () => { if (cr && !started) { cr.textContent = '« ' + LOADING_TIPS[i++ % LOADING_TIPS.length] + ' »'; setTimeout(tick, 6000); } }; tick(); }
@@ -352,11 +352,24 @@ const BUILD = 'v37';
   document.getElementById('play-mp').onclick = () => go(document.getElementById('room').value.trim() || 'OCTAVE');
   // rejoindre un ami par son adresse (Hamachi, réseau local…)
   { const hip = document.getElementById('host-ip'); try { hip.value = localStorage.getItem('octorail-host') || ''; } catch {}
-    document.getElementById('play-join').onclick = () => { const h = hip.value.trim(); if (!h) { hip.focus(); ui.toast('Entre l\'adresse de l\'hôte (ex : 25.12.34.56)'); return; } try { localStorage.setItem('octorail-host', h); } catch {} go(document.getElementById('room-join').value.trim() || 'OCTAVE', h); };
+    document.getElementById('play-join').onclick = async () => { let h = hip.value.trim().split(/[\s·,;]+/)[0]; if (!h) { hip.focus(); ui.toast('Entre l\'adresse de l\'hôte (ex : 25.12.34.56)'); return; }
+      try { localStorage.setItem('octorail-host', h); } catch {}
+      // test de joignabilité avant de lancer : message clair si bloqué
+      document.getElementById('join-msg').textContent = 'Recherche de l\'hôte…';
+      const base = 'http://' + (h.includes(':') ? h : h + ':8787'); const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 5000);
+      const ok = await fetch(base + '/ping', { signal: ctl.signal, mode: 'no-cors' }).then(() => true).catch(() => false); // réponse quelconque = joignable clearTimeout(tm);
+      const jm = document.getElementById('join-msg');
+      if (!ok) { jm.innerHTML = (`❌ ${h} ne répond pas. Vérifie : 1) l'hôte a OCTORAIL ouvert, 2) vous êtes sur le même réseau Hamachi (ping ${h.split(':')[0]}), 3) l'hôte a cliqué « Autoriser mes amis (pare-feu) ».`).replace(/, (\d\))/g, '<br>$1'); audio.deny?.(); return; }
+      jm.textContent = '✔ Hôte trouvé, connexion…';
+      go(document.getElementById('room-join').value.trim() || 'OCTAVE', h); };
     const tabs = [['mp-tab-host', 'mp-host'], ['mp-tab-join', 'mp-join']];
     for (const [t, pnl] of tabs) document.getElementById(t).onclick = () => { for (const [t2, p2] of tabs) { document.getElementById(t2).classList.toggle('on', t2 === t); document.getElementById(p2).classList.toggle('hidden', p2 !== pnl); } audio.init(); audio.ui(); };
     // adresses de ce PC (servies par OCTORAIL.exe) : Hamachi (25.x) en premier
-    fetch('/info').then(r => r.json()).then(i => { const ips = (i.ips || []).sort((a, b) => (b.startsWith('25.') ? 1 : 0) - (a.startsWith('25.') ? 1 : 0)); document.getElementById('my-ips').textContent = ips.length ? ips.slice(0, 3).join('  ·  ') : 'aucune (pas de réseau ?)'; })
+    fetch('/info').then(r => r.json()).then(i => { const ips = i.ips || [], ham = ips.find(a => a.startsWith('25.'));
+        document.getElementById('my-ips').textContent = ham || (ips.find(a => a.startsWith('192.168.')) || ips[0] || 'aucune (pas de réseau ?)');
+        document.getElementById('my-ips').title = 'Autres adresses de ce PC : ' + ips.join(', ');
+        if (!ham) document.getElementById('my-ips').insertAdjacentHTML('afterend', '<small style="display:block;opacity:.7">(Hamachi non détecté : adresse du réseau local)</small>');
+        if (i.desktop) { const fw = document.createElement('button'); fw.className = 'small'; fw.textContent = '🛡️ Autoriser mes amis (pare-feu Windows)'; fw.onclick = () => { fw.textContent = 'Confirme la demande de Windows…'; fetch('/firewall').then(r => r.json()).then(o => { fw.textContent = o.ok ? '✔ Pare-feu ouvert pour OCTORAIL' : '✖ Refusé — relance et accepte la demande'; }); }; document.getElementById('play-mp').before(fw); } })
       .catch(() => { document.getElementById('my-ips').textContent = 'lance OCTORAIL.exe pour héberger'; document.getElementById('play-mp').disabled = true; }); }
   const qs = document.getElementById('quality'); qs.value = qName;
   qs.onchange = () => { SET.quality = qs.value; saveSettings(SET); location.reload(); };

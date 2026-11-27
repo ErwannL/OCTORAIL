@@ -9,7 +9,7 @@ export class Net {
       const url = `${proto}://${location.hostname}${port ? ':' + port : ''}/ws?room=${encodeURIComponent(room)}`;
       let done = false;
       try { this.ws = new WebSocket(url); } catch { return res(false); }
-      const to = setTimeout(() => { if (!done) { done = true; res(false); } }, 3000);
+      const to = setTimeout(() => { if (!done) { done = true; res(false); } }, 15000); // PC lents : le message de bienvenue peut arriver tard
       this.ws.onopen = () => { this.send({ t: 'hello', ...hello }); };
       this.ws.onmessage = ev => {
         const m = JSON.parse(ev.data);

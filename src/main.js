@@ -423,6 +423,7 @@ function makeNameTag(name, color) {
 }
 function updatePlayersList() { ui.players([{ name: me.name, color: me.color }, ...[...remotes.values()].map(r => ({ name: r.name, color: r.color }))]); }
 netc.on('join', m => addRemote(m.id, m));
+netc.on('close', () => { if (started && netc.id) ui.toast('⚠️ Connexion au salon perdue : tu continues en solo.'); });
 // TAB : tableau des passagers (stats en direct)
 const tabEl = document.createElement('div'); tabEl.id = 'tabboard'; tabEl.className = 'panel hidden'; document.getElementById('hud').appendChild(tabEl);
 function renderTab() {

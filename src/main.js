@@ -25,6 +25,7 @@ import { UI } from './ui/ui.js';
 import { Net } from './net/net.js';
 import { loadSettings, saveSettings, ACTIONS, DEFAULT as DEFAULT_SET, keyLabel } from './game/settings.js';
 import { Compass, PHENO_INFO } from './ui/compass.js';
+import { createAirField } from './world/airfield.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
@@ -263,15 +264,17 @@ function shieldMat(c1, c2, hx, hy, k = 1) {
 }
 const bubbles = (() => {
   const mk = (mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat); m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; m.renderOrder = 3; scene.add(m); return m; };
-  const heat = mk(shieldMat('vec3(1.,.45,.15)', 'vec3(1.,.8,.4)', 24., 6., .8)), oxy = mk(shieldMat('vec3(.35,.85,1.)', 'vec3(.7,1.,.9)', 32., 8., 1.));
-  return { update(tr, pl, hr, or, t) {
-    const c = new THREE.Vector3(); let n = 0; for (const m of [tr.loco, ...tr.wagons.map(w => w.mesh)]) { c.add(m.position); n++; } c.divideScalar(n);
+  const heat = mk(shieldMat('vec3(1.,.45,.15)', 'vec3(1.,.8,.4)', 24., 6., .8));
+  // l'air (Moyeu + train) = une seule bulle de savon fusionnée (voir world/airfield.js)
+  const air = createAirField(scene), c = new THREE.Vector3();
+  return { air, update(tr, pl, hr, or, t) {
+    c.set(0, 0, 0); let n = 0; for (const m of [tr.loco, ...tr.wagons.map(w => w.mesh)]) { c.add(m.position); n++; } c.divideScalar(n);
+    const half = tr.totalLength / 2, R = or + half * 0.3;
+    air.update(camera, t, c, R, !!tr.head);
     const show = pl.mode === 'foot' && pl.pos.distanceTo(c) < or + 60;
-    heat.visible = oxy.visible = show; if (!show) return;
-    const half = tr.totalLength / 2;
+    heat.visible = show; if (!show) return;
     heat.position.copy(tr.loco.position); heat.scale.set(hr, hr * 0.55, hr);
-    oxy.position.copy(c); oxy.scale.set(or + half * 0.3, (or + half * 0.3) * 0.5, or + half * 0.3);
-    heat.material.uniforms.time.value = oxy.material.uniforms.time.value = t % 1000;
+    heat.material.uniforms.time.value = t % 1000;
   } };
 })();
 function renderHints() {
@@ -354,12 +357,7 @@ function wagonList() {
   return w;
 }
 
-// ------------------------------------------------------------------ Bulle du Moyeu (champ d'air respirable, visible)
-const hubBubble = (() => {
-  const mat = shieldMat('vec3(.45,.8,1.)', 'vec3(1.,.85,.5)', 40., .45);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(95, 96, 48, 0, Math.PI * 2, 0, Math.PI * 0.62), mat);
-  m.position.y = -12; m.renderOrder = 5; m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; scene.add(m); return m;
-})();
+
 
 // ------------------------------------------------------------------ Multijoueur
 function addRemote(id, o) {
@@ -916,7 +914,7 @@ function frame() {
   ui.temp(player.temp, inGelure || player.temp < 100);
   // --- oxygène : l'air d'Halcyre hors du réseau est trop pauvre ; la combinaison se recharge auprès du train (réservoir d'air) ou au Moyeu
   { const R0 = Math.hypot(player.pos.x, player.pos.z), dTrain = train.head ? player.pos.distanceTo(train.head) : 1e9;
-    const safe = player.mode !== 'foot' || R0 < 95 || dVeh < OXY_R;
+    const safe = player.mode !== 'foot' || bubbles.air.fieldAt(player.pos) < 0 || dVeh < OXY_R * 0.6; // ce qu'on voit = ce qui protège
     player.oxy ??= 100;
     if (!safe) player.oxy = Math.max(0, player.oxy - dt * (100 / 75)); // ~75 s d'autonomie loin du train
     else player.oxy = Math.min(100, player.oxy + dt * 30);
@@ -946,7 +944,7 @@ function frame() {
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
   westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
-  hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08); hubBubble.material.uniforms.time.value = time % 1000;
+  hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 
   // --- distants
@@ -1011,7 +1009,7 @@ function frame() {
   audio.setWind(amb.hub > 0.5 ? 0.1 : wkind === 'snow' ? 0.8 : 0.4);
 
   smoke.update(dt); sparks.update(dt); steam.update(dt);
-  updateCamera(dt);
+  updateCamera(dt); if (window.__camOv) { camera.position.copy(window.__camOv.p); camera.lookAt(window.__camOv.t); camera.updateMatrixWorld(); } // vue de debug (captures)
   ui.credits(S.credits);
   updateRange();
   render();

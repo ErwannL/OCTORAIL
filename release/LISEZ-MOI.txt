@@ -1,18 +1,11 @@
 OCTORAIL — jouer à plusieurs avec Hamachi (1 à 8 joueurs)
 ==========================================================
-
-Chaque joueur télécharge et lance OCTORAIL.exe. Le jeu s'ouvre dans sa propre fenêtre.
-(Windows peut dire « Windows a protégé votre ordinateur » : « Informations complémentaires » → « Exécuter quand même ».
- Si le pare-feu demande l'accès : AUTORISE, coche Réseaux privés ET publics — Hamachi est souvent vu comme « public ».)
+Chaque joueur lance OCTORAIL.exe (application de bureau : une fenêtre de jeu, rien d'autre).
+F11 ou Alt+Entrée : plein écran.
+Premier lancement : Windows peut dire « Windows a protégé votre ordinateur » → « Informations complémentaires » → « Exécuter quand même ».
+Pare-feu : AUTORISE OCTORAIL, coche Réseaux privés ET publics (Hamachi est souvent « public").
 
 1) Tout le monde rejoint le même réseau Hamachi.
-
-2) L'HÔTE : écran titre → onglet « Créer un salon » → « Héberger le salon ».
-   L'écran titre affiche son adresse Hamachi (25.x.x.x) : il la donne aux autres.
-
-3) LES AMIS : écran titre → onglet « Rejoindre un ami » → tapent l'adresse Hamachi de l'hôte → « Rejoindre la partie ».
-   (Code salon : seulement si l'hôte en a mis un.)
-
-L'hôte doit garder le jeu ouvert : s'il le ferme, le salon s'arrête.
-
-Touches : TAB = joueurs · M = carte · F3 = diagnostic · I = aide · Échap = menu
+2) L'HÔTE : onglet « Créer un salon » → « Héberger le salon ». Son adresse Hamachi (25.x.x.x) s'affiche : il la donne aux autres.
+3) LES AMIS : onglet « Rejoindre un ami » → adresse de l'hôte → « Rejoindre la partie ».
+L'hôte garde le jeu ouvert pendant la partie.

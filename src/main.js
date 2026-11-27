@@ -360,6 +360,31 @@ function wagonList() {
 
 
 
+// ------------------------------------------------------------------ Connexion / déconnexion : faisceau de cryo-transfert
+const beams = [];
+const beamGeo = new THREE.CylinderGeometry(1, 1, 1, 24, 1, true); beamGeo.translate(0, 0.5, 0);
+function beamFx(pos, color, dir = 1, dur = 1.6) {
+  const m = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.position.copy(pos); m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; scene.add(m);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 6, 32), m.material.clone()); ring.rotation.x = Math.PI / 2; ring.position.copy(pos); ring.userData.noCollide = true; scene.add(ring);
+  audio.noiseBurst(audio.now, dur * 0.8, dir > 0 ? 2400 : 900, 0.35, 0.4, 'bandpass');
+  const b = { m, ring, t: 0, dur, dir, pos: pos.clone() }; beams.push(b); return b;
+}
+function updateBeams(dt) {
+  for (let i = beams.length - 1; i >= 0; i--) { const b = beams[i]; b.t += dt; const k = b.t / b.dur, env = Math.sin(Math.min(1, k) * Math.PI);
+    b.m.scale.set(0.9 + env * 0.5, 40 * (b.dir > 0 ? Math.min(1, k * 3) : 1), 0.9 + env * 0.5); b.m.material.opacity = env * 0.55;
+    b.ring.position.y = b.pos.y + (b.dir > 0 ? k : 1 - k) * 3.2; b.ring.scale.setScalar(1 + env * 0.6); b.ring.material.opacity = env;
+    if (Math.random() < 0.6) sparks.emit(b.pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 3, (Math.random() - 0.5) * 2)), new THREE.Vector3(0, b.dir * (3 + Math.random() * 5), 0), { life: 0.8, size: 0.3, color: '#bdf3ff' });
+    if (k >= 1) { scene.remove(b.m); scene.remove(b.ring); b.m.material.dispose(); b.ring.material.dispose(); b.ring.geometry.dispose(); beams.splice(i, 1); b.done?.(); } }
+  // départs : l'avatar s'étire et monte dans le faisceau, le train s'évapore en vapeur
+  for (let i = departures.length - 1; i >= 0; i--) { const d = departures[i]; d.t += dt; const k = Math.min(1, d.t / 1.5);
+    d.avatar.scale.set(1 - k * 0.85, 1 + k * 2.5, 1 - k * 0.85); d.avatar.position.y = d.y0 + k * k * 6;
+    if (d.train.head && Math.random() < 0.8) for (const mm of [d.train.loco, ...d.train.wagons.map(w => w.mesh)]) steam.emit(mm.position.clone().add(new THREE.Vector3(0, 2, 0)), new THREE.Vector3((Math.random() - 0.5) * 3, 3 + Math.random() * 3, (Math.random() - 0.5) * 3), { life: 1.4, size: 2.4, color: '#e8fbff', alpha: 0.5 });
+    if (k >= 1) { scene.remove(d.avatar); d.train.dispose(); departures.splice(i, 1); } }
+}
+const departures = [];
+const podPos = slot => { const a = (slot % 8) * Math.PI / 4 + Math.PI / 8; return new THREE.Vector3(Math.cos(a) * 6.6, 0.3, -Math.sin(a) * 6.6); };
+
 // ------------------------------------------------------------------ Multijoueur
 function addRemote(id, o) {
   if (remotes.has(id)) return;
@@ -367,7 +392,7 @@ function addRemote(id, o) {
   const avatar = buildAvatar(o.color); avatar.visible = false; scene.add(avatar);
   const ps = o.slot ?? slot; const tr = new Train(net, scene, { remote: true, tint: TRAIN_TINTS[ps % 8], startNode: 'H' + STATIONS[ps % 8] });
   const tag = makeNameTag(o.name, o.color); avatar.add(tag);
-  remotes.set(id, { avatar, train: tr, name: o.name, color: o.color, state: o.state, slot: ps });
+  remotes.set(id, { avatar, train: tr, name: o.name, color: o.color, state: o.state, slot: ps, fresh: !o.state });
   ui.toast(`<b style="color:${o.color}">${o.name}</b> a rejoint Halcyre`);
   updatePlayersList();
 }
@@ -400,8 +425,10 @@ addEventListener('keydown', e => {
   else if (e.code === 'Escape' && !tabEl.classList.contains('hidden')) { e.preventDefault(); e.stopImmediatePropagation(); tabOpen(false); }
 }, true);
 tabEl.addEventListener('click', e => { if (e.target.classList.contains('close')) tabOpen(false); });
-netc.on('leave', m => { const r = remotes.get(m.id); if (!r) return; scene.remove(r.avatar); r.train.dispose(); remotes.delete(m.id); ui.toast(`${r.name} est parti`); updatePlayersList(); });
-netc.on('state', m => { const r = remotes.get(m.id); if (r) r.state = m.s; });
+netc.on('leave', m => { const r = remotes.get(m.id); if (!r) return; remotes.delete(m.id);
+  beamFx(r.avatar.position.clone().setY(r.avatar.position.y - 0.2), r.color, 1); departures.push({ avatar: r.avatar, train: r.train, t: 0, y0: r.avatar.position.y });
+  ui.toast(`<b style="color:${r.color}">${r.name}</b> retourne en sommeil cryogénique`); updatePlayersList(); });
+netc.on('state', m => { const r = remotes.get(m.id); if (!r) return; if (!r.state && r.fresh) { r.fresh = false; beamFx(podPos(r.slot), r.color, -1, 1.4); } r.state = m.s; });
 netc.on('shared', m => {
   const prevStage = S.stage; const prevSheriff = S.sheriff;
   S = { ...S, ...m.shared };
@@ -790,7 +817,10 @@ ui.setKeys(SET.keys);
   $('s-quality').onchange = e => { SET.quality = e.target.value; saveSettings(SET); ui.toast('Qualité appliquée au prochain lancement (page rechargée).'); setTimeout(() => location.reload(), 900); };
   $('keys-reset').onclick = () => { SET.keys = JSON.parse(JSON.stringify(DEFAULT_SET.keys)); applySettings(); renderKeys(); };
   $('resume').onclick = () => { ui.closePanels(); input.wantLock = true; input.lock(); };
-  $('to-title').onclick = () => { saveState(S); location.reload(); };
+  $('to-title').onclick = () => { saveState(S); ui.hidePanels?.(); document.getElementById('pause')?.classList.add('hidden');
+    if (player.mode !== 'foot' || !started) { location.reload(); return; }
+    player.eject = null; beamFx(player.pos.clone(), me.color, 1); departures.push({ avatar: player.avatar, train: { head: null, dispose() {}, loco: null, wagons: [] }, t: 0, y0: player.pos.y });
+    player.leaving = true; setTimeout(() => ui.fade(true, true), 700); setTimeout(() => location.reload(), 1900); };
   document.addEventListener('pointerlockchange', () => {
     if (!document.pointerLockElement && started && !ui.panel && !ui.dialogOpen && !cinematic && input.wantLock && $('endcard').classList.contains('hidden')) openPause();
   });
@@ -870,7 +900,7 @@ function frame() {
   // --- joueur
   if (player.mode === 'foot') {
     if (!busy) {
-      if (player.eject) {
+      if (player.leaving) { /* départ : animé par updateBeams */ } else if (player.eject) {
         const E = player.eject; E.t += dt; const k = Math.min(1, E.t / 1.6), r = 6.6 + k * 4.2;
         player.pos.set(Math.cos(E.a) * r, 0.85 + Math.sin(k * Math.PI) * 1.4 - k * 0.6, -Math.sin(E.a) * r); player.avatar.position.copy(player.pos); player.avatar.rotation.y = E.a + Math.PI / 2;
         if (E.t < 0.05) { audio.noiseBurst(audio.now, 1.2, 1200, 0.5, 0.5, 'highpass'); for (let q = 0; q < 40; q++) steam.emit(new THREE.Vector3(Math.cos(E.a) * 6.6, 1.5, -Math.sin(E.a) * 6.6), new THREE.Vector3(Math.cos(E.a) * (2 + Math.random() * 4), Math.random() * 3, -Math.sin(E.a) * (2 + Math.random() * 4)), { life: 1.8, size: 1.6, color: '#dff6ff', alpha: 0.7 }); }
@@ -944,7 +974,7 @@ function frame() {
   hub.nucleus.rotation.y += dt * 0.6; hub.nucleus.rotation.x += dt * 0.3;
   hub.core.userData.rings.forEach((r, i) => { r.rotation.x += dt * (0.4 + i * 0.3); r.rotation.y += dt * (0.25 - i * 0.1); });
   hub.machines.coal.userData.fly.rotation.x += dt * 2.5;
-  westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
+  updateBeams(dt); westDecor.update(dt, time); gelDecor.update(dt, time); birds.update(dt, time); flags.update(time, camera.position); life.update(dt, time, player.pos); footprints.update(dt, player); dragons.update(dt, time, camera.position); grade.uniforms.time.value = time % 10;
   hub.nucleus.scale.setScalar(1 + Math.sin(time * 2) * 0.08);
   signals.update(player.mode === 'cab' ? train : null, time); // rubans de guidage d'aiguillage + lampes de signal
 

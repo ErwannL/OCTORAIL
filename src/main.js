@@ -328,7 +328,10 @@ let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog
   COLORS.forEach((c, i) => { const el = document.createElement('i'); el.style.background = c; if (i === 0) el.classList.add('on');
     el.onclick = () => { me.color = c; cbox.querySelectorAll('i').forEach(x => x.classList.remove('on')); el.classList.add('on'); audio.init(); audio.ui(); }; cbox.appendChild(el); });
   try { document.getElementById('name').value = localStorage.getItem('octorail-name') || ''; } catch {}
+  let going = false;
   const go = async (room) => {
+    if (going || started) return; going = true; // un seul départ, même si on spamme les boutons
+    for (const id of ['play-solo', 'play-mp']) { const b = document.getElementById(id); if (b) { b.disabled = true; b.style.opacity = 0.55; } }
     audio.init(); audio.ui();
     me.name = (document.getElementById('name').value.trim() || 'Passager').slice(0, 14);
     try { localStorage.setItem('octorail-name', me.name); } catch {}
@@ -352,6 +355,7 @@ let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog
 })();
 
 function start() {
+  if (started) return;
   started = true;
   ui.show('title', false); ui.show('hud', true);
   player = new Player(scene, terrain, me.color);

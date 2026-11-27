@@ -26,6 +26,7 @@ export function buildLife(scene, terrain, net, envGetter) {
         const s = pick(sector); if (!s) continue; const sc = scMin + rnd() * (scMax - scMin);
         L.push(M4(s.x, s.y, s.z, rnd() * 6, sc));
         COLLIDERS.circle(s.x, s.z, (ud.trunkR || 0.4) * sc * trunkK, s.y + (opt.trunkTop || 6) * sc);
+        if (ud.crownR && (ud.crownBottom ?? 9) * sc < 2.4) COLLIDERS.circle(s.x, s.z, ud.crownR * sc * 0.6, 99); // feuillage qui descend jusqu'au sol (sapins…) : bloquant
         if (ud.crownR) COLLIDERS.camCircle(s.x, s.z, ud.crownR * sc * 0.85, s.y + ud.crownBottom * sc, s.y + ud.top * sc);
       }
       if (L.length) inst(geo, FLORA_MAT, L, opt.shadow !== false).userData.noCollide = true; // tronc = COLLIDERS ; frondaison traversable

@@ -912,7 +912,7 @@ function frame() {
   bubbles.update(train, player, heatR, OXY_R, time);
   if (inGelure && player.mode === 'foot' && !warmTrain) player.temp = Math.max(0, player.temp - dt * (S.owned.doublure ? 1.2 : 3.6));
   else player.temp = Math.min(100, player.temp + dt * (warmTrain || player.mode !== 'foot' ? 25 : 8));
-  ui.temp(player.temp, inGelure || player.temp < 100);
+  ui.temp(player.temp, player.temp < 99.5 || (inGelure && player.mode === 'foot' && !warmTrain)); // à bord ou dans la chaleur du train et réchauffé : pas de barre de froid
   // --- oxygène : l'air d'Halcyre hors du réseau est trop pauvre ; la combinaison se recharge auprès du train (réservoir d'air) ou au Moyeu
   { const R0 = Math.hypot(player.pos.x, player.pos.z), dTrain = train.head ? player.pos.distanceTo(train.head) : 1e9;
     const safe = player.mode !== 'foot' || bubbles.air.fieldAt(player.pos) < 0 || dVeh < OXY_R * 0.6; // ce qu'on voit = ce qui protège
@@ -1166,7 +1166,11 @@ const diag = createDiag(renderer, () => ({ quality: qName + (qName === 'auto' ? 
 addEventListener('keydown', e => { if (e.code === 'F3') { e.preventDefault(); diag.toggle(); } });
 setInterval(() => diag.refresh(), 500);
 window.__diag = diag;
-setTimeout(() => { if (diag.gpu.software) ui.toast('⛔ Ton navigateur n\'utilise pas la carte graphique (rendu logiciel) : ça va ramer. Appuie sur F3 pour le détail.'); }, 4000);
+// mode secours : pas de vraie carte graphique (pilote Windows de base, VM, bureau à distance) -> on allège fortement
+if (diag.gpu.software) { pixelRatio = Math.min(pixelRatio, 0.42); resize(); }
+setTimeout(() => { if (!diag.gpu.software) return;
+  if (bubbles.air) bubbles.air.mesh.material.uniforms.steps.value = 10;
+  ui.toast('⛔ Pas de vraie carte graphique détectée (' + (/basic render/i.test(diag.gpu.gpu) ? 'pilote Windows de base : installe le pilote graphique' : 'rendu logiciel') + '). Mode secours activé. F3 pour le détail.'); }, 4000);
 // distance de visibilité (brouillard ~6 %) : règle camera.far et le masquage par distance
 function updateRange() {
   const D = Math.min(1500, 1.7 / Math.max(0.0005, scene.fog.density));

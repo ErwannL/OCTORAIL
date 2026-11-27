@@ -28,7 +28,8 @@ export function createDiag(renderer, extra) {
     // verdict lisible : qu'est-ce qui limite ?
     verdict(s, x) {
       const v = [];
-      if (G.software) v.push('⛔ Le navigateur dessine SANS carte graphique (rendu logiciel « ' + G.gpu + ' »). Cause n°1 du lag : active « Utiliser l\'accélération matérielle » dans les paramètres du navigateur (chrome://settings/system ou edge://settings/system), puis redémarre-le. Sur un PC de travail, elle est parfois bloquée par l\'informatique.');
+      if (G.software && /basic render/i.test(G.gpu)) v.push('⛔ Windows n\'a PAS de vrai pilote graphique (« Microsoft Basic Render Driver ») : tout est dessiné par le processeur. Ce n\'est ni le jeu ni le navigateur. Vérifie Gestionnaire de périphériques > Cartes graphiques et installe le pilote Intel/AMD/NVIDIA (sur un PC de travail : demande à l\'informatique). En bureau à distance ou machine virtuelle, il n\'y a pas de carte graphique du tout.');
+      else if (G.software) v.push('⛔ Le navigateur dessine SANS carte graphique (rendu logiciel « ' + G.gpu + ' »). Active « Utiliser l\'accélération matérielle » (chrome://settings/system ou edge://settings/system), puis redémarre le navigateur ; si ça ne change rien, c\'est le pilote graphique.');
       else if (G.integrated) v.push('ℹ️ Carte graphique intégrée (' + G.gpu + ') : prévois Basse/Auto et une fenêtre plus petite.');
       if (s.fps < 30 && s.render > s.avg * 0.6) v.push('🎮 Le temps passe dans le RENDU (GPU) : baisse la qualité, réduis la fenêtre, coupe ombres/bloom.');
       else if (s.fps < 30) v.push('🧠 Le temps passe dans les CALCULS (processeur/JavaScript) plutôt que dans le dessin : ferme les autres onglets/applis.');

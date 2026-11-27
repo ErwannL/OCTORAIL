@@ -322,7 +322,7 @@ function renderHints() {
 let meltProgress = 0, coldFaint = false, questGuard = false, phenoK = 0, lastFog = 1;
 
 // ------------------------------------------------------------------ Écran titre
-const BUILD = 'v34';
+const BUILD = 'v35';
 (function titleScreen() {
   { const v = document.createElement('div'); v.textContent = 'OCTORAIL ' + BUILD; v.style.cssText = 'position:fixed;right:10px;bottom:8px;font:12px Chakra Petch,sans-serif;color:#c8a25a;opacity:.75;z-index:99;pointer-events:none'; document.body.appendChild(v); }
   { const cr = document.querySelector('#title .credits'); let i = Math.floor(Math.random() * LOADING_TIPS.length); const tick = () => { if (cr && !started) { cr.textContent = '« ' + LOADING_TIPS[i++ % LOADING_TIPS.length] + ' »'; setTimeout(tick, 6000); } }; tick(); }

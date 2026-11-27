@@ -28,7 +28,7 @@ export function buildLife(scene, terrain, net, envGetter) {
         COLLIDERS.circle(s.x, s.z, (ud.trunkR || 0.4) * sc * trunkK, s.y + (opt.trunkTop || 6) * sc);
         if (ud.crownR) COLLIDERS.camCircle(s.x, s.z, ud.crownR * sc * 0.85, s.y + ud.crownBottom * sc, s.y + ud.top * sc);
       }
-      if (L.length) inst(geo, FLORA_MAT, L, opt.shadow !== false);
+      if (L.length) inst(geo, FLORA_MAT, L, opt.shadow !== false).userData.noCollide = true; // tronc = COLLIDERS ; frondaison traversable
     });
   };
   // Western : arbres morts tordus (3 variantes) + arbres de Josué (3 variantes)
@@ -40,7 +40,7 @@ export function buildLife(scene, terrain, net, envGetter) {
   // Moyeu : arbres d'ornement en pot autour de la place (érable, cerisier, arbre-nuage doré)
   { const geos = [potTreeGeometry(0), potTreeGeometry(1), potTreeGeometry(2)], Ls = [[], [], []];
     for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8 + 0.18, x = Math.cos(a) * 24, z = -Math.sin(a) * 24, v = i % 3, sc = 1.0 + (i % 2) * 0.12; Ls[v].push(M4(x, 0.25, z, i * 0.9, sc)); COLLIDERS.circle(x, z, 1.1 * sc, 1.35); COLLIDERS.circle(x, z, 0.35 * sc, 7); const u = geos[v].userData; COLLIDERS.camCircle(x, z, u.crownR * sc * 0.9, 0.25 + u.crownBottom * sc, 0.25 + u.top * sc); }
-    geos.forEach((g, v) => Ls[v].length && inst(g, FLORA_MAT, Ls[v]));
+    geos.forEach((g, v) => { if (Ls[v].length) inst(g, FLORA_MAT, Ls[v]).userData.noCollide = true; }); // feuillage traversable : pot + tronc gérés par les COLLIDERS ci-dessus (sinon on « tient debout » sur la frondaison)
   }
 
   // ---------- OISEAUX GELÉS EN PLEIN VOL (Gelure)

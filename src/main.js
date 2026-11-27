@@ -146,7 +146,7 @@ buildTrackside(scene, net, terrain); buildTrestles(scene, net, terrain);
 const worldMods = [];
 for (const [n, f] of Object.entries({ colosse: W_colosse, neon: W_neon, archipel: W_archipel, chrono: W_chrono, fonderie: W_fonderie, entrailles: W_entrailles })) { const before = new Set(scene.children); try { worldMods.push(f(scene, terrain, net, { BIOMES, get sparks() { return sparks; }, get smoke() { return smoke; }, get steam() { return steam; }, get audio() { return audio; }, get ui() { return ui; }, get player() { return player; }, get train() { return train; }, get input() { return input; }, get S() { return S; } } /* getters : à lire dans update() seulement */)); } catch (e) { console.error('Monde', n, e); }
   // instances animées des mondes : jamais découpées/masquées par le culler (sinon elles disparaissent en bougeant)
-  for (const c of scene.children) if (!before.has(c)) c.traverse(o => { if (o.isInstancedMesh) { o.userData.noCull = true; o.userData.noChunk = true; if (!o.boundingSphere) o.computeBoundingSphere(); if (o.boundingSphere) o.boundingSphere.radius += 30; } }); }
+  for (const c of scene.children) if (!before.has(c)) c.traverse(o => { o.userData.world = n; if (o.isInstancedMesh) { o.userData.noCull = true; o.userData.noChunk = true; if (!o.boundingSphere) o.computeBoundingSphere(); if (o.boundingSphere) o.boundingSphere.radius += 30; } }); }
 // l'Octuor : 7 gardiens égarés (+ SHÉRIF-7 géré par la quête historique)
 let octuor = null;
 setTimeout(() => { try { octuor = createOctuor({ scene, terrain, net, BIOMES, ui, audio, sparks, steam, S: () => S, push: () => pushShared(), train: () => train, sheriffHome: () => S.sheriff === 'home', camPos: () => camera.position }); window.__octuor = octuor; } catch (e) { console.error('Octuor', e); } }, 0);
@@ -237,13 +237,20 @@ const collExclude = new Set();
   terrain.mesh.userData.noCollide = true;
   scene.updateMatrixWorld(true);
   const snap = new Map();
-  scene.traverse(o => { if (o.isMesh) snap.set(o, o.matrixWorld.clone()); });
+  const isnap = new Map();
+  scene.traverse(o => { if (o.isMesh) snap.set(o, o.matrixWorld.clone()); if (o.isInstancedMesh) isnap.set(o, o.instanceMatrix.array.slice()); });
   const far = new THREE.Vector3(1e5, 0, 1e5);
   for (const tt of [37, 81]) { westDecor.update(0.7, tt); gelDecor.update(0.7, tt); birds.update(0.7, tt); flags.update(tt, far); life.update(0.7, tt, far); }
+  // mondes rallumés + dragons : on les anime aussi (caméra posée au centre de chaque monde pour lever leurs limites de distance)
+  { const WI = [0, 1, 2, 3, 6, 7];
+    for (const tt of [11, 37, 81]) worldMods.forEach((w, k) => { const a = WI[k] * Math.PI / 4, c = new THREE.Vector3(Math.cos(a) * 700, 30, -Math.sin(a) * 700); try { w.update?.(0.7, tt, c); } catch {} try { w.update?.(0.7, tt, new THREE.Vector3(0, 30, 0)); } catch {} });
+    try { for (const tt of [11, 37]) dragons.update(0.7, tt, new THREE.Vector3(0, 30, 0)); } catch {} }
   scene.updateMatrixWorld(true);
   const exclude = collExclude;
   for (const x of [sheriff, iceBlock, ...nuggets.list.map(n => n.m), ...crystals.list.map(c => c.m), ...finds.map(f => f.g)]) exclude.add(x);
-  scene.traverse(o => { if (o.isMesh && snap.has(o) && !snap.get(o).equals(o.matrixWorld)) exclude.add(o); });
+  scene.traverse(o => { if (o.isMesh && snap.has(o) && !snap.get(o).equals(o.matrixWorld)) exclude.add(o);
+    if (o.isInstancedMesh && isnap.has(o)) { const a = isnap.get(o), b = o.instanceMatrix.array; for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) { exclude.add(o); break; } }
+    if (o.isSkinnedMesh) exclude.add(o); });
   VOX.build(scene, exclude);
   console.log(`Collision géométrique : ${VOX.meshes} modèles, ${VOX.count} colonnes, ${VOX.points} points, ${VOX.ms} ms`);
 }

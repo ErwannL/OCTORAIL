@@ -1,0 +1,21 @@
+OCTORAIL — jouer à plusieurs (1 à 8)
+=====================================
+
+1) UN SEUL joueur (l'hôte) lance OCTORAIL.exe.
+   - Windows peut afficher « Windows a protégé votre ordinateur » (le fichier n'est pas signé) :
+     clique « Informations complémentaires » puis « Exécuter quand même ».
+   - Si le pare-feu demande l'accès réseau : coche « Réseaux privés » et autorise.
+   - Une fenêtre noire s'ouvre (le serveur) : LAISSE-LA OUVERTE pendant la partie.
+   - Le jeu s'ouvre tout seul dans le navigateur.
+
+2) Les amis ouvrent dans leur navigateur (Chrome/Edge conseillé) l'adresse affichée dans la fenêtre noire :
+   - Même maison / même Wi-Fi :  http://192.168.x.x:8787   (ligne « Amis, même réseau »)
+   - Par Internet, au choix :
+       a) Le plus simple : installez tous Radmin VPN ou ZeroTier (gratuit), rejoignez le même réseau,
+          puis utilisez l'adresse Radmin/ZeroTier de l'hôte :  http://26.x.x.x:8787
+       b) Ou l'hôte redirige le port 8787 (TCP) de sa box vers son PC et donne  http://SON-IP-PUBLIQUE:8787
+
+3) Dans le jeu : tout le monde tape le MÊME « Code salon » (ex : VAPEUR) puis « Rejoindre / créer un salon ».
+
+Touches utiles : TAB = joueurs · M = carte · F3 = diagnostic (si ça rame) · I = aide · Échap = menu
+Si ça rame énormément : F3 dit si le PC n'a pas de vrai pilote graphique.

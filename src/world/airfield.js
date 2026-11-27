@@ -9,13 +9,13 @@ export const HUB_C = new THREE.Vector3(0, -12, 0), HUB_R = 95, K = 85;
 const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
 const ell = (px, py, pz, c, r) => { const x = (px - c.x) / r.x, y = (py - c.y) / r.y, z = (pz - c.z) / r.z, l = Math.hypot(x, y, z); return (l - 1) * Math.min(r.x, r.y, r.z); };
 
-export function createAirField(scene) {
+export function createAirField(scene, steps = 48) {
   const U = { time: { value: 0 }, tc: { value: new THREE.Vector3() }, tr: { value: new THREE.Vector3(1, 1, 1) }, ton: { value: 0 }, hon: { value: 1 }, k: { value: K },
-    hc: { value: HUB_C.clone() }, hr: { value: HUB_R }, camW: { value: new THREE.Matrix4() }, projI: { value: new THREE.Matrix4() }, projM: { value: new THREE.Matrix4() }, viewM: { value: new THREE.Matrix4() } };
+    steps: { value: steps }, hc: { value: HUB_C.clone() }, hr: { value: HUB_R }, camW: { value: new THREE.Matrix4() }, projI: { value: new THREE.Matrix4() }, projM: { value: new THREE.Matrix4() }, viewM: { value: new THREE.Matrix4() } };
   const mat = new THREE.ShaderMaterial({ uniforms: U, transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
     vertexShader: `varying vec2 vUv; void main(){ vUv = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
     fragmentShader: `
-      uniform float time, ton, hon, k, hr; uniform vec3 tc, tr, hc; uniform mat4 camW, projI, projM, viewM; varying vec2 vUv;
+      uniform float time, ton, hon, k, hr, steps; uniform vec3 tc, tr, hc; uniform mat4 camW, projI, projM, viewM; varying vec2 vUv;
       float smin(float a, float b, float k){ float h = max(k - abs(a - b), 0.0) / k; return min(a, b) - h * h * k * 0.25; }
       float ell(vec3 p, vec3 c, vec3 r){ return (length((p - c) / r) - 1.0) * min(min(r.x, r.y), r.z); }
       float F(vec3 p){ float a = hon > 0.5 ? length(p - hc) - hr : 1e5; float b = ton > 0.5 ? ell(p, tc, tr) : 1e5; return smin(a, b, k); }
@@ -31,7 +31,7 @@ export function createAirField(scene) {
         if (ton > 0.5 && hon > 0.5) { vec3 m = (hc + tc) * 0.5; vec2 s = sph(ro, rd, m, length(hc - tc) * 0.5 + k); t0 = min(t0, s.x); t1 = max(t1, s.y); }
         t0 = max(t0, 0.0); if (t1 < t0) discard;
         float t = t0, d0 = F(ro + rd * t), inside = d0 < 0.0 ? -1.0 : 1.0; bool hit = false;
-        for (int i = 0; i < 90; i++) { float d = F(ro + rd * t) * inside; if (d < 0.05) { hit = true; break; } t += max(d * 0.9, 0.08); if (t > t1) break; }
+        for (int i = 0; i < 90; i++) { if (float(i) >= steps) break; float d = F(ro + rd * t) * inside; if (d < 0.05) { hit = true; break; } t += max(d * 0.95, 0.25 + t * 0.004); if (t > t1) break; }
         if (!hit) discard;
         vec3 p = ro + rd * t, n = N(p);
         if (p.y < -1.0) discard; // sous le sol

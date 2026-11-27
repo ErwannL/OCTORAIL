@@ -266,7 +266,7 @@ const bubbles = (() => {
   const mk = (mat) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat); m.userData.noCollide = true; m.userData.noCull = true; m.frustumCulled = false; m.renderOrder = 3; scene.add(m); return m; };
   const heat = mk(shieldMat('vec3(1.,.45,.15)', 'vec3(1.,.8,.4)', 24., 6., .8));
   // l'air (Moyeu + train) = une seule bulle de savon fusionnée (voir world/airfield.js)
-  const air = createAirField(scene), c = new THREE.Vector3();
+  const air = createAirField(scene, { bas: 20, moyen: 36, haut: 56, ultra: 90 }[qName === 'auto' ? 'moyen' : qName] || 36), c = new THREE.Vector3();
   return { air, update(tr, pl, hr, or, t) {
     c.set(0, 0, 0); let n = 0; for (const m of [tr.loco, ...tr.wagons.map(w => w.mesh)]) { c.add(m.position); n++; } c.divideScalar(n);
     const half = tr.totalLength / 2, R = or + half * 0.3;

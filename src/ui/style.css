@@ -192,3 +192,4 @@ select { background: rgba(0,0,0,0.5); border: 1px solid var(--line); color: var(
 *::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 .shop-pages { display: flex; align-items: center; justify-content: center; gap: 14px; margin: -4px 0 10px; } .shop-pages button { width: 44px; } .shop-pages span { opacity: .8; }
 #shop .icon-demo { display: flex; align-items: center; justify-content: center; font-size: 46px; background: radial-gradient(circle, #3a2a18, #17100a); border: 2px solid #8a6a35; border-radius: 8px; height: 96px; }
+#map-cv { max-height: calc(100vh - 150px); max-width: 100%; height: auto; width: auto; aspect-ratio: 1; display: block; margin: 8px auto 0; } #map { overflow: hidden; }

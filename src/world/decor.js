@@ -491,12 +491,14 @@ function clockFaceTexture() {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 export function buildClosedWorlds(scene, terrain, net) {
+  // mondes refaits par src/world/worlds/*.js : leur décor provisoire ici est désactivé
+  const REPLACED = new Set(['archipel']);
   const rnd = mulberry(99);
   const place = (sector, n, rMin, rMax, cb) => { let c = 0; for (let t = 0; t < n * 20 && c < n; t++) { const r = rMin + rnd() * (rMax - rMin), a = sector * PI / 4 + (rnd() - 0.5) * PI / 4 * 0.9; const x = Math.cos(a) * r, z = -Math.sin(a) * r; if (sectorIndex(x, z) !== sector || net.nearest(x, z, 12)) continue; cb(x, terrain.heightAt(x, z), z, c++); } };
   const instanced = (geo, material, list, shadow = false) => { const inst = new THREE.InstancedMesh(geo, material, list.length); list.forEach((m, i) => inst.setMatrixAt(i, m)); inst.castShadow = shadow; inst.receiveShadow = true; scene.add(inst); return inst; };
 
   // ---- Néon-Bas : gratte-ciels à façades vitrées lumineuses, enseignes verticales, anneaux néon, balises
-  { const winTex = neonTexture(mulberry(11));
+  if (!REPLACED.has('neon')) { const winTex = neonTexture(mulberry(11));
     const winM = new THREE.MeshStandardMaterial({ color: '#0d0a1c', roughness: 0.45, metalness: 0.55, emissive: '#ffffff', emissiveMap: winTex, emissiveIntensity: 1.5 });
     const TW = 8.8, TH = 12, CW = 2.2, CH = 3;
     const mk = (blocks) => { const k = new Kit(); for (const [w, h, d, y] of blocks) k.add(windowBox(w, h, d, CW, CH, TW, TH), winM, { p: [0, y + h / 2, 0] }); return k; };
@@ -525,7 +527,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Archipel suspendu : îles flottantes (roche suspendue, prairie, arbres, cascades, maisonnette)
-  { const rock = mat('#8a7a68', { flatShading: true, roughness: 0.95 }), rock2 = mat('#6f6252', { flatShading: true }), grass = mat('#79b84f', { flatShading: true }), dirt = mat('#6b4a32', { flatShading: true }), trunk = mat('#5a3a20'), leaf = mat('#4f9a3a', { flatShading: true }), leaf2 = mat('#f0a0b8', { flatShading: true }), pine = mat('#2f6a46', { flatShading: true }), water = glow('#a8e4ff', 0.9), mist = mat('#ffffff', { emissive: '#cfeaff', emissiveIntensity: 0.6, roughness: 1 }), wall = mat('#e8dcc4'), roofM = mat('#b04a3a'), win = glow('#ffcf70', 1.5), vine = mat('#3f8a3a', { flatShading: true });
+  if (!REPLACED.has('archipel')) { const rock = mat('#8a7a68', { flatShading: true, roughness: 0.95 }), rock2 = mat('#6f6252', { flatShading: true }), grass = mat('#79b84f', { flatShading: true }), dirt = mat('#6b4a32', { flatShading: true }), trunk = mat('#5a3a20'), leaf = mat('#4f9a3a', { flatShading: true }), leaf2 = mat('#f0a0b8', { flatShading: true }), pine = mat('#2f6a46', { flatShading: true }), water = glow('#a8e4ff', 0.9), mist = mat('#ffffff', { emissive: '#cfeaff', emissiveIntensity: 0.6, roughness: 1 }), wall = mat('#e8dcc4'), roofM = mat('#b04a3a'), win = glow('#ffcf70', 1.5), vine = mat('#3f8a3a', { flatShading: true });
     const base = (k, v) => {
       k.add(jitter(G.cone(1.0, 1.9, 9), 40 + v, 0.18, 0.4), rock, { p: [0, -0.95, 0], r: [PI, 0, 0] });
       k.add(jitter(G.cone(0.55, 1.3, 7), 60 + v, 0.15), rock2, { p: [0.2, -2.1, -0.1], r: [PI, 0.4, 0] });
@@ -557,7 +559,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Chronocline : engrenages géants (certains tournent), tours-horloges, ressorts, pendule
-  { const brass = MAT.brass(), copper = MAT.copper(), dkb = mat('#8a6a2c', { metalness: 0.8, roughness: 0.4 });
+  if (!REPLACED.has('chrono')) { const brass = MAT.brass(), copper = MAT.copper(), dkb = mat('#8a6a2c', { metalness: 0.8, roughness: 0.4 });
     const gears = [gearGeometry(18, 1.0, 0.86, 6, 0.28), gearGeometry(12, 1.0, 0.84, 5, 0.3), gearGeometry(24, 1.0, 0.9, 8, 0.22)];
     const gl = [[], [], []];
     place(3, 70, 250, 1300, (x, y, z, i) => { const s = 4 + rnd() * 14, gi = i % 3; gl[gi].push(M4(x, y + s * (0.35 + rnd() * 0.3), z, rnd() * 6, [s, s, s], (rnd() - 0.5) * 0.7, (rnd() - 0.5) * 0.5)); });
@@ -614,7 +616,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Le Colosse : défenses, cages thoraciques, plaques dorsales, rochers moussus, fougères géantes
-  { const bone = mat('#e9dfc6', { roughness: 0.7, flatShading: true }), boneD = mat('#cdbf9d', { roughness: 0.75, flatShading: true }), plate = mat('#58683c', { flatShading: true, roughness: 0.9 }), plateTip = mat('#9aa66a', { flatShading: true }), moss = mat('#5f8a3a', { flatShading: true, roughness: 0.95 });
+  if (!REPLACED.has('colosse')) { const bone = mat('#e9dfc6', { roughness: 0.7, flatShading: true }), boneD = mat('#cdbf9d', { roughness: 0.75, flatShading: true }), plate = mat('#58683c', { flatShading: true, roughness: 0.9 }), plateTip = mat('#9aa66a', { flatShading: true }), moss = mat('#5f8a3a', { flatShading: true, roughness: 0.95 });
     // défenses effilées avec bagues
     { const k = new Kit(); k.add(taperTube([[0, 0, 0], [0.3, 1.2, 0], [1.2, 2.2, 0], [2.6, 2.6, 0], [3.4, 2.1, 0]], 0.42, 0.04, 22, 8), bone); for (const t of [0.1, 0.22]) k.add(G.tor(0.4, 0.07, 5, 10), boneD, { p: [0.15 + t, 0.5 + t * 3, 0], r: [H, 0, -0.3] });
       const list = []; place(0, 50, 260, 1300, (x, y, z) => { const s = 5 + rnd() * 10; list.push(M4(x, y - 1, z, rnd() * 6, [s, s, s])); }); instKit(scene, k, list, true); }
@@ -634,7 +636,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Fonderie-Rêve : coulées de cire, bougies géantes allumées, creusets qui versent, cheminées, flaques
-  { const waxM = mat('#ff9a3a', { emissive: '#ff5a00', emissiveIntensity: 0.35, roughness: 0.3 }), candle = mat('#f2dcb0', { roughness: 0.55 }), candleD = mat('#d8b980', { roughness: 0.6 }), flame = glow('#ffb030', 3.5), flame2 = glow('#fff0a0', 4), lava = glow('#ff5a10', 2.2), clay = mat('#5a3320', { roughness: 0.9, flatShading: true }), brick = mat('#7a3a22', { flatShading: true, roughness: 0.95 });
+  if (!REPLACED.has('fonderie')) { const waxM = mat('#ff9a3a', { emissive: '#ff5a00', emissiveIntensity: 0.35, roughness: 0.3 }), candle = mat('#f2dcb0', { roughness: 0.55 }), candleD = mat('#d8b980', { roughness: 0.6 }), flame = glow('#ffb030', 3.5), flame2 = glow('#fff0a0', 4), lava = glow('#ff5a10', 2.2), clay = mat('#5a3320', { roughness: 0.9, flatShading: true }), brick = mat('#7a3a22', { flatShading: true, roughness: 0.95 });
     const drip = G.lathe([[0, 0], [1.2, 0], [1.0, 0.4], [0.7, 1.2], [0.75, 2.2], [0.5, 3.0], [0.55, 3.6], [0.2, 4.2], [0, 4.3]], 16);
     const dl = []; place(6, 90, 250, 1300, (x, y, z) => { const s = 2 + rnd() * 7; dl.push(M4(x, y - 0.5, z, rnd() * 6, [s, s * (0.6 + rnd()), s], (rnd() - 0.5) * 0.4)); });
     instanced(drip, waxM, dl, true);
@@ -657,7 +659,7 @@ export function buildClosedWorlds(scene, terrain, net) {
   }
 
   // ---- Les Entrailles : forêt de champignons géants phosphorescents, lamelles, spores, tentacules
-  { const stalk = mat('#d8c8e8', { roughness: 0.8, flatShading: true }), capA = mat('#8a4fb8', { roughness: 0.7, flatShading: true, emissive: '#6a2fa0', emissiveIntensity: 0.45 }), capB = mat('#2f9a9a', { roughness: 0.7, flatShading: true, emissive: '#1a8a80', emissiveIntensity: 0.45 }), gill = mat('#43225f', { roughness: 0.9 }), spotA = glow('#d08cff', 2.6), spotB = glow('#5dffd0', 2.6), bulb = glow('#9affd0', 2.2), vein = mat('#6a3a86', { emissive: '#8a40c0', emissiveIntensity: 0.5, roughness: 0.6, flatShading: true });
+  if (!REPLACED.has('entrailles')) { const stalk = mat('#d8c8e8', { roughness: 0.8, flatShading: true }), capA = mat('#8a4fb8', { roughness: 0.7, flatShading: true, emissive: '#6a2fa0', emissiveIntensity: 0.45 }), capB = mat('#2f9a9a', { roughness: 0.7, flatShading: true, emissive: '#1a8a80', emissiveIntensity: 0.45 }), gill = mat('#43225f', { roughness: 0.9 }), spotA = glow('#d08cff', 2.6), spotB = glow('#5dffd0', 2.6), bulb = glow('#9affd0', 2.2), vein = mat('#6a3a86', { emissive: '#8a40c0', emissiveIntensity: 0.5, roughness: 0.6, flatShading: true });
     const cap = (k, m, sp, x, y, z, r, h, st = 1) => { k.add(jitter(G.sph(r, 12, 6, 0, PI * 2, 0, H), 12, 0.12 * r), m, { p: [x, y, z], s: [1, h / r, 1] }); k.add(G.cyl(r * 0.98, r * 0.3, 0.12 * r, 12), gill, { p: [x, y - 0.02, z] }); for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + y, rr = r * (0.35 + (i % 3) * 0.2); k.add(G.sph(r * 0.08, 5, 4), sp, { p: [x + Math.cos(a) * rr, y + h * Math.sqrt(Math.max(0, 1 - (rr / r) ** 2)) * 0.98, z + Math.sin(a) * rr], s: [1, 0.5, 1] }); } void st; };
     const kinds = [];
     { const k = new Kit(); k.add(G.cyl(0.18, 0.3, 2.2, 8), stalk, { p: [0, 1.1, 0] }); k.add(G.tor(0.22, 0.04, 4, 8), stalk, { p: [0, 1.6, 0], r: [H, 0, 0] }); cap(k, capA, spotA, 0, 2.15, 0, 1.25, 0.75); kinds.push(k); }

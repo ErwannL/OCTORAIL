@@ -95,7 +95,7 @@ export function buildWorld(scene, terrain, net, ctx) {
     }
   }
   const wins = new THREE.InstancedMesh(winGeo, winMat, winList.length);
-  winList.forEach((w, i) => { _e.set(0.035, w.ry, 0, 'YXZ'); wins.setMatrixAt(i, _m.compose(_s.set(w.x, w.y, w.z), _q.setFromEuler(_e), _v.set(1, 1, 1))); wins.setColorAt(i, _c.set('#2bf0ff')); });
+  winList.forEach((w, i) => { _e.set(0.035, w.ry, 0, 'YXZ'); wins.setMatrixAt(i, _m.compose(_s.set(w.x, w.y, w.z), _q.setFromEuler(_e), _v.set(1, 1, 1))); wins.setColorAt(i, _c.set('#2bf0ff').multiplyScalar(0.3)); });
   tower.add(wins);
   // faisceau vers le ciel
   const beamM = new THREE.MeshBasicMaterial({ color: '#ff2bd6', transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
@@ -263,7 +263,7 @@ export function buildWorld(scene, terrain, net, ctx) {
       // fenêtres-pensées (rafraîchies 10×/s), orage de calcul juste après minuit
       winT += dt;
       if (winT > 0.1 && camD < 1400) { winT = 0; const storm = sweep < 6;
-        winList.forEach((w, i) => { const v = Math.sin(time * (storm ? 9 : 1.3) + w.ph * 3 + w.y * 0.15) * 0.5 + 0.5; _c.set(storm ? NEON[(i + Math.floor(time * 6)) % 3] : (v > 0.8 ? '#ff2bd6' : '#2bf0ff')).multiplyScalar(v > 0.35 ? 0.25 + v * 0.5 : 0.05); wins.setColorAt(i, _c); });
+        winList.forEach((w, i) => { const v = Math.sin(time * (storm ? 9 : 1.3) + w.ph * 3 + w.y * 0.15) * 0.5 + 0.5; _c.set(storm ? NEON[(i + Math.floor(time * 6)) % 3] : (v > 0.8 ? '#ff2bd6' : '#2bf0ff')).multiplyScalar(v > 0.35 ? 0.12 + v * 0.3 : 0.03); wins.setColorAt(i, _c); });
         wins.instanceColor.needsUpdate = true; }
       beamM.opacity = 0.07 + 0.04 * Math.sin(time * 1.7) + (sweep < 6 ? 0.12 : 0);
       deadNeon.material.emissiveIntensity = Math.sin(time * 23) > 0.6 ? 2.5 : 0.4;

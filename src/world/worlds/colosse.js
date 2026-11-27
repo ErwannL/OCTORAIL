@@ -35,14 +35,14 @@ export function buildWorld(scene, terrain, net, ctx) {
 
   // ---------------------------------------------------------------- 1. La Cloche de l'Échine
   let L = null;
-  for (const [x, z] of [[830, -150], [860, -170], [800, -165], [900, -150], [760, -170], [620, 150], [820, 150]]) if (inSector(x, z, 19) && clear(x, z, 30, 26)) { L = { x, z }; break; }
+  for (const [x, z] of [[830, -150], [860, -170], [800, -165], [900, -150], [760, -170], [620, 150], [820, 150]]) if (inSector(x, z, 19) && clear(x, z, 42, 26)) { L = { x, z }; break; }
   if (!L) L = { x: 830, z: -150 };
-  L.y = baseY(L.x, L.z, 28, 16);
+  L.y = baseY(L.x, L.z, 40, 16);
   const toTrack = new THREE.Vector2(-L.x * 0 + 0, -L.z).normalize(); // vers la voie principale (z = 0)
-  const LK = (geo, m, p, r = [0, 0, 0], s = [1, 1, 1]) => K.add(geo, m, { p: [L.x + p[0], L.y + p[1], L.z + p[2]], r, s });
+  const SC = 1.5, LK = (geo, m, p, r = [0, 0, 0], s = [1, 1, 1]) => K.add(geo, m, { p: [L.x + p[0] * SC, L.y + p[1] * SC, L.z + p[2] * SC], r, s: s.map(v => v * SC) });
   // corps vertébral (enfoui), apophyses transverses plongeant dans le sol, colonne-épine
-  LK(G.sph(1, 14, 10), M.skin, [0, -4, 0], [0, 0, 0], [24, 9, 19]);
-  LK(G.sph(1, 12, 9), M.bone, [0, -3, 0], [0, 0.3, 0], [17, 11, 13]);
+  LK(G.sph(1, 14, 10), M.skin, [0, -1.5, 0], [0, 0, 0], [24, 9, 19]);
+  LK(G.sph(1, 12, 9), M.bone, [0, -0.5, 0], [0, 0, 0], [17, 12, 13]);
   for (const sx of [-1, 1]) {
     LK(G.cone(3.6, 21, 7), M.bone, [sx * 17.7, 1.5, 0], [0, 0, sx * -(H + 0.25)]);
     LK(G.cone(1.6, 9, 6), M.boneD, [sx * 9, 5, sx * 6], [sx * 0.5, 0, sx * -(H + 0.6)]);
@@ -52,9 +52,9 @@ export function buildWorld(scene, terrain, net, ctx) {
   LK(G.lathe(prof, 12), M.bone, [0, 2, 0], [0, 0, 0], [1, 1, 0.72]);
   for (let i = 0; i < 6; i++) LK(G.tor(rAt(4 + i * 4) * 1.02 + 0.1, 0.35, 5, 14), M.boneD, [0, 6 + i * 4, 0], [H, 0, 0], [1, 0.72, 1]);
   // mousse sur le dos de la vertèbre
-  for (let i = 0; i < 9; i++) { const a = rnd() * PI * 2, r = 6 + rnd() * 8; LK(G.sph(1, 7, 5), M.moss, [Math.cos(a) * r, 6.6 - r * 0.32, Math.sin(a) * r * 0.75], [0, a, 0], [2.6 + rnd() * 2, 0.8, 2 + rnd() * 1.5]); }
+  for (let i = 0; i < 9; i++) { const a = rnd() * PI * 2, r = 6 + rnd() * 8; LK(G.sph(1, 7, 5), M.moss, [Math.cos(a) * r, -0.5 + 12 * Math.sqrt(1 - (r / 17.5) ** 2) - 0.4, Math.sin(a) * r * 0.7], [0, a, 0], [2.6 + rnd() * 2, 0.8, 2 + rnd() * 1.5]); }
   // escalier de planches qui s'enroule autour de l'épine
-  for (let k = 0; k <= 38; k++) {
+  for (let k = 10; k <= 38; k++) {
     const h = 6.2 + k * 0.6, a = k * 0.3 + 0.6, r = rAt(h - 2) + 1.05, x = Math.cos(a) * r, z = Math.sin(a) * r * 0.78;
     LK(G.box(2.2, 0.22, 0.95), M.wood, [x, h, z], [0, -a, 0]);
     if (k % 3 === 0) { LK(G.cyl(0.08, 0.08, 1.5, 5), M.woodD, [Math.cos(a) * (r + 1.0), h + 0.7, Math.sin(a) * (r + 1.0) * 0.78]); LK(G.cyl(0.07, 0.07, 1.6, 5), M.woodD, [x, h - 0.8, z]); }
@@ -74,9 +74,9 @@ export function buildWorld(scene, terrain, net, ctx) {
   LK(G.cone(5.2, 6.5, 4), M.scale, [0, TOP + 11.3, 0], [0, PI / 4, 0]);
   LK(G.cone(5.5, 0.6, 4), M.woodD, [0, TOP + 8.1, 0], [0, PI / 4, 0]);
   LK(G.cyl(0.12, 0.12, 3, 5), M.bronze, [0, TOP + 15.5, 0]); LK(G.sph(0.45, 8, 6), M.bronze, [0, TOP + 16.2, 0]);
-  placed.push({ n: 'cloche', x: L.x, z: L.z, y: L.y, r: 28 });
+  placed.push({ n: 'cloche', x: L.x, z: L.z, y: L.y, r: 40 });
   // la cloche (animée)
-  const bell = new THREE.Group(); bell.position.set(L.x, L.y + TOP + 7.0, L.z);
+  const bell = new THREE.Group(); bell.position.set(L.x, L.y + (TOP + 7.0) * SC, L.z); bell.scale.setScalar(SC);
   { const bk = new Kit(); bk.add(G.lathe([[0, 0], [1.9, 0], [1.75, 0.35], [1.3, 1.2], [1.12, 2.3], [0.95, 2.8], [0.45, 3.05], [0, 3.05]], 18), M.bronze, { p: [0, -3.3, 0] });
     bk.add(G.tor(1.85, 0.12, 5, 18), M.bronze, { p: [0, -3.25, 0], r: [H, 0, 0] }); bk.add(G.box(0.3, 0.5, 0.3), M.iron, { p: [0, -0.1, 0] });
     bk.add(G.cyl(0.06, 0.06, 2.4, 4), M.iron, { p: [0, -1.6, 0] }); bk.add(G.sph(0.32, 8, 6), M.iron, { p: [0, -2.9, 0] });
@@ -97,7 +97,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   // ---------------------------------------------------------------- Hameau-Écaille + marché
   const huts = [];
   for (let i = 0; i < 14 && huts.length < 9; i++) {
-    const a = Math.atan2(toTrack.y, toTrack.x) + (i - 6.5) * 0.36, r = 34 + (i % 3) * 7;
+    const a = Math.atan2(toTrack.y, toTrack.x) + (i - 6.5) * 0.3, r = 48 + (i % 3) * 7;
     const x = L.x + Math.cos(a) * r, z = L.z + Math.sin(a) * r;
     if (!clear(x, z, 4, 14) || huts.some(h => Math.hypot(h.x - x, h.z - z) < 10)) continue;
     const y = baseY(x, z, 3.2), s = 0.85 + rnd() * 0.4, ry = rnd() * PI * 2; huts.push({ x, z, y });
@@ -113,7 +113,7 @@ export function buildWorld(scene, terrain, net, ctx) {
   }
   // place du marché, entre le village et la voie
   let Mk = null;
-  for (const r of [70, 62, 78, 55, 86]) { const x = L.x + toTrack.x * r + 10, z = L.z + toTrack.y * r; if (clear(x, z, 9, 12)) { Mk = { x, z }; break; } }
+  for (const r of [84, 76, 92, 70, 100]) { const x = L.x + toTrack.x * r + 10, z = L.z + toTrack.y * r; if (clear(x, z, 9, 12)) { Mk = { x, z }; break; } }
   if (!Mk) Mk = { x: L.x + 10, z: L.z + toTrack.y * 60 };
   Mk.y = hAt(Mk.x, Mk.z);
   const stalls = [];
@@ -171,8 +171,8 @@ export function buildWorld(scene, terrain, net, ctx) {
   const domes = [];
   for (let t = 0; t < 2000 && domes.length < 16; t++) {
     const R = 14 + rnd() * 24, r = 200 + rnd() * 1150, a = (rnd() - 0.5) * 0.68, x = Math.cos(a) * r, z = -Math.sin(a) * r;
-    if (!inSector(x, z, 19) || !free(x, z, R + 32) || Math.hypot(x - L.x, z - L.z) < R + 45 || Math.hypot(x - Mk.x, z - Mk.z) < R + 20 || domes.some(d => Math.hypot(d.x - x, d.z - z) < d.R + R + 6)) continue;
-    const g = baseY(x, z, R * 0.95, 12); domes.push({ x, z, R, y: g - R * 0.42, ph: rnd() * PI * 2, sp: 0.35 + rnd() * 0.2, top: new THREE.Vector3(x, g + R * 0.38, z), g });
+    if (!inSector(x, z, 19) || !free(x, z, R + 32) || Math.hypot(x - L.x, z - L.z) < R + 60 || Math.hypot(x - Mk.x, z - Mk.z) < R + 20 || domes.some(d => Math.hypot(d.x - x, d.z - z) < d.R + R + 6)) continue;
+    const g = Math.min(baseY(x, z, R * 0.95, 16), baseY(x, z, R * 0.6, 12)); domes.push({ x, z, R, y: g - R * 0.42, ph: rnd() * PI * 2, sp: 0.35 + rnd() * 0.2, top: new THREE.Vector3(x, g + R * 0.38, z), g });
     placed.push({ n: 'dome', x, z, y: g, r: R * 0.95 });
   }
   const domeIM = new THREE.InstancedMesh(G.sph(1, 12, 8), M.skin, domes.length); domeIM.castShadow = true; domeIM.receiveShadow = true; domeIM.frustumCulled = false; scene.add(domeIM);
@@ -244,7 +244,7 @@ export function buildWorld(scene, terrain, net, ctx) {
       // Grignoteux
       const jump = Math.max(0, swing * swing * 2);
       grigs.forEach((g, i) => { g.a += g.sp * dt / Math.max(1, g.r * 0.25); const x = Mk.x + Math.cos(g.a) * g.r, z = Mk.z + Math.sin(g.a) * g.r, hop = Math.abs(Math.sin(time * g.hop + g.ph)) * (0.35 + jump);
-        const sq = 1 + (hop < 0.05 ? -0.12 : 0.05); tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, -g.a + (g.sp > 0 ? 0 : PI), 0)), ts.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq))); grigIM.setMatrixAt(i, tm); grigE.setMatrixAt(i, tm); });
+        const sq = 1 + (hop < 0.05 ? -0.12 : 0.05); tm.compose(tv.set(x, hAt(x, z) + hop, z), tq.setFromEuler(eul.set(0, -g.a + (g.sp > 0 ? 0 : PI), 0)), ts.set(1.4 / Math.sqrt(sq), 1.4 * sq, 1.4 / Math.sqrt(sq))); grigIM.setMatrixAt(i, tm); grigE.setMatrixAt(i, tm); });
       grigIM.instanceMatrix.needsUpdate = grigE.instanceMatrix.needsUpdate = true;
       // Mère Lichen tapote le sol trois fois
       { const c = (time * 1.4) % 4; cane.rotation.x = c < 3 ? -Math.abs(Math.sin(c * PI)) * 0.35 : 0; lichen.children[0].rotation.z = Math.sin(time * 0.6) * 0.04; }

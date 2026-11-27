@@ -1,7 +1,7 @@
 import { vehicleTop } from '../world/colliders.js';
 import * as THREE from 'three';
 import { buildAvatarModel } from '../world/models.js';
-import { COLLIDERS } from '../world/colliders.js';
+import { COLLIDERS, PILLARS } from '../world/colliders.js';
 import { VOX } from '../world/voxcol.js';
 
 const STEP = 0.62, BODY = 1.75, RAD = 0.34;
@@ -94,7 +94,7 @@ export class Player {
     const P = this.pos;
     const ground = (x, z, feet) => Math.max(this.groundAt(x, z), VOX.floor(x, z, feet, STEP));
     const steep = (x, z, nx, nz) => { if (!this.onGround) return false; const g0 = this.terrain.heightAt(x, z), g1 = this.terrain.heightAt(nx, nz); const d = Math.hypot(nx - x, nz - z) || 1e-6; return g1 > P.y + 0.05 && (g1 - g0) / d > 0.9; };
-    const hits = (x, z, feet) => VOX.solid(x, z, feet + STEP, feet + BODY, RAD) || this.trainHit(x, z, feet) || (this.others || []).some(o => Math.abs(o.y - feet) < 1.7 && Math.hypot(o.x - x, o.z - z) < 0.7);
+    const hits = (x, z, feet) => VOX.solid(x, z, feet + STEP, feet + BODY, RAD) || PILLARS.hit(x, z, RAD) || this.trainHit(x, z, feet) || (this.others || []).some(o => Math.abs(o.y - feet) < 1.7 && Math.hypot(o.x - x, o.z - z) < 0.7);
     // coincé (apparition, téléportation) : on se dégage vers la case libre la plus proche, jamais à travers
     const unstick = () => {
       let done = false;

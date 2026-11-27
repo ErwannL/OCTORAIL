@@ -168,3 +168,7 @@ export function vehicleTop(m, x, z, r = 0) {
   for (let i = Math.max(0, i0); i <= Math.min(H.nx - 1, i1); i++) for (let j = Math.max(0, j0); j <= Math.min(H.nz - 1, j1); j++) { const v = H.h[i * H.nz + j]; if (v > top) top = v; }
   return top > 0.05 ? top : null;
 }
+
+// Piliers solides pour le joueur (arbres…) : cercles verticaux de bas en haut, lus par Player (grille de 16 m)
+export const PILLARS = { cells: new Map(), add(x, z, r) { const k = Math.floor(x / 16) + ',' + Math.floor(z / 16); if (!this.cells.has(k)) this.cells.set(k, []); this.cells.get(k).push([x, z, r]); },
+  hit(x, z, rad) { const cx = Math.floor(x / 16), cz = Math.floor(z / 16); for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const l = this.cells.get((cx + i) + ',' + (cz + j)); if (l) for (const [px, pz, r] of l) if (Math.hypot(x - px, z - pz) < r + rad) return true; } return false; } };

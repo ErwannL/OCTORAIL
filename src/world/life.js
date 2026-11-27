@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Kit, G, mat, MAT } from './kit.js';
 import { sectorIndex } from './biomes.js';
 import { mulberry } from '../util/noise.js';
-import { COLLIDERS } from './colliders.js';
+import { COLLIDERS, PILLARS } from './colliders.js';
 import { goodSpot, flatEnough } from './placement.js';
 import { FLORA_MAT, FLORA_MAT_DS, Bits, blob, hareGeometry, butterflyGeometry, frozenBirdGeometry, hayBaleGeometry, strawWispsGeometry, deadTreeGeometry, joshuaGeometry, pineGeometry, birchGeometry, potTreeGeometry } from './flora.js';
 
@@ -25,8 +25,8 @@ export function buildLife(scene, terrain, net, envGetter) {
       for (let i = 0; i < perVariant; i++) {
         const s = pick(sector); if (!s) continue; const sc = scMin + rnd() * (scMax - scMin);
         L.push(M4(s.x, s.y, s.z, rnd() * 6, sc));
-        COLLIDERS.circle(s.x, s.z, (ud.trunkR || 0.4) * sc * trunkK, s.y + (opt.trunkTop || 6) * sc);
-        if (ud.crownR && (ud.crownBottom ?? 9) * sc < 2.4) COLLIDERS.circle(s.x, s.z, ud.crownR * sc * 0.6, 99); // feuillage qui descend jusqu'au sol (sapins…) : bloquant
+        COLLIDERS.circle(s.x, s.z, (ud.trunkR || 0.4) * sc * trunkK, s.y + (opt.trunkTop || 6) * sc); PILLARS.add(s.x, s.z, (ud.trunkR || 0.4) * sc * trunkK); // tronc solide
+        if (ud.crownR && (ud.crownBottom ?? 9) * sc < 2.4) PILLARS.add(s.x, s.z, ud.crownR * sc * 0.6); // feuillage qui descend jusqu'au sol (sapins…) : bloquant
         if (ud.crownR) COLLIDERS.camCircle(s.x, s.z, ud.crownR * sc * 0.85, s.y + ud.crownBottom * sc, s.y + ud.top * sc);
       }
       if (L.length) inst(geo, FLORA_MAT, L, opt.shadow !== false).userData.noCollide = true; // tronc = COLLIDERS ; frondaison traversable
@@ -40,7 +40,7 @@ export function buildLife(scene, terrain, net, envGetter) {
   placeTrees(5, [birchGeometry(0), birchGeometry(1), birchGeometry(2)], 30, 0.8, 1.4, 1.0, { trunkTop: 7 });
   // Moyeu : arbres d'ornement en pot autour de la place (érable, cerisier, arbre-nuage doré)
   { const geos = [potTreeGeometry(0), potTreeGeometry(1), potTreeGeometry(2)], Ls = [[], [], []];
-    for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8 + 0.18, x = Math.cos(a) * 24, z = -Math.sin(a) * 24, v = i % 3, sc = 1.0 + (i % 2) * 0.12; Ls[v].push(M4(x, 0.25, z, i * 0.9, sc)); const u = geos[v].userData; COLLIDERS.circle(x, z, Math.max(1.3 * sc, (u.crownR || 2) * sc * 0.7), 99); /* arbre entier bloquant (pot + couronne), impossible de s'y percher */ COLLIDERS.camCircle(x, z, u.crownR * sc * 0.9, 0.25 + u.crownBottom * sc, 0.25 + u.top * sc); }
+    for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8 + 0.18, x = Math.cos(a) * 24, z = -Math.sin(a) * 24, v = i % 3, sc = 1.0 + (i % 2) * 0.12; Ls[v].push(M4(x, 0.25, z, i * 0.9, sc)); const u = geos[v].userData; PILLARS.add(x, z, Math.max(1.3 * sc, (u.crownR || 2) * sc * 0.7)); /* arbre entier bloquant (pot + couronne), impossible de s'y percher */ COLLIDERS.camCircle(x, z, u.crownR * sc * 0.9, 0.25 + u.crownBottom * sc, 0.25 + u.top * sc); }
     geos.forEach((g, v) => { if (Ls[v].length) inst(g, FLORA_MAT, Ls[v]).userData.noCollide = true; }); // feuillage traversable : pot + tronc gérés par les COLLIDERS ci-dessus (sinon on « tient debout » sur la frondaison)
   }
 

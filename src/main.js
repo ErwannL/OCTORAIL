@@ -621,6 +621,14 @@ function openShop() {
 }
 
 // ------------------------------------------------------------------ Carte
+// --- brouillard de carte : seules les zones déjà visitées sont dévoilées (cases de 40 m, sauvegardées)
+const EXPL_C = 40; let explored = null;
+function exploreTick() { explored ??= new Set(S.explored || []); let add = false;
+  const mark = (p, R) => { if (!p) return; const c0x = Math.floor((p.x - R) / EXPL_C), c1x = Math.floor((p.x + R) / EXPL_C), c0z = Math.floor((p.z - R) / EXPL_C), c1z = Math.floor((p.z + R) / EXPL_C);
+    for (let i = c0x; i <= c1x; i++) for (let j = c0z; j <= c1z; j++) { if (Math.hypot((i + 0.5) * EXPL_C - p.x, (j + 0.5) * EXPL_C - p.z) > R) continue; const k = i + ',' + j; if (!explored.has(k)) { explored.add(k); add = true; } } };
+  mark({ x: 0, z: 0 }, 130); mark(player.pos, 110); if (player.mode !== 'foot' && train.head) mark(train.head, 140);
+  if (add) { S.explored = [...explored]; } }
+setInterval(() => { if (started && player) exploreTick(); }, 500);
 function drawMap() {
   const cv = document.getElementById('map-cv'), g = cv.getContext('2d'), W = cv.width, sc = W / 2 / 1450;
   g.fillStyle = '#120d08'; g.fillRect(0, 0, W, W);
@@ -640,6 +648,13 @@ function drawMap() {
   if (S.sheriff === 'ice') dot(gelure.iceBlockPos, '#8fe0ff', 6);
   dot(western.pedestal, '#ffcc33', 6);
   for (const r of remotes.values()) { if (r.train.head) dot(r.train.head, r.color, 6); dot(r.avatar.position, r.color, 4); }
+  // brouillard par-dessus le décor de carte, puis seulement ma position (les inconnus restent cachés)
+  { exploreTick(); const f = drawMap.fog ??= document.createElement('canvas'); f.width = f.height = W; const fg = f.getContext('2d');
+    fg.globalCompositeOperation = 'source-over'; fg.fillStyle = '#0d0906'; fg.fillRect(0, 0, W, W);
+    for (let i = 0; i < 260; i++) { fg.fillStyle = `rgba(${40 + (i * 37) % 30},${30 + (i * 13) % 20},20,0.08)`; const x = (i * 9301 + 49297) % W, y = (i * 49297 + 9301) % W; fg.beginPath(); fg.arc(x, y, 30 + (i * 7) % 50, 0, 7); fg.fill(); }
+    fg.globalCompositeOperation = 'destination-out'; const rr = EXPL_C * sc * 0.95;
+    for (const k of explored) { const [i, j] = k.split(',').map(Number); const [x, y] = P((i + 0.5) * EXPL_C, (j + 0.5) * EXPL_C); const gr = fg.createRadialGradient(x, y, rr * 0.4, x, y, rr * 1.4); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); fg.fillStyle = gr; fg.fillRect(x - rr * 1.5, y - rr * 1.5, rr * 3, rr * 3); }
+    g.drawImage(f, 0, 0); g.fillStyle = '#c8a25a'; g.font = '13px Chakra Petch'; g.textAlign = 'left'; g.fillText(`Exploré : ${Math.round(explored.size / 4200 * 100)} %`, 12, W - 12); }
   if (train.head) dot(train.head, '#fff', 7);
   dot(player.pos, me.color, 5);
 }
@@ -900,7 +915,8 @@ function frame() {
   if (input.ah('pause') && !(performance.now() - input.lastUnlock < 300 && ui.panel === 'pause')) { if (ui.panel) { ui.closePanels(); input.wantLock = true; } else if (!cinematic && !ui.dialogOpen) openPause(); }
   if (input.hit('Help') || input.ah('help')) ui.toggleHelp();
   updateLockHint();
-  if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else { ui.openPanel('map'); drawMap(); } }
+  if (input.ah('map')) { if (ui.panel === 'map') ui.closePanels(); else if (compass.event) { ui.toast('🧭 La boussole est perturbée : impossible de lire la carte pour l\'instant.'); audio.deny(); } else { ui.openPanel('map'); drawMap(); } }
+  if (ui.panel === 'map' && compass.event) { ui.closePanels(); ui.toast('🧭 La carte se brouille avec la boussole…'); }
   if (ui.panel === 'map') drawMap();
   if (input.ah('interact') && ui.dialogOpen) { ui.advance(); input.consume('interact'); }
   if (input.hit('Mouse0') && ui.dialogOpen && input.mouse.locked) ui.advance();

@@ -26,6 +26,13 @@ function brassPlate(key, lines, w = 256, h = 96, bg = '#7d1a1a', fg = '#f2cf7a')
 }
 
 // ------------------------------------------------------------------ Roues à rayons (axe X)
+let _halo;
+function haloTex() {
+  if (_halo) return _halo;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), r = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.15, 'rgba(255,240,200,0.6)'); r.addColorStop(0.5, 'rgba(255,200,120,0.12)'); r.addColorStop(1, 'rgba(255,200,120,0)');
+  x.fillStyle = r; x.fillRect(0, 0, 64, 64); return (_halo = new THREE.CanvasTexture(c));
+}
 const wheelCache = new Map();
 export function wheel(r = 0.75, { spokes = 12, paint = '#9c1f1f', counter = true } = {}) {
   const key = r + paint + spokes + counter;
@@ -46,6 +53,15 @@ export function wheel(r = 0.75, { spokes = 12, paint = '#9c1f1f', counter = true
     wheelCache.set(key, k);
   }
   return wheelCache.get(key).build();
+}
+
+// pose d'une roue sur le rail : bandage centré sur le champignon (voie : rails à ±0.75), boudin côté intérieur
+// (roue gauche en miroir), ordre ZYX pour que train.js puisse compenser le roulis de caisse (rotation.z) sans fausser la rotation de la roue
+export const RAIL_X = 0.75;
+function seatWheel(g, w, s, r, z, { drive = false, phase = 0 } = {}) {
+  w.position.set(s * RAIL_X, r, z); w.scale.x = s; w.rotation.order = 'ZYX'; w.rotation.x = phase;
+  w.userData.r = r; w.userData.drive = drive; w.userData.base = w.position.clone();
+  g.add(w); return w;
 }
 
 // ------------------------------------------------------------------ Locomotive à vapeur « Vieille-Bouilloire »
@@ -238,25 +254,53 @@ export function buildSteamLoco(tint = '#8b1e1e') {
   const npm = brassPlate('nameplate', [['VIEILLE-', 40, 34], ['BOUILLOIRE', 38, 72]], 256, 108, '#2d5a3a');
   for (const sd of [-1, 1]) { const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.6), npm); pl.position.set(sd * 1.0, 2.1, 1.0); pl.rotation.y = sd * H; pl.rotation.x = 0; pl.rotation.z = sd * 0.0; g.add(pl); }
   // foyer lumineux
-  const fire = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), glow('#ff5a00', 3)); fire.position.set(0, 1.85, cz + 1.08); fire.rotation.y = PI; g.add(fire);
+  const fire = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), glow('#ff5a00', 3).clone()); fire.position.set(0, 1.85, cz + 1.08); fire.rotation.y = PI; g.add(fire);
   g.userData.firebox = fire;
   const lens = new THREE.Mesh(new THREE.CircleGeometry(0.2, 18), glow('#ffe7b0', 5)); lens.position.set(0, 3.55, 4.47); g.add(lens);
   const beam = new THREE.Mesh(new THREE.ConeGeometry(3.5, 26, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffe2a8', transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide }));
   beam.rotation.x = -H; beam.position.set(0, 3.0, 4.5 + 13); g.add(beam);
-  g.userData.beam = beam;
+  g.userData.beam = beam; beam.userData.noCollide = true;
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex(), color: '#ffd9a0', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
+  halo.position.set(0, 3.55, 4.55); halo.userData.noCollide = true; g.add(halo); g.userData.halo = halo;
 
-  // roues
-  const wheels = [];
+  // roues (les motrices de gauche sont calées à 90° : manivelles en quadrature)
+  const wheels = [], drivers = { '-1': [], '1': [] };
   for (const [z, r] of [[3.1, 0.48], [1.25, 0.78], [-0.4, 0.78], [-2.05, 0.78]]) for (const s of [-1, 1]) {
-    const w = wheel(r, { spokes: r > 0.6 ? 14 : 8, counter: r > 0.6 }); w.position.set(s * 0.95, r, z); g.add(w); wheels.push(w);
+    const big = r > 0.6, w = seatWheel(g, wheel(r, { spokes: big ? 14 : 8, counter: big }), s, r, z, { drive: big, phase: big && s < 0 ? H : 0 });
+    wheels.push(w); if (big) drivers[s].push(w);
   }
-  // bielles (animées) : conservent leur position de base lue par train.js
-  const rods = [];
-  const rodMat = MAT.steel();
+  // sabots de frein des motrices + timonerie (fusionnés)
+  const bk = new Kit(), badd = adder(bk), shoe = mat('#3a2418', { roughness: 0.9 });
   for (const s of [-1, 1]) {
-    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.13, 3.4), rodMat); rod.position.set(s * 1.1, 0.78, -0.4); rod.castShadow = true; g.add(rod); rods.push(rod);
-    const main = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 2.2), rodMat); main.position.set(s * 1.16, 0.95, 1.95); main.castShadow = true; g.add(main); rods.push(main);
+    for (const z of [1.25, -0.4, -2.05]) { badd(G.box(0.1, 0.42, 0.14), shoe, [s * RAIL_X, 0.55, z - 0.84], [-0.35, 0, 0]); badd(G.box(0.04, 0.6, 0.04), steel, [s * 0.6, 0.95, z - 0.92]); }
+    badd(G.cyl(0.025, 0.025, 3.4, 5), steel, [s * 0.6, 0.66, -0.75], [H, 0, 0]);                 // tringle de frein
+    badd(G.cyl(0.03, 0.03, 1.2, 6), copper, [s * 1.18, 0.86, 3.3], [H, 0, 0]);                   // tuyau de purge
+    for (const z of [1.25, -0.4, -2.05]) badd(G.rbox(0.2, 0.3, 0.3, 0.03), black, [s * 0.98, 0.78, z]); // boîtes d'essieu
   }
+  const brk = bk.build(); g.add(brk);
+  // bielles d'accouplement / motrices + crosse et tige de piston (animées dans train.js)
+  const rods = [], crank = [], rodMat = MAT.steel();
+  for (const s of [-1, 1]) {
+    const C = 0.3, wy = 0.78;
+    const cg = new THREE.Group(); cg.position.set(s * 0.97, wy, -0.4);
+    const ck = new Kit(), cadd = adder(ck);
+    cadd(G.rbox(0.07, 0.14, 3.55, 0.03), rodMat); for (const z of [-1.65, 0, 1.65]) { cadd(G.cyl(0.09, 0.09, 0.1, 10), rodMat, [0, 0, z], [0, 0, H]); cadd(G.cyl(0.045, 0.045, 0.14, 8), brass, [s * 0.03, 0, z], [0, 0, H]); }
+    cg.add(ck.build()); g.add(cg);
+    const L = 1.35, mg = new THREE.Group(); mg.position.set(s * 1.05, wy, 1.25);
+    const mk = new Kit(), madd = adder(mk);
+    madd(G.rbox(0.07, 0.12, L, 0.03), rodMat, [0, 0, L / 2]); madd(G.cyl(0.1, 0.1, 0.09, 10), rodMat, [0, 0, 0], [0, 0, H]); madd(G.cyl(0.07, 0.07, 0.09, 10), rodMat, [0, 0, L], [0, 0, H]);
+    mg.add(mk.build()); g.add(mg);
+    const xg = new THREE.Group(); xg.position.set(s * 1.18, 1.18, 2.4);
+    const xk = new Kit(), xadd = adder(xk);
+    xadd(G.rbox(0.16, 0.2, 0.28, 0.03), brass); xadd(G.cyl(0.04, 0.04, 1.3, 8), MAT.steel(), [0, 0, 0.65], [H, 0, 0]); xadd(G.box(0.16, 0.05, 0.05), rodMat, [-s * 0.08, 0, 0]);
+    xg.add(xk.build()); g.add(xg);
+    rods.push(cg, mg, xg);
+    crank.push({ wheel: drivers[s][1], c: C, wy, wz: 1.25, cy: wy, cz: -0.4, coupling: cg, main: mg, cross: xg, len: L, xy: 1.18 });
+  }
+  g.userData.crank = crank;
+  g.userData.drains = [new THREE.Vector3(1.3, 0.75, 3.6), new THREE.Vector3(-1.3, 0.75, 3.6)];
+  g.userData.safety = new THREE.Vector3(0, 3.55, -0.32);
+  g.userData.hookFront = 5.1; g.userData.hookRear = -4.45; g.userData.hookY = 0.66;
   g.userData.rods = rods;
   g.userData.wheels = wheels;
   g.userData.chimney = new THREE.Vector3(0, 4.85, 3.6);
@@ -310,7 +354,8 @@ export function buildDraisine() {
   lever.add(lk.build());
   g.add(lever); g.userData.lever = lever;
   const wheels = [];
-  for (const z of [-1.2, 1.2]) for (const s of [-1, 1]) { const w = wheel(0.42, { spokes: 8, counter: false, paint: '#3a3a3a' }); w.position.set(s * 0.75, 0.42, z); g.add(w); wheels.push(w); }
+  for (const z of [-1.2, 1.2]) for (const s of [-1, 1]) wheels.push(seatWheel(g, wheel(0.42, { spokes: 8, counter: false, paint: '#3a3a3a' }), s, 0.42, z));
+  g.userData.hookFront = 2.25; g.userData.hookRear = -2.0; g.userData.hookY = 0.8;
   g.userData.wheels = wheels; // conducteur : debout à un bout du balancier (face à l'avant) ; en marche arrière il passe à l'autre bout (face à l'arrière)
   g.userData.cab = new THREE.Vector3(0, 0.98, -1.3); g.userData.cabBack = new THREE.Vector3(0, 0.98, 1.3); g.userData.cabSwing = 0.8; g.userData.length = 3.8;
   g.traverse(o => { if (o.isMesh) o.castShadow = !o.material.transparent; });
@@ -355,6 +400,9 @@ function ladder(add, steel, x, z, y0 = 1.2, h = 1.9) {
 }
 function lamp(add, m, x, y, z, color) { add(G.rbox(0.16, 0.2, 0.16, 0.03), MAT.iron(), [x, y, z]); add(G.box(0.18, 0.03, 0.18), MAT.brass(), [x, y + 0.11, z]); add(G.box(0.1, 0.12, 0.02), color, [x, y, z + Math.sign(z) * 0.09]); }
 
+// point d'ancrage de la cargaison (robot gardien ~2 m) : main.js y parente le modèle transporté
+function anchor(g, x, y, z) { const o = new THREE.Object3D(); o.name = 'cargoAnchor'; o.position.set(x, y, z); g.add(o); return o; }
+const copper = () => MAT.copper();
 export function buildWagonModel(type, colorHint) {
   const g = new THREE.Group(), k = new Kit(), add = adder(k); const L = 6.2;
   const iron = MAT.iron(), steel = MAT.steel(), brass = MAT.brass(), woodD = MAT.woodDark(), cream = mat('#ecd9a6', { roughness: 0.5 });
@@ -426,6 +474,68 @@ export function buildWagonModel(type, colorHint) {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.6, L - 0.5), new THREE.MeshStandardMaterial({ color: '#cfefff', transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.3, depthWrite: false }));
     glass.position.y = 2.95; g.add(glass);
     extra.slot = new THREE.Vector3(0, 1.65, 0);
+    extra.cargoAnchor = anchor(g, 0, 1.67, 0);
+  } else if (type === 'plateau') {
+    // wagon-plateau : plancher en madriers, ranchers, chaînes d'arrimage, grue à grappin-aimant (charge : robot de 3 t)
+    const plank = mat('#6e5236', { roughness: 0.9 }), plank2 = mat('#5c432b', { roughness: 0.9 }), yel = mat('#c9952a', { roughness: 0.5, metalness: 0.3 }), chain = mat('#3b3d42', { metalness: 0.8, roughness: 0.45 });
+    for (let i = 0; i < 9; i++) add(G.box(0.26, 0.1, L - 0.1), i % 2 ? plank : plank2, [-1.04 + i * 0.26, 1.21, 0]);
+    for (const s of [-1, 1]) {
+      add(G.box(0.1, 0.22, L), yel, [s * 1.2, 1.15, 0]);
+      for (let i = -11; i <= 11; i++) add(rivet, brass, [s * 1.26, 1.18, i * 0.27]);
+      for (const z of [-2.6, -1.3, 0, 1.3, 2.6]) { add(G.box(0.1, 0.9, 0.1), woodD, [s * 1.22, 1.65, z]); add(G.box(0.14, 0.18, 0.14), steel, [s * 1.22, 1.2, z]); } // ranchers
+    }
+    // chaînes d'arrimage croisées (maillons fusionnés) + tendeurs
+    const link = G.tor(0.05, 0.014, 4, 8);
+    for (const [x0, z0, x1, z1] of [[-1.2, -1.6, -0.45, -0.5], [1.2, -1.6, 0.45, -0.5], [-1.2, 1.2, -0.45, 0.4], [1.2, 1.2, 0.45, 0.4]]) {
+      const n = 12; for (let i = 0; i <= n; i++) { const t = i / n; add(link, chain, [x0 + (x1 - x0) * t, 1.32 + Math.sin(t * PI) * 0.05, z0 + (z1 - z0) * t], [0, Math.atan2(x1 - x0, z1 - z0), i % 2 ? H : 0]); }
+      add(G.cyl(0.05, 0.05, 0.25, 8), yel, [x0 * 0.9, 1.33, z0], [0, Math.atan2(x1 - x0, z1 - z0), H]);
+    }
+    add(G.box(1.6, 0.06, 1.6), mat('#2a2b2e', { roughness: 0.9 }), [0, 1.27, -0.3]);   // tapis de calage
+    for (const x of [-0.8, 0.8]) for (const z of [-1.1, 0.5]) add(G.rbox(0.3, 0.16, 0.3, 0.03), yel, [x, 1.34, z]);
+    // grue : fût pivotant à l'avant, flèche treillis, câble et grappin-aimant au-dessus de la charge
+    const cz = L / 2 - 0.7, cy = 1.26;
+    add(G.cyl(0.55, 0.65, 0.3, 20), steel, [0, cy + 0.15, cz]); add(G.tor(0.6, 0.04, 5, 20), brass, [0, cy + 0.3, cz], [H, 0, 0]);
+    add(G.rbox(0.7, 0.9, 0.8, 0.06), yel, [0, cy + 0.75, cz]); add(G.box(0.5, 0.3, 0.05), MAT.glass(), [0, cy + 0.9, cz - 0.42]);
+    add(G.cyl(0.22, 0.26, 1.6, 12), yel, [0, cy + 2.0, cz]);
+    const boom = [[0, cy + 2.7, cz], [0, cy + 3.6, cz - 2.6]], bl = Math.hypot(0.9, 2.6), ba = Math.atan2(2.6, 0.9);
+    for (const sx of [-0.14, 0.14]) for (const dy of [-0.12, 0.12]) add(G.box(0.05, 0.05, bl), yel, [sx, (boom[0][1] + boom[1][1]) / 2 + dy, cz - 1.3], [-(H - ba), 0, 0]);
+    for (let i = 1; i < 8; i++) { const t = i / 8; add(G.box(0.3, 0.03, 0.03), yel, [0, boom[0][1] + 0.9 * t, cz - 2.6 * t]); add(G.box(0.03, 0.26, 0.03), yel, [0.14, boom[0][1] + 0.9 * t, cz - 2.6 * t], [i % 2 ? 0.6 : -0.6, 0, 0]); }
+    add(G.cyl(0.12, 0.12, 0.36, 12), steel, [0, boom[1][1], boom[1][2]], [0, 0, H]);       // poulie
+    add(G.cyl(0.015, 0.015, 0.9, 4), chain, [0, boom[1][1] - 0.45, boom[1][2]]);           // câble
+    add(G.cyl(0.55, 0.55, 0.22, 22), MAT.iron(), [0, boom[1][1] - 1.0, boom[1][2]]); add(G.tor(0.55, 0.04, 5, 22), copper(), [0, boom[1][1] - 0.95, boom[1][2]], [H, 0, 0]);
+    for (let i = 0; i < 3; i++) add(G.box(0.04, 0.5, 0.04), chain, [Math.sin(i * 2.1) * 0.35, boom[1][1] - 0.7, boom[1][2] + Math.cos(i * 2.1) * 0.35], [Math.cos(i * 2.1) * 0.5, 0, -Math.sin(i * 2.1) * 0.5]);
+    add(G.cyl(0.4, 0.4, 0.02, 20), glow('#7fd0ff', 1.6), [0, boom[1][1] - 1.12, boom[1][2]]);   // face aimantée
+    lamp(add, null, 0.8, 1.6, -L / 2 - 0.05, glow('#ff3a2a', 2.2));
+    g.add(k.build());
+    extra.cargoAnchor = anchor(g, 0, 1.3, -0.3);
+  } else if (type === 'cryo') {
+    // cryo-wagon : caisson vitré givré, cerclages, rampes de liquide de refroidissement bleu, évents de vapeur froide
+    const frame = mat('#c8d4dc', { metalness: 0.7, roughness: 0.35 }), dark = mat('#2c3a44', { metalness: 0.5, roughness: 0.5 }), cool = glow('#46c8ff', 2.2), tank = mat('#e6f2f8', { metalness: 0.6, roughness: 0.25 });
+    add(G.rbox(2.45, 0.35, L - 0.2, 0.06), dark, [0, 1.3, 0]);
+    add(G.box(2.5, 0.06, L - 0.1), cool, [0, 1.5, 0]);
+    for (const s of [-1, 1]) {
+      for (const z of [-2.75, -1.4, 0, 1.4, 2.75]) add(G.rbox(0.14, 2.55, 0.14, 0.03), frame, [s * 1.17, 2.78, z]);
+      for (const y of [1.55, 4.02]) add(G.box(0.16, 0.12, L - 0.4), frame, [s * 1.17, y, 0]);
+      for (const z of [-2.1, -0.7, 0.7, 2.1]) add(G.box(0.03, 2.3, 0.04), cool, [s * 1.2, 2.78, z]);   // rampes lumineuses
+      add(G.cyl(0.16, 0.16, L - 0.8, 14), tank, [s * 0.95, 1.15, 0], [H, 0, 0]);                  // réservoirs de fluide
+      for (const z of [-2, 0, 2]) add(G.tor(0.165, 0.02, 4, 14), brass, [s * 0.95, 1.15, z]);
+      add(G.tube([[s * 0.95, 1.3, 2.3], [s * 1.15, 2.0, 2.6], [s * 1.18, 3.9, 2.75]], 0.035, 10, 5), copper());
+    }
+    for (const z of [-L / 2 + 0.2, L / 2 - 0.2]) { add(G.box(2.4, 0.14, 0.14), frame, [0, 4.02, z]); add(G.box(2.4, 0.12, 0.14), frame, [0, 1.55, z]); }
+    add(G.rbox(2.55, 0.22, L - 0.1, 0.06), frame, [0, 4.15, 0]);
+    // groupe frigorifique + évents sur le toit
+    add(G.rbox(1.2, 0.5, 1.0, 0.06), dark, [0, 4.5, -1.6]); for (let i = 0; i < 5; i++) add(G.box(1.1, 0.03, 0.04), frame, [0, 4.5, -2.0 + i * 0.2]);
+    for (const x of [-0.3, 0.3]) { add(G.cyl(0.28, 0.28, 0.05, 16), frame, [x, 4.77, -1.6]); add(G.box(0.5, 0.02, 0.06), dark, [x, 4.8, -1.6], [0, x * 3, 0]); }
+    const vents = [];
+    for (const z of [0.6, 1.9]) for (const x of [-0.6, 0.6]) { add(G.cyl(0.11, 0.13, 0.35, 10), frame, [x, 4.42, z]); add(G.cyl(0.16, 0.11, 0.06, 10), brass, [x, 4.62, z]); vents.push(new THREE.Vector3(x, 4.7, z)); }
+    // panneau de contrôle (bout avant)
+    add(G.rbox(0.8, 0.6, 0.08, 0.03), dark, [0, 2.4, L / 2 - 0.05]); for (let i = 0; i < 3; i++) add(G.cyl(0.06, 0.06, 0.03, 10), glow(i === 1 ? '#7dff9a' : '#46c8ff', 2.5), [-0.25 + i * 0.25, 2.5, L / 2 + 0.0], [H, 0, 0]);
+    lamp(add, null, 0, 3.6, -L / 2 - 0.15, glow('#ff3a2a', 2));
+    g.add(k.build());
+    // vitrage givré (transparent, non bloquant pour les collisions de dessus)
+    const frost = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.45, L - 0.45), new THREE.MeshStandardMaterial({ color: '#d4f0ff', transparent: true, opacity: 0.32, roughness: 0.25, metalness: 0.1, emissive: '#1a5a7a', emissiveIntensity: 0.35, depthWrite: false }));
+    frost.position.y = 2.78; frost.renderOrder = 2; g.add(frost);
+    extra.vents = vents; extra.cargoAnchor = anchor(g, 0, 1.53, 0);
   } else if (type === 'dortoir') {
     const c = mat('#2f4f6b', { roughness: 0.45 }), c2 = mat('#223a50', { roughness: 0.5 }), warm = glow('#ffcf7a', 1.4), curtain = mat('#c9503a', { roughness: 0.9 });
     add(G.rbox(2.5, 2.4, L, 0.15), c, [0, 2.35, 0]);
@@ -484,8 +594,8 @@ export function buildWagonModel(type, colorHint) {
     g.add(k.build());
   }
   const wheels = [];
-  for (const z of [-L / 2 + 0.75, -L / 2 + 1.65, L / 2 - 1.65, L / 2 - 0.75]) for (const s of [-1, 1]) { const w = wheel(0.45, { spokes: 8, counter: false, paint: '#2b2b2b' }); w.position.set(s * 0.95, 0.45, z); g.add(w); wheels.push(w); }
-  g.userData = { ...extra, wheels, length: L + 0.9 };
+  for (const z of [-L / 2 + 0.75, -L / 2 + 1.65, L / 2 - 1.65, L / 2 - 0.75]) for (const s of [-1, 1]) wheels.push(seatWheel(g, wheel(0.45, { spokes: 8, counter: false, paint: '#2b2b2b' }), s, 0.45, z));
+  g.userData = { ...extra, wheels, length: L + 0.9, hookFront: L / 2 + 0.45, hookRear: -L / 2 - 0.45, hookY: 0.95 };
   g.traverse(o => { if (o.isMesh) o.castShadow = !o.material.transparent; });
   return g;
 }

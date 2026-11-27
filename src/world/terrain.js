@@ -38,6 +38,13 @@ export function rawHeight(x, z) {
 export class Terrain {
   constructor(network) {
     this.net = network;
+    // fins de voie (terminus, épis) : plate-forme aplanie autour du heurtoir — le sol (maillé à ~9 m) ne doit pas recouvrir les rails
+    for (const n of network.nodes.values()) {
+      if (n.edges.length !== 1 || n.kind === 'hub') continue;
+      const e = network.edges[n.edges[0]], atB = e.b === n.id, P = e.pts, end = atB ? P[P.length - 1] : P[0], pr = atB ? P[P.length - 6] : P[5];
+      const dx = end.x - pr.x, dz = end.z - pr.z, L = Math.hypot(dx, dz) || 1;
+      this.flatten({ x: end.x + dx / L * 3, z: end.z + dz / L * 3, r: 16, fall: 34, y: end.y - 0.75 });
+    }
   }
 
   // Après construction : hauteur EXACTE du maillage affiché (triangles), pour que rien ne flotte ni ne s'enfonce

@@ -189,7 +189,7 @@ export class Network {
     // monde 4 (Western) : boucle X4 -> Y4 côté +, arrivée de la liaison du monde 3 en N4
     const eSJ4 = this.edges.find(e => e.a === 'S4' && e.b === 'J4'), eJK4 = this.edges.find(e => e.a === 'J4' && e.b === 'K4');
     this.split(eSJ4, 300, 'X4', { kind: 'junction', world: 4 });
-    const y4 = this.split(eJK4, 800, 'Y4', { kind: 'junction', world: 4 });
+    const y4 = this.split(eJK4, 840, 'Y4', { kind: 'junction', world: 4 });
     this.split(y4.e2, 1010, 'N4', { kind: 'junction', world: 4 });
     // monde 5 (Gelure) : boucle P5 -> R5 côté +, départ de la liaison vers le monde 6 en Q5
     const eSJ5 = this.edges.find(e => e.a === 'S5' && e.b === 'J5');
@@ -197,7 +197,7 @@ export class Network {
     const q5 = this.split(p5.e2, 480, 'Q5', { kind: 'junction', world: 5 });
     this.split(q5.e2, 700, 'R5', { kind: 'junction', world: 5 });
     const tg = id => { const n = this.nodes.get(id), e = this.edges[n.edges.find(x => this.edges[x].kind === 'main' && this.edges[x].a === id)]; return new THREE.Vector2(e.tA.x, e.tA.z); };
-    this.edge('X4', 'Y4', { tA: tg('X4'), tB: tg('Y4'), via: [v2(4, 450, 52), v2(4, 560, 82), v2(4, 680, 58)], biome: 4, kind: 'branch', brA: true, brB: true });
+    this.edge('X4', 'Y4', { tA: tg('X4'), tB: tg('Y4'), via: [v2(4, 440, 40), v2(4, 560, 54), v2(4, 690, 66)], biome: 4, kind: 'branch', brA: true, brB: true });
     this.edge('P5', 'R5', { tA: tg('P5'), tB: tg('R5'), via: [v2(5, 380, 48), v2(5, 480, 68), v2(5, 590, 50)], biome: 5, kind: 'branch', brA: true, brB: true });
     // liaisons entre mondes voisins (sens sortant) : Q_i -> U_{i+1}
     const linkTo = { 0: 'U1', 1: 'U2', 2: 'U3', 3: 'N4', 5: 'U6', 6: 'U7', 7: 'U0' };

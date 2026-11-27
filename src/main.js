@@ -29,6 +29,7 @@ import { createAirField } from './world/airfield.js';
 import { createDiag } from './ui/diag.js';
 import { WORLD_LORE, HUB_LORE, LOADING_TIPS } from './data/lore.js';
 import { COLLIDERS, trainBodies, vehicleTop } from './world/colliders.js';
+import * as GUARD from './world/guardians.js'; window.__guard = GUARD; // TEMP banc de test des gardiens
 import { buildLife } from './world/life.js';
 import { buildDormant } from './world/dormant.js';
 import { Footprints } from './game/footprints.js';
@@ -877,7 +878,7 @@ function frame() {
       if (train.turnAround()) { audio.whistle(0.5); audio.noiseBurst(audio.now, 1.2, 900, 0.6, 0.5, 'lowpass'); for (let k = 0; k < 40; k++) steam.emit(train.loco.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 6, 0.5, (Math.random() - 0.5) * 6)), new THREE.Vector3((Math.random() - 0.5) * 3, 2 + Math.random() * 3, (Math.random() - 0.5) * 3), { life: 1.6, size: 2.2, color: '#ffffff', alpha: 0.7 }); ui.toast('Vérin de retournement : demi-tour !'); }
       else { audio.deny(); ui.toast(Math.abs(train.speed) >= 0.6 ? 'Arrête le train pour faire demi-tour.' : 'Pas ici : tout le train doit être sur les rails (éloigne-toi du butoir).'); }
     }
-    if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit(train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1)), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
+    if (input.ah('whistle')) { audio.whistle(1.3); netc.send({ t: 'event', e: 'whistle' }); for (let k = 0; k < 25; k++) steam.emit((train.loco.userData.whistle ? train.loco.userData.whistle.getWorldPosition(new THREE.Vector3()) : train.loco.localToWorld(new THREE.Vector3(0.5, 3.4, 1))), new THREE.Vector3(Math.random() * 2, 4 + Math.random() * 3, 0), { life: 1.2, size: 1.2, color: '#fff', alpha: 0.8 }); }
     if (input.ah('interact')) { player.mode = 'foot'; cabFace = 0; cabTurn = 0; const side = train.loco.localToWorld(new THREE.Vector3(2.6, 0, train.loco.userData.cab.z)); player.pos.copy(side); player.pos.y = player.groundAt(side.x, side.z) + 0.5; audio.clunk(); input.consume('interact'); }
   }
   if (!(player.mode === 'cab') && Math.abs(train.speed) > 0.1) tin.brake = true; // frein automatique sans conducteur
